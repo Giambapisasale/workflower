@@ -99,7 +99,49 @@ def _euro(valore: float) -> str:
     return testo.replace(",", "\x00").replace(".", ",").replace("\x00", ".")
 
 
-def _disegna(percorso: Path, spec: dict[str, Any]) -> None:
+def _quantita(testo: str | None) -> tuple[float | None, str | None]:
+    """'60 m3' → (60.0, 'm3'); None o non numerica → (None, None)."""
+    if not testo:
+        return None, None
+    numero, _, unita = testo.partition(" ")
+    try:
+        return float(numero.replace(".", "").replace(",", ".")), (unita or None)
+    except ValueError:
+        return None, None
+
+
+def dati_attesi(spec: dict[str, Any]) -> dict[str, Any]:
+    """La trascrizione corretta (ground truth) attesa dall'estrazione della fixture.
+
+    Fonte unica per il seed del golden set (M5) e per i test: è il dato
+    "validato" contro cui si misura una nuova versione del workflow.
+    """
+    righe = []
+    for descrizione, quantita_testo, importo in spec["righe"]:
+        quantita, unita = _quantita(quantita_testo)
+        righe.append(
+            {
+                "descrizione": descrizione,
+                "quantita": quantita,
+                "unita_misura": unita,
+                "importo": importo,
+                "voce_computo_id": None,
+            }
+        )
+    return {
+        "fornitore_id": spec["atteso"]["fornitore_id"],
+        "cantiere_id": spec["atteso"]["cantiere_id"],
+        "numero": spec["numero"],
+        "data": spec["atteso"]["data_iso"],
+        "imponibile": spec["imponibile"],
+        "iva": spec["iva"],
+        "totale": spec["totale"],
+        "ritenuta_acconto": spec["ritenuta"],
+        "righe": righe,
+    }
+
+
+def disegna(percorso: Path, spec: dict[str, Any]) -> None:
     foglio = canvas.Canvas(str(percorso), pagesize=A4)
     _, altezza = A4
     y = altezza - 25 * mm
@@ -138,7 +180,7 @@ def genera(destinazione: Path | str) -> list[Path]:
     percorsi = []
     for spec in FIXTURES:
         percorso = cartella / spec["file"]
-        _disegna(percorso, spec)
+        disegna(percorso, spec)
         percorsi.append(percorso)
     return percorsi
 

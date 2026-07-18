@@ -46,6 +46,11 @@ def trova_trace(data_dir: Path | str, run_id: str) -> Path | None:
     return None
 
 
+def _appendi_riga(percorso: Path, record: dict[str, Any]) -> None:
+    with percorso.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
+
 def appendi_feedback_operatore(
     data_dir: Path | str, run_id: str, tipo: str, utente: str, **campi: Any
 ) -> Path | None:
@@ -57,17 +62,82 @@ def appendi_feedback_operatore(
     percorso = trova_trace(data_dir, run_id)
     if percorso is None:
         return None
-    record = {
-        "ts": _adesso(),
-        "run_id": run_id,
-        "evento": "operator_feedback",
-        "tipo": tipo,
-        "utente": utente,
-        **sanitizza(campi),
-    }
-    with percorso.open("a", encoding="utf-8") as file:
-        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    _appendi_riga(
+        percorso,
+        {
+            "ts": _adesso(),
+            "run_id": run_id,
+            "evento": "operator_feedback",
+            "tipo": tipo,
+            "utente": utente,
+            **sanitizza(campi),
+        },
+    )
     return percorso
+
+
+def appendi_feedback_campo(
+    data_dir: Path | str, run_id: str, campo: str, nota: str, utente: str
+) -> Path | None:
+    """Feedback puntuale dell'admin su un campo estratto (revisione, §3.4)."""
+    percorso = trova_trace(data_dir, run_id)
+    if percorso is None:
+        return None
+    _appendi_riga(
+        percorso,
+        {
+            "ts": _adesso(),
+            "run_id": run_id,
+            "evento": "field_feedback",
+            "campo": campo,
+            "nota": sanitizza(nota),
+            "utente": utente,
+        },
+    )
+    return percorso
+
+
+def leggi_eventi(
+    data_dir: Path | str, run_id: str, tipi: set[str] | None = None
+) -> list[dict[str, Any]]:
+    """Eventi del trace di un run, in ordine, opzionalmente filtrati per tipo."""
+    percorso = trova_trace(data_dir, run_id)
+    if percorso is None:
+        return []
+    eventi = []
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            record = json.loads(riga)
+        except json.JSONDecodeError:
+            continue
+        if tipi is None or record.get("evento") in tipi:
+            eventi.append(record)
+    return eventi
+
+
+def statistiche_run(data_dir: Path | str) -> dict[str, dict[str, int]]:
+    """Conteggio run per workflow (totale, ok, errore) scandendo i trace."""
+    stats: dict[str, dict[str, int]] = {}
+    for percorso in (Path(data_dir) / "traces").glob("*/*/*.jsonl"):
+        workflow, outcome = None, None
+        for riga in percorso.read_text(encoding="utf-8").splitlines():
+            try:
+                record = json.loads(riga)
+            except json.JSONDecodeError:
+                continue
+            if record.get("evento") == "run_start":
+                workflow = record.get("workflow")
+            elif record.get("evento") == "run_end":
+                outcome = record.get("outcome")
+        if not workflow:
+            continue
+        conteggi = stats.setdefault(workflow, {"totale": 0, "ok": 0, "errore": 0})
+        conteggi["totale"] += 1
+        if outcome in ("ok", "errore"):
+            conteggi[outcome] += 1
+    return stats
 
 
 class Tracer:

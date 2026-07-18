@@ -95,6 +95,35 @@ def populate(data_dir: Path) -> None:
                 meta=Meta(validato_da="seed"),
             )
             dal.create(envelope, run_id="seed")
+    _seed_golden(dal)
+
+
+def _seed_golden(dal: DAL) -> None:
+    """Golden set d'esempio: le due fixture senza ritenuta (regressione di base).
+
+    La fixture CON ritenuta è volutamente esclusa: è lo scenario che l'Improver
+    dovrà imparare a gestire (M5), non un caso già validato in passato.
+    """
+    try:
+        from app import fixtures
+    except Exception:
+        return  # reportlab assente (dipendenza dev): il golden serve a demo/M5
+    cartella = dal.data_dir / "blobs" / "golden"
+    cartella.mkdir(parents=True, exist_ok=True)
+    for spec in fixtures.FIXTURES:
+        if spec["ritenuta"] is not None:
+            continue
+        percorso = cartella / spec["file"]
+        fixtures.disegna(percorso, spec)
+        dal.commit_paths([percorso], f"golden: allega originale {spec['file']} [seed]")
+        dal.crea_golden(
+            workflow="carica-fattura",
+            version="1.0",
+            doc=f"blobs/golden/{spec['file']}",
+            entity_tipo="fattura",
+            atteso=fixtures.dati_attesi(spec),
+            validato_da="seed",
+        )
 
 
 def run_seed(data_dir: Path) -> None:

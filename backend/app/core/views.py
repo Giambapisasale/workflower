@@ -5,9 +5,40 @@ rileggono i file JSON a ogni query — nessuna cache, dati sempre freschi.
 Le query passano dalle viste, mai dai file grezzi (ADR-1).
 """
 
+from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import duckdb
+
+
+def _semplice(valore: Any) -> Any:
+    if isinstance(valore, datetime | date):
+        return valore.isoformat()
+    if isinstance(valore, Decimal):
+        return float(valore)
+    return valore
+
+
+def query(
+    data_dir: Path | str, sql: str, parametri: list[Any] | None = None
+) -> list[dict[str, Any]]:
+    """Query di lettura interna (SQL scritto dal codice, non dal modello).
+
+    Per i cruscotti e le statistiche: nessun guardrail perché la query è
+    fidata. Le domande in linguaggio naturale passano invece da ``interroga``.
+    """
+    conn = connect(data_dir)
+    try:
+        cursore = conn.execute(sql, parametri or [])
+        colonne = [c[0] for c in cursore.description]
+        return [
+            {c: _semplice(v) for c, v in zip(colonne, riga, strict=True)}
+            for riga in cursore.fetchall()
+        ]
+    finally:
+        conn.close()
 
 
 def connect(data_dir: Path | str) -> duckdb.DuckDBPyConnection:

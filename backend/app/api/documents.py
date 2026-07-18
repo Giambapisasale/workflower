@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_dal, get_runtime, utente_corrente
 from app.core.auth import Utente
-from app.core.dal import DAL, ENTITY_TYPES, DalError
+from app.core.dal import DAL, DalError, tipo_da_id
 from app.core.runtime import WorkflowRuntime
 from app.core.tools import salva_bozza
 from app.core.tracer import appendi_feedback_operatore
@@ -141,7 +141,7 @@ def _elabora(dal: DAL, runtime: WorkflowRuntime, doc_id: str, blob_rel: str, run
             {
                 "esito": esito.esito,
                 "entity_id": esito.entity_id,
-                "entity_tipo": _tipo_da_id(esito.entity_id),
+                "entity_tipo": tipo_da_id(esito.entity_id),
                 "richiede_revisione": esito.richiede_revisione,
                 "issue_id": esito.issue_id,
             }
@@ -151,15 +151,6 @@ def _elabora(dal: DAL, runtime: WorkflowRuntime, doc_id: str, blob_rel: str, run
         dal.update(envelope, run_id=run_id)
     except Exception:
         logger.exception("aggiornamento documento %s fallito dopo il run %s", doc_id, run_id)
-
-
-def _tipo_da_id(entity_id: str | None) -> str | None:
-    if not entity_id:
-        return None
-    for tipo, spec in ENTITY_TYPES.items():
-        if spec["id"].fullmatch(entity_id):
-            return tipo
-    return None
 
 
 def _nome_sicuro(nome: str | None) -> str:

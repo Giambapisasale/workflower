@@ -50,6 +50,16 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
 }
 
 
+def tipo_da_id(entity_id: str | None) -> str | None:
+    """Il tipo entità dedotto dal formato dell'id (es. ``FT-…`` → ``fattura``)."""
+    if not entity_id:
+        return None
+    for tipo, spec in ENTITY_TYPES.items():
+        if spec["id"].fullmatch(entity_id):
+            return tipo
+    return None
+
+
 class DalError(Exception):
     """Errore generico del DAL."""
 
@@ -180,13 +190,8 @@ class DAL:
         """Apre una segnalazione in ``data/issues/`` (id progressivo ISS-nnnn)."""
         with self._write_lock:
             cartella = self.data_dir / "issues"
-            progressivi = [0]
-            for percorso in cartella.glob("ISS-*.json"):
-                coda = percorso.stem.rsplit("-", 1)[-1]
-                if coda.isdigit():
-                    progressivi.append(int(coda))
             issue = Issue(
-                id=f"ISS-{max(progressivi) + 1:04d}",
+                id=self._prossimo_id_progressivo(cartella, "ISS"),
                 origine=origine,
                 testo=testo,
                 run_id=run_id,
@@ -199,6 +204,63 @@ class DAL:
                 f"issue {issue.id}: crea [{run_id or 'manual'}]",
             )
         return issue
+
+    def list_issues(self) -> list[Issue]:
+        """Tutte le segnalazioni in ``data/issues/`` (per la coda admin)."""
+        cartella = self.data_dir / "issues"
+        return [
+            Issue.model_validate_json(p.read_text(encoding="utf-8"))
+            for p in sorted(cartella.glob("ISS-*.json"))
+        ]
+
+    def chiudi_issue(self, issue_id: str, run_id: str | None = None) -> Issue:
+        """Segna una segnalazione come chiusa (azione admin)."""
+        with self._write_lock:
+            percorso = self.data_dir / "issues" / f"{issue_id}.json"
+            if not percorso.is_file():
+                raise NotFoundError(f"issue {issue_id} non trovata")
+            issue = Issue.model_validate_json(percorso.read_text(encoding="utf-8"))
+            issue.stato = "chiusa"
+            self._committa_json(
+                percorso,
+                issue.model_dump(mode="json"),
+                f"issue {issue.id}: chiudi [{run_id or 'manual'}]",
+            )
+        return issue
+
+    def crea_golden(
+        self,
+        workflow: str,
+        version: str,
+        doc: str,
+        entity_tipo: str,
+        atteso: dict[str, Any],
+        run_id: str | None = None,
+        entity_id: str | None = None,
+        validato_da: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggiunge un caso al golden set (id progressivo GOLD-nnnn)."""
+        with self._write_lock:
+            cartella = self.data_dir / "golden"
+            cartella.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "id": self._prossimo_id_progressivo(cartella, "GOLD"),
+                "workflow": workflow,
+                "version": str(version),
+                "doc": doc,
+                "entity_tipo": entity_tipo,
+                "atteso": atteso,
+                "run_id": run_id,
+                "entity_id": entity_id,
+                "validato_da": validato_da,
+                "creato": now_iso(),
+            }
+            self._committa_json(
+                cartella / f"{payload['id']}.json",
+                payload,
+                f"golden {payload['id']}: crea [{run_id or 'manual'}]",
+            )
+        return payload
 
     def commit_paths(self, percorsi: list[Path | str], message: str) -> None:
         """Committa file già scritti dentro ``data/`` (trace, dataset, blob).
@@ -218,6 +280,16 @@ class DAL:
             self.repo.index.commit(message, author=GIT_AUTHOR, committer=GIT_AUTHOR)
 
     # ------------------------------------------------------------ interni
+
+    @staticmethod
+    def _prossimo_id_progressivo(cartella: Path, prefisso: str, cifre: int = 4) -> str:
+        """Primo id libero ``PREFISSO-nnnn`` nella cartella (issues, golden, patch…)."""
+        progressivi = [0]
+        for percorso in cartella.glob(f"{prefisso}-*.json"):
+            coda = percorso.stem.rsplit("-", 1)[-1]
+            if coda.isdigit():
+                progressivi.append(int(coda))
+        return f"{prefisso}-{max(progressivi) + 1:0{cifre}d}"
 
     def _spec(self, tipo: str) -> dict[str, Any]:
         try:

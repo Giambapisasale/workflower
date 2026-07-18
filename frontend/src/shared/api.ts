@@ -67,15 +67,15 @@ export function chiudiSessione(): void {
   localStorage.removeItem(CHIAVE_SESSIONE);
 }
 
-async function esegui<T>(percorso: string, init: RequestInit = {}): Promise<T> {
+export async function richiesta<T>(percorso: string, init: RequestInit = {}): Promise<T> {
   const sessione = sessioneCorrente();
   const headers = new Headers(init.headers);
   if (sessione) headers.set("Authorization", `Bearer ${sessione.token}`);
   const risposta = await fetch(`${API_BASE}${percorso}`, { ...init, headers });
   if (risposta.status === 401 && sessione) {
-    // sessione scaduta: si riparte dal login
+    // sessione scaduta: si riparte dal login (operatore o admin secondo il contesto)
     chiudiSessione();
-    window.location.assign("/op");
+    window.location.assign(window.location.pathname.startsWith("/admin") ? "/admin" : "/op");
   }
   if (!risposta.ok) {
     let dettaglio = `richiesta fallita (${risposta.status})`;
@@ -88,6 +88,18 @@ async function esegui<T>(percorso: string, init: RequestInit = {}): Promise<T> {
     throw new ErroreApi(dettaglio, risposta.status);
   }
   return (await risposta.json()) as T;
+}
+
+const esegui = richiesta;
+
+/** Scarica un blob (PDF/immagine) con l'autenticazione della sessione. */
+export async function richiestaBlob(percorso: string): Promise<Blob> {
+  const sessione = sessioneCorrente();
+  const headers = new Headers();
+  if (sessione) headers.set("Authorization", `Bearer ${sessione.token}`);
+  const risposta = await fetch(`${API_BASE}${percorso}`, { headers });
+  if (!risposta.ok) throw new ErroreApi(`richiesta fallita (${risposta.status})`, risposta.status);
+  return risposta.blob();
 }
 
 function corpoJson(dati: unknown): RequestInit {
