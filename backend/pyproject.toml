@@ -6,6 +6,10 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "jsonschema>=4.23",
+    "GitPython>=3.1.43",
+    "duckdb>=1.1",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +26,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+app = ["seed_assets/**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -31,3 +38,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]

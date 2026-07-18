@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fattura",
+  "description": "Fattura passiva di un fornitore imputata a un cantiere",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fornitore_id",
+    "cantiere_id",
+    "numero",
+    "data",
+    "imponibile",
+    "iva",
+    "totale",
+    "ritenuta_acconto",
+    "righe"
+  ],
+  "properties": {
+    "fornitore_id": { "type": "string", "pattern": "^FRN-\\d{3,}$" },
+    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "numero": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Numero documento come stampato in fattura"
+    },
+    "data": { "type": "string", "format": "date", "description": "Data di emissione (ISO 8601)" },
+    "imponibile": { "type": "number", "description": "Totale imponibile in euro" },
+    "iva": { "type": "number", "minimum": 0, "description": "Importo IVA in euro" },
+    "totale": { "type": "number", "description": "Totale documento: imponibile + IVA" },
+    "ritenuta_acconto": {
+      "type": ["number", "null"],
+      "description": "Ritenuta d'acconto indicata in calce, in euro; null se assente"
+    },
+    "righe": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["descrizione", "importo"],
+        "properties": {
+          "descrizione": { "type": "string", "minLength": 1 },
+          "quantita": { "type": ["number", "null"] },
+          "unita_misura": { "type": ["string", "null"] },
+          "importo": {
+            "type": "number",
+            "description": "Importo riga in euro (quantità × prezzo unitario)"
+          },
+          "voce_computo_id": {
+            "type": ["string", "null"],
+            "description": "Riferimento alla voce di computo, se abbinata"
+          }
+        }
+      }
+    }
+  }
+}

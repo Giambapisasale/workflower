@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Fornitore",
+  "description": "Anagrafica di un fornitore",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ragione_sociale", "partita_iva"],
+  "properties": {
+    "ragione_sociale": { "type": "string", "minLength": 1 },
+    "partita_iva": { "type": "string", "pattern": "^\\d{11}$" },
+    "categoria": { "type": ["string", "null"], "description": "Categoria merceologica" },
+    "indirizzo": { "type": ["string", "null"] },
+    "comune": { "type": ["string", "null"] },
+    "pec": { "type": ["string", "null"] },
+    "telefono": { "type": ["string", "null"] }
+  }
+}

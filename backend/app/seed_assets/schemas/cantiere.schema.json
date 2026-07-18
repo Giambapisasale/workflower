@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cantiere",
+  "description": "Anagrafica di un cantiere edile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nome", "indirizzo", "comune", "committente", "budget", "data_inizio"],
+  "properties": {
+    "nome": { "type": "string", "minLength": 1 },
+    "indirizzo": { "type": "string", "minLength": 1 },
+    "comune": { "type": "string", "minLength": 1 },
+    "provincia": { "type": ["string", "null"], "pattern": "^[A-Z]{2}$" },
+    "committente": { "type": "string", "minLength": 1 },
+    "budget": { "type": "number", "minimum": 0, "description": "Budget complessivo in euro" },
+    "data_inizio": { "type": "string", "format": "date" },
+    "data_fine_prevista": { "type": ["string", "null"], "format": "date" },
+    "capocantiere": { "type": ["string", "null"] }
+  }
+}

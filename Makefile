@@ -29,8 +29,8 @@ dev-web:
 test: ## Test backend (pytest)
 	$(PY) -m pytest backend/tests
 
-seed: ## Crea il repo dati d'esempio (da M1)
-	@echo make seed: disponibile dalla milestone M1
+seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
+	$(PY) -m app.seed
 
 lint: ## Ruff (backend) + ESLint (frontend)
 	$(PY) -m ruff check backend
