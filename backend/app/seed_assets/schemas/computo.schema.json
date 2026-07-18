@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Computo",
+  "description": "Computo metrico estimativo di un cantiere: le voci di lavoro previste con quantità e prezzi",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cantiere_id", "descrizione", "voci"],
+  "properties": {
+    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "descrizione": { "type": "string", "minLength": 1 },
+    "voci": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "descrizione", "quantita", "prezzo_unitario", "importo"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Identificativo della voce, richiamato da fatture/DDT (voce_computo_id)"
+          },
+          "codice": { "type": ["string", "null"], "description": "Codice di tariffa (es. A.01)" },
+          "descrizione": { "type": "string", "minLength": 1 },
+          "unita_misura": { "type": ["string", "null"] },
+          "quantita": { "type": "number", "description": "Quantità prevista a computo" },
+          "prezzo_unitario": { "type": "number", "description": "Prezzo unitario in euro" },
+          "importo": {
+            "type": "number",
+            "description": "Importo previsto della voce (quantità × prezzo), in euro"
+          },
+          "categoria": {
+            "type": ["string", "null"],
+            "description": "Categoria di lavoro (scavi, strutture, murature, impianti…)"
+          }
+        }
+      }
+    }
+  }
+}

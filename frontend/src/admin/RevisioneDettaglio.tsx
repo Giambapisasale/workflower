@@ -32,6 +32,7 @@ export default function RevisioneDettaglio() {
   const [campoNota, setCampoNota] = useState<string | null>(null);
   const [testoNota, setTestoNota] = useState("");
   const [azione, setAzione] = useState<string | null>(null);
+  const [esitoCollega, setEsitoCollega] = useState<string | null>(null);
 
   useEffect(() => {
     let url: string | null = null;
@@ -68,6 +69,24 @@ export default function RevisioneDettaglio() {
     }
   }
 
+  async function collega() {
+    setAzione("collega");
+    setEsitoCollega(null);
+    try {
+      const r = await admin.collega(id);
+      setEsitoCollega(
+        r.senza_computo
+          ? "Nessun computo per questo cantiere: non c'è un preventivo con cui abbinare."
+          : `Collegate ${r.abbinate} righe su ${r.totali} alle voci di computo.`,
+      );
+      ricarica();
+    } catch {
+      setEsitoCollega("Non è stato possibile collegare le righe. Riprova.");
+    } finally {
+      setAzione(null);
+    }
+  }
+
   async function inviaNota(e: FormEvent) {
     e.preventDefault();
     if (!campoNota || !testoNota.trim()) return;
@@ -96,6 +115,11 @@ export default function RevisioneDettaglio() {
         </div>
         <div className="flex gap-2">
           <Bottone onClick={() => setMostraJson((v) => !v)}>{mostraJson ? "Nascondi dati" : "Mostra dati"}</Bottone>
+          {!rev.validato && (rev.tipo === "fattura" || rev.tipo === "ddt") && (
+            <Bottone onClick={collega} disabled={azione === "collega"}>
+              {azione === "collega" ? "Abbino…" : "Collega al computo"}
+            </Bottone>
+          )}
           {!rev.validato && (
             <Bottone variante="primario" onClick={valida} disabled={azione === "valida"}>
               {azione === "valida" ? "Salvo…" : "Salva come validato"}
@@ -103,6 +127,12 @@ export default function RevisioneDettaglio() {
           )}
         </div>
       </div>
+
+      {esitoCollega ? (
+        <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+          {esitoCollega}
+        </div>
+      ) : null}
 
       {rev.issue ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

@@ -14,12 +14,14 @@ import Interroga from "./Interroga";
 import Log from "./Log";
 import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
+import Scostamenti from "./Scostamenti";
 import Segnalazioni from "./Segnalazioni";
 import { Bottone } from "./ui";
 import Workflows from "./Workflows";
 
 const VOCI = [
   { a: "/admin", etichetta: "Cruscotto", fine: true },
+  { a: "/admin/scostamenti", etichetta: "Scostamenti", fine: false },
   { a: "/admin/revisione", etichetta: "Revisione", fine: false },
   { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
   { a: "/admin/interroga", etichetta: "Interroga", fine: false },
@@ -89,6 +91,7 @@ export default function AdminApp() {
       <main className="mx-auto max-w-6xl p-6">
         <Routes>
           <Route index element={<Cruscotto />} />
+          <Route path="scostamenti" element={<Scostamenti />} />
           <Route path="revisione" element={<Revisione />} />
           <Route path="revisione/:id" element={<RevisioneDettaglio />} />
           <Route path="segnalazioni" element={<Segnalazioni />} />

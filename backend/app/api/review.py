@@ -14,9 +14,13 @@ from pydantic import BaseModel
 
 from app.api.deps import get_dal, richiedi_admin
 from app.core.auth import Utente
+from app.core.collega import Collega
 from app.core.dal import DAL, DalError, tipo_da_id
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
 from app.models.envelope import Envelope
+
+# Entità con righe collegabili alle voci di computo (hanno voce_computo_id).
+TIPI_COLLEGABILI = ("fattura", "ddt")
 
 router = APIRouter(tags=["review"])
 
@@ -180,6 +184,21 @@ def feedback_campo(
         raise HTTPException(status_code=404, detail="trace del run non trovato")
     dal.commit_paths([percorso], f"trace {run_id}: feedback revisione [{run_id}]")
     return {"ok": True}
+
+
+@router.post("/review/{entity_id}/collega")
+def collega_voci(
+    entity_id: str,
+    _admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, Any]:
+    """Abbina le righe della bozza alle voci di computo del cantiere (M9)."""
+    tipo, _entita_env = _entita(dal, entity_id)
+    if tipo not in TIPI_COLLEGABILI:
+        raise HTTPException(
+            status_code=422, detail="il collegamento al computo vale solo per fatture e DDT"
+        )
+    return Collega(dal).abbina(tipo, entity_id)
 
 
 @router.post("/review/{entity_id}/validate")

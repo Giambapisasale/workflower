@@ -227,3 +227,83 @@ FROM (
         }
     )
 );
+
+CREATE OR REPLACE VIEW v_computo AS
+SELECT id,
+       stato,
+       dati.cantiere_id AS cantiere_id,
+       dati.descrizione AS descrizione,
+       len(dati.voci)   AS n_voci,
+       list_sum(list_transform(dati.voci, v -> v.importo)) AS importo_previsto,
+       meta.validato_da AS validato_da
+FROM read_json(
+    '${DATA_DIR}/entities/computi/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            cantiere_id VARCHAR, descrizione VARCHAR,
+            voci STRUCT(
+                id VARCHAR, codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR,
+                quantita DOUBLE, prezzo_unitario DOUBLE, importo DOUBLE, categoria VARCHAR
+            )[]
+        )',
+        meta: 'STRUCT(validato_da VARCHAR)'
+    }
+);
+
+CREATE OR REPLACE VIEW v_computo_voci AS
+SELECT computo_id,
+       cantiere_id,
+       id           AS voce_id,
+       codice,
+       descrizione,
+       unita_misura,
+       quantita,
+       prezzo_unitario,
+       importo      AS previsto,
+       categoria
+FROM (
+    SELECT id               AS computo_id,
+           dati.cantiere_id AS cantiere_id,
+           unnest(dati.voci, recursive := true)
+    FROM read_json(
+        '${DATA_DIR}/entities/computi/*.json',
+        columns = {
+            id: 'VARCHAR',
+            dati: 'STRUCT(
+                cantiere_id VARCHAR,
+                voci STRUCT(
+                    id VARCHAR, codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR,
+                    quantita DOUBLE, prezzo_unitario DOUBLE, importo DOUBLE, categoria VARCHAR
+                )[]
+            )'
+        }
+    )
+);
+
+CREATE OR REPLACE VIEW v_scostamento_voci AS
+SELECT vc.cantiere_id            AS cantiere_id,
+       vc.voce_id                AS voce_id,
+       vc.codice                 AS codice,
+       vc.descrizione            AS descrizione,
+       vc.categoria              AS categoria,
+       vc.previsto               AS previsto,
+       COALESCE(sp.consuntivo, 0) AS consuntivo,
+       COALESCE(sp.consuntivo, 0) - vc.previsto AS delta,
+       CASE WHEN vc.previsto > 0 THEN COALESCE(sp.consuntivo, 0) / vc.previsto END AS quota
+FROM v_computo_voci vc
+LEFT JOIN (
+    SELECT cantiere_id, voce_computo_id, SUM(importo) AS consuntivo
+    FROM v_fatture_righe
+    WHERE voce_computo_id IS NOT NULL
+    GROUP BY cantiere_id, voce_computo_id
+) sp ON sp.cantiere_id = vc.cantiere_id AND sp.voce_computo_id = vc.voce_id;
+
+CREATE OR REPLACE VIEW v_cantiere_scostamento AS
+SELECT cantiere_id,
+       SUM(previsto)                 AS previsto,
+       SUM(consuntivo)               AS consuntivo_abbinato,
+       SUM(consuntivo) - SUM(previsto) AS delta
+FROM v_scostamento_voci
+GROUP BY cantiere_id;

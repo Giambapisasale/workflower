@@ -15,13 +15,23 @@ from git import Repo
 from app.core.auth import hash_pin
 from app.core.dal import DAL, GIT_AUTHOR
 from app.models.envelope import Envelope, Meta
-from app.seed_data import CANTIERI, DDT, FATTURE, FORNITORI, RAPPORTINI, SAL, UTENTI
+from app.seed_data import (
+    CANTIERI,
+    COMPUTI,
+    DDT,
+    FATTURE,
+    FORNITORI,
+    RAPPORTINI,
+    SAL,
+    UTENTI,
+)
 
 ASSETS = Path(__file__).parent / "seed_assets"
 
 SKELETON = [
     "entities/cantieri",
     "entities/fornitori",
+    "entities/computi",
     "entities/fatture/2026",
     "entities/ddt/2026",
     "entities/sal/2026",
@@ -91,6 +101,7 @@ def populate(data_dir: Path) -> None:
     per_tipo = (
         ("cantiere", CANTIERI),
         ("fornitore", FORNITORI),
+        ("computo", COMPUTI),
         ("fattura", FATTURE),
         ("ddt", DDT),
         ("sal", SAL),
@@ -151,6 +162,7 @@ def main() -> None:
     print(f"Repo dati creato in {data_dir}:")
     print(f"  cantieri:  {len(CANTIERI)}")
     print(f"  fornitori: {len(FORNITORI)}")
+    print(f"  computi:   {len(COMPUTI)} (validati)")
     print(f"  fatture:   {len(FATTURE)} (validate)")
     print(f"  ddt:       {len(DDT)} (validate)")
     print(f"  sal:       {len(SAL)} (validati)")

@@ -150,6 +150,35 @@ export type DatasetStats = {
 
 export type GruppoQuery = { fingerprint: string; conteggio: number; esempio: string };
 
+export type ScostamentoCantiere = {
+  cantiere_id: string;
+  cantiere: string | null;
+  previsto: number;
+  consuntivo: number;
+  delta: number;
+};
+
+export type ScostamentoVoce = {
+  cantiere_id: string;
+  voce_id: string;
+  codice: string | null;
+  descrizione: string;
+  categoria: string | null;
+  previsto: number;
+  consuntivo: number;
+  delta: number;
+  quota: number | null;
+};
+
+export type Scostamenti = { per_cantiere: ScostamentoCantiere[]; voci: ScostamentoVoce[] };
+
+export type EsitoCollega = {
+  abbinate: number;
+  totali: number;
+  senza_computo?: boolean;
+  dettaglio: { riga: number; voce_id: string | null; punteggio: number }[];
+};
+
 export const admin = {
   cruscotto: () => richiesta<Cruscotto>("/dashboard/costs"),
 
@@ -200,6 +229,13 @@ export const admin = {
 
   rifiuta: (id: string) =>
     richiesta<{ stato: string }>(`/patches/${id}/reject`, corpo({})),
+
+  scostamenti: (cantiereId?: string) =>
+    richiesta<Scostamenti>(
+      `/dashboard/scostamenti${cantiereId ? `?cantiere_id=${cantiereId}` : ""}`,
+    ),
+
+  collega: (id: string) => richiesta<EsitoCollega>(`/review/${id}/collega`, corpo({})),
 
   datasetStats: () => richiesta<DatasetStats>("/dataset/stats"),
 

@@ -7,7 +7,7 @@ Le viste rileggono i file a ogni query, quindi i numeri sono sempre freschi.
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_data_dir, richiedi_admin
 from app.core.auth import Utente
@@ -67,4 +67,41 @@ def costi(
         "totali": totali,
         "per_cantiere": per_cantiere,
         "per_fornitore": query(data_dir, SQL_PER_FORNITORE),
+    }
+
+
+SQL_SCOSTAMENTO_CANTIERI = """
+SELECT s.cantiere_id            AS cantiere_id,
+       c.nome                   AS cantiere,
+       s.previsto               AS previsto,
+       s.consuntivo_abbinato    AS consuntivo,
+       s.delta                  AS delta
+FROM v_cantiere_scostamento s
+LEFT JOIN v_cantieri c ON c.id = s.cantiere_id
+ORDER BY s.previsto DESC
+"""
+
+SQL_SCOSTAMENTO_VOCI = """
+SELECT cantiere_id, voce_id, codice, descrizione, categoria,
+       previsto, consuntivo, delta, quota
+FROM v_scostamento_voci
+"""
+
+
+@router.get("/dashboard/scostamenti")
+def scostamenti(
+    cantiere_id: str | None = Query(default=None),
+    _admin: Utente = Depends(richiedi_admin),
+    data_dir: Path = Depends(get_data_dir),
+) -> dict[str, Any]:
+    """Confronto computo/consuntivo: previsto vs speso, per cantiere e per voce."""
+    voci_sql = SQL_SCOSTAMENTO_VOCI
+    parametri: list[Any] = []
+    if cantiere_id:
+        voci_sql += " WHERE cantiere_id = ?"
+        parametri.append(cantiere_id)
+    voci_sql += " ORDER BY consuntivo DESC, previsto DESC"
+    return {
+        "per_cantiere": query(data_dir, SQL_SCOSTAMENTO_CANTIERI),
+        "voci": query(data_dir, voci_sql, parametri),
     }

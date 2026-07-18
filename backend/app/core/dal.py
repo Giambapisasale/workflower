@@ -35,6 +35,12 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": False,
         "fmt": lambda anno, n: f"FRN-{n:03d}",
     },
+    "computo": {
+        "dir": "computi",
+        "id": re.compile(r"^CMP-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"CMP-{n:03d}",
+    },
     "fattura": {
         "dir": "fatture",
         "id": re.compile(r"^FT-\d{4}-\d{4,}$"),

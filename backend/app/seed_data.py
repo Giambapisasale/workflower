@@ -168,7 +168,7 @@ FATTURE: list[dict[str, Any]] = [
                     "quantita": 85,
                     "unita_misura": "m3",
                     "importo": 8330.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC1-02",
                 }
             ],
         },
@@ -190,14 +190,14 @@ FATTURE: list[dict[str, Any]] = [
                     "quantita": 420,
                     "unita_misura": "pz",
                     "importo": 5250.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC2-02",
                 },
                 {
                     "descrizione": "Malta premiscelata M10",
                     "quantita": 60,
                     "unita_misura": "sacco",
                     "importo": 468.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC2-02",
                 },
             ],
         },
@@ -241,7 +241,7 @@ FATTURE: list[dict[str, Any]] = [
                     "quantita": None,
                     "unita_misura": None,
                     "importo": 4000.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC1-06",
                 }
             ],
         },
@@ -263,21 +263,21 @@ FATTURE: list[dict[str, Any]] = [
                     "quantita": 500,
                     "unita_misura": "m",
                     "importo": 710.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC2-04",
                 },
                 {
                     "descrizione": "Quadro elettrico di cantiere ASC",
                     "quantita": 1,
                     "unita_misura": "pz",
                     "importo": 980.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC2-04",
                 },
                 {
                     "descrizione": "Manodopera elettricista",
                     "quantita": 24,
                     "unita_misura": "h",
                     "importo": 672.00,
-                    "voce_computo_id": None,
+                    "voce_computo_id": "VC2-04",
                 },
             ],
         },
@@ -382,6 +382,64 @@ RAPPORTINI: list[dict[str, Any]] = [
             "righe": [
                 _ora("Giuseppe Leotta", "Capocantiere", 8, 30.0),
                 _ora("Squadra edile", "Muratura", 16, 24.0),
+            ],
+        },
+    },
+]
+
+def _voce(
+    id: str, codice: str, descrizione: str, um: str | None, quantita: float,
+    prezzo: float, categoria: str,
+) -> dict[str, Any]:
+    """Una voce di computo; l'importo previsto è quantità × prezzo unitario."""
+    return {
+        "id": id,
+        "codice": codice,
+        "descrizione": descrizione,
+        "unita_misura": um,
+        "quantita": quantita,
+        "prezzo_unitario": prezzo,
+        "importo": round(quantita * prezzo, 2),
+        "categoria": categoria,
+    }
+
+
+COMPUTI: list[dict[str, Any]] = [
+    {
+        "id": "CMP-001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "descrizione": "Computo metrico estimativo — Residenza Le Palme",
+            "voci": [
+                _voce("VC1-01", "A.01", "Scavo di sbancamento e splateamento",
+                      "m3", 1200, 8.50, "scavi"),
+                _voce("VC1-02", "B.01", "Calcestruzzo strutturale C25/30 in opera",
+                      "m3", 320, 128.00, "strutture"),
+                _voce("VC1-03", "B.02", "Acciaio per c.a. B450C",
+                      "kg", 28000, 1.35, "strutture"),
+                _voce("VC1-04", "C.01", "Muratura di tamponamento in blocchi",
+                      "m2", 850, 42.00, "murature"),
+                _voce("VC1-05", "D.01", "Impianto elettrico civile",
+                      "a corpo", 1, 68000.00, "impianti"),
+                _voce("VC1-06", "E.01", "Direzione lavori e coordinamento sicurezza",
+                      "a corpo", 1, 45000.00, "tecnici"),
+            ],
+        },
+    },
+    {
+        "id": "CMP-002",
+        "dati": {
+            "cantiere_id": "CNT-002",
+            "descrizione": "Computo metrico estimativo — Scuola Manzoni",
+            "voci": [
+                _voce("VC2-01", "A.01", "Demolizioni e rimozioni",
+                      "a corpo", 1, 42000.00, "demolizioni"),
+                _voce("VC2-02", "C.01", "Murature e tramezzature interne",
+                      "m2", 620, 38.00, "murature"),
+                _voce("VC2-03", "F.01", "Intonaci e finiture",
+                      "m2", 1100, 22.00, "finiture"),
+                _voce("VC2-04", "D.01", "Impianti elettrici e speciali",
+                      "a corpo", 1, 95000.00, "impianti"),
             ],
         },
     },

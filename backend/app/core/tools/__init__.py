@@ -3,7 +3,7 @@
 from typing import Any
 
 from app.core.dal import DAL
-from app.core.tools import ocr_pdf, ricerca, salva_bozza
+from app.core.tools import computo, ocr_pdf, ricerca, salva_bozza
 from app.core.tools.base import ToolError
 
 __all__ = ["ToolError", "Toolset"]
@@ -22,6 +22,10 @@ class Toolset:
             "cerca_cantiere": (
                 ricerca.SCHEMA_CANTIERE,
                 lambda a: ricerca.cerca_cantiere(dal, **a),
+            ),
+            "cerca_voce_computo": (
+                computo.SCHEMA,
+                lambda a: computo.cerca_voce_computo(dal, **a),
             ),
             "salva_bozza": (salva_bozza.SCHEMA, lambda a: salva_bozza.esegui(dal, **a)),
         }
