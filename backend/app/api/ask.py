@@ -9,6 +9,7 @@ from app.api.deps import get_dal, get_interroga, utente_corrente
 from app.api.documents import nome_cantiere
 from app.core.auth import Utente
 from app.core.dal import DAL
+from app.core.dataset import registra_query
 from app.core.interroga import Interroga, InterrogaError
 
 router = APIRouter(tags=["ask"])
@@ -30,9 +31,11 @@ def ask(
         if not utente.is_admin:
             raise HTTPException(status_code=403, detail="modalità riservata all'ufficio (admin)")
         try:
-            return interroga.esegui(body.question)
+            esito = interroga.esegui(body.question)
         except InterrogaError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        registra_query(dal, body.question, esito["sql"])  # contatore fingerprint (§3.6)
+        return esito
     cantieri = [
         {"id": cid, "nome": nome_cantiere(dal, cid) or cid} for cid in utente.cantieri
     ]

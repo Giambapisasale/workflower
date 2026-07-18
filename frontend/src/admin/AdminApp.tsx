@@ -11,6 +11,7 @@ import {
 import AdminLogin from "./AdminLogin";
 import Cruscotto from "./Cruscotto";
 import Interroga from "./Interroga";
+import Log from "./Log";
 import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
 import Segnalazioni from "./Segnalazioni";
@@ -23,6 +24,7 @@ const VOCI = [
   { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
   { a: "/admin/interroga", etichetta: "Interroga", fine: false },
   { a: "/admin/workflows", etichetta: "Workflows", fine: false },
+  { a: "/admin/log", etichetta: "Log & Dataset", fine: false },
 ];
 
 export default function AdminApp() {
@@ -92,6 +94,7 @@ export default function AdminApp() {
           <Route path="segnalazioni" element={<Segnalazioni />} />
           <Route path="interroga" element={<Interroga />} />
           <Route path="workflows" element={<Workflows />} />
+          <Route path="log" element={<Log />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

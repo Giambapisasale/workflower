@@ -129,6 +129,19 @@ export type EsitoApprovazione = {
   rerun: { run_id: string; entity_id: string | null; esito: string; ritenuta?: number | null } | null;
 };
 
+export type DatasetStats = {
+  run: { totale: number; ok: number; errore: number };
+  llm_call: number;
+  tool_call: number;
+  toolcalls_dataset: number;
+  costo_totale_usd: number;
+  documenti: number;
+  costo_per_documento_usd: number;
+  run_per_workflow: Record<string, number>;
+};
+
+export type GruppoQuery = { fingerprint: string; conteggio: number; esempio: string };
+
 export const admin = {
   cruscotto: () => richiesta<Cruscotto>("/dashboard/costs"),
 
@@ -179,6 +192,13 @@ export const admin = {
 
   rifiuta: (id: string) =>
     richiesta<{ stato: string }>(`/patches/${id}/reject`, corpo({})),
+
+  datasetStats: () => richiesta<DatasetStats>("/dataset/stats"),
+
+  datasetQueries: () =>
+    richiesta<{ gruppi: GruppoQuery[] }>("/dataset/queries").then((r) => r.gruppi),
+
+  scaricaToolcalls: () => richiestaBlob("/dataset/export"),
 };
 
 function corpo(dati: unknown): RequestInit {

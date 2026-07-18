@@ -50,6 +50,10 @@ def test_operatore_mai_su_endpoint_admin(client: TestClient) -> None:
         ("get", "/api/issues"),
         ("get", "/api/workflows"),
         ("get", "/api/runs/run-x/trace"),
+        ("get", "/api/patches"),
+        ("get", "/api/dataset/stats"),
+        ("get", "/api/dataset/queries"),
+        ("get", "/api/dataset/export"),
     ):
         risposta = getattr(client, metodo)(percorso, headers=op)
         assert risposta.status_code == 403, f"{metodo} {percorso} → {risposta.status_code}"

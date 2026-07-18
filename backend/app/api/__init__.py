@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.ask import router as ask_router
 from app.api.auth import router as auth_router
 from app.api.dashboard import router as dashboard_router
+from app.api.dataset import router as dataset_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.issues import router as issues_router
@@ -18,3 +19,4 @@ api_router.include_router(dashboard_router)
 api_router.include_router(review_router)
 api_router.include_router(issues_router)
 api_router.include_router(workflows_router)
+api_router.include_router(dataset_router)
