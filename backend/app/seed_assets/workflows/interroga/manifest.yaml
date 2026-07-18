@@ -1,0 +1,9 @@
+# Workflow "interroga" (POST /ask): domanda in linguaggio naturale → SQL sulle
+# viste → risposta. Non passa dal runtime dei documenti: lo esegue
+# app/core/interroga.py, che da qui prende tier e skill.
+name: interroga
+version: "1.0"
+tier: T2
+skills:
+  sql: skills/generazione-sql.md
+  risposta_operatore: skills/risposta-operatore.md

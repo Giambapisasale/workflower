@@ -39,6 +39,37 @@ def digest_messaggi(messages: list[dict[str, Any]]) -> str:
     return hashlib.sha256(serializzati.encode("utf-8")).hexdigest()[:16]
 
 
+def trova_trace(data_dir: Path | str, run_id: str) -> Path | None:
+    """Percorso del trace di un run, in qualunque mese sia stato scritto."""
+    for percorso in (Path(data_dir) / "traces").glob(f"*/*/{run_id}.jsonl"):
+        return percorso
+    return None
+
+
+def appendi_feedback_operatore(
+    data_dir: Path | str, run_id: str, tipo: str, utente: str, **campi: Any
+) -> Path | None:
+    """Nota post-run sul trace (conferma o segnalazione dell'operatore).
+
+    Il feedback è materia prima dell'Improver (§3.5): vive accanto agli
+    eventi del run. Ritorna il percorso del trace, o ``None`` se non esiste.
+    """
+    percorso = trova_trace(data_dir, run_id)
+    if percorso is None:
+        return None
+    record = {
+        "ts": _adesso(),
+        "run_id": run_id,
+        "evento": "operator_feedback",
+        "tipo": tipo,
+        "utente": utente,
+        **sanitizza(campi),
+    }
+    with percorso.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    return percorso
+
+
 class Tracer:
     def __init__(self, data_dir: Path | str, run_id: str, workflow: str, version: str) -> None:
         self.data_dir = Path(data_dir)

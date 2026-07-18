@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "documento",
+  "description": "Caricamento di un operatore: il blob, chi lo ha portato e l'esito del run che lo ha elaborato. L'entità estratta (es. la fattura) è collegata, non contenuta.",
+  "type": "object",
+  "required": ["file", "nome_originale", "caricato_da", "workflow", "run_id", "esito"],
+  "additionalProperties": false,
+  "properties": {
+    "file": {
+      "type": "string",
+      "description": "Percorso del blob, relativo alla radice del repo dati"
+    },
+    "nome_originale": { "type": "string" },
+    "caricato_da": { "type": "string", "description": "Username dell'operatore" },
+    "cantiere_id": { "type": ["string", "null"] },
+    "workflow": { "type": "string", "description": "Workflow a cui è stato affidato" },
+    "run_id": { "type": "string" },
+    "esito": {
+      "enum": ["in_corso", "ok", "errore"],
+      "description": "Esito del run; in_corso finché l'elaborazione non termina"
+    },
+    "entity_tipo": { "type": ["string", "null"] },
+    "entity_id": {
+      "type": ["string", "null"],
+      "description": "Entità estratta dal run (es. FT-2026-0006), se il salvataggio è avvenuto"
+    },
+    "richiede_revisione": { "type": ["boolean", "null"] },
+    "issue_id": { "type": ["string", "null"] },
+    "conferma": {
+      "type": ["object", "null"],
+      "description": "Il \"è tutto giusto\" dell'operatore: nota, non validazione",
+      "required": ["da", "quando"],
+      "additionalProperties": false,
+      "properties": {
+        "da": { "type": "string" },
+        "quando": { "type": "string" }
+      }
+    },
+    "segnalazione": {
+      "type": ["object", "null"],
+      "description": "Il \"qualcosa non torna\" dell'operatore, agganciato alla issue",
+      "required": ["issue_id", "da", "quando"],
+      "additionalProperties": false,
+      "properties": {
+        "issue_id": { "type": "string" },
+        "da": { "type": "string" },
+        "quando": { "type": "string" }
+      }
+    }
+  }
+}

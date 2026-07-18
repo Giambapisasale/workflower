@@ -4,6 +4,7 @@ Uso: ``make seed`` (o ``python -m app.seed``). Destinazione: ``$DATA_DIR``
 (default ``./data``); la cartella non deve esistere già.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -11,9 +12,10 @@ from pathlib import Path
 
 from git import Repo
 
+from app.core.auth import hash_pin
 from app.core.dal import DAL, GIT_AUTHOR
 from app.models.envelope import Envelope, Meta
-from app.seed_data import CANTIERI, FATTURE, FORNITORI
+from app.seed_data import CANTIERI, FATTURE, FORNITORI, UTENTI
 
 ASSETS = Path(__file__).parent / "seed_assets"
 
@@ -21,7 +23,9 @@ SKELETON = [
     "entities/cantieri",
     "entities/fornitori",
     "entities/fatture/2026",
+    "entities/documenti",
     "blobs/fatture/2026",
+    "blobs/caricati",
     "schemas",
     "workflows",
     "traces/2026",
@@ -49,6 +53,9 @@ def init_data_repo(data_dir: Path) -> None:
     for schema in sorted((ASSETS / "schemas").glob("*.schema.json")):
         shutil.copy(schema, data_dir / "schemas" / schema.name)
     shutil.copy(ASSETS / "config" / "views.sql", data_dir / "config" / "views.sql")
+    (data_dir / "config" / "utenti.json").write_text(
+        json.dumps(_utenti_config(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     shutil.copytree(ASSETS / "workflows", data_dir / "workflows", dirs_exist_ok=True)
     (data_dir / "dataset" / "toolcalls.jsonl").touch()
     (data_dir / "README.md").write_text(README, encoding="utf-8")
@@ -62,6 +69,16 @@ def init_data_repo(data_dir: Path) -> None:
         author=GIT_AUTHOR,
         committer=GIT_AUTHOR,
     )
+
+
+def _utenti_config() -> list[dict[str, object]]:
+    """Gli utenti demo con il PIN sostituito dal suo hash."""
+    utenti = []
+    for spec in UTENTI:
+        record = {k: v for k, v in spec.items() if k != "pin"}
+        record["pin_pbkdf2"] = hash_pin(spec["username"], spec["pin"])
+        utenti.append(record)
+    return utenti
 
 
 def populate(data_dir: Path) -> None:
@@ -95,6 +112,7 @@ def main() -> None:
     print(f"  cantieri:  {len(CANTIERI)}")
     print(f"  fornitori: {len(FORNITORI)}")
     print(f"  fatture:   {len(FATTURE)} (validate)")
+    print(f"  utenti:    {len(UTENTI)} (PIN demo in app/seed_data.py)")
 
 
 if __name__ == "__main__":

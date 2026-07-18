@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Vincolo M3 "a prova di cantiere": corpo del testo mai sotto i 17px. */
+@layer base {
+  html {
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply text-neutral-900;
+  }
+}

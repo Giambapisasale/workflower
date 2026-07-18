@@ -1,9 +1,14 @@
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from fake_llm import FakeCompleter
+from fastapi.testclient import TestClient
 
+from app.core.gateway import Gateway
 from app.fixtures import genera
+from app.main import create_app
 from app.seed import init_data_repo, run_seed
 
 
@@ -44,3 +49,20 @@ def ambiente_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tier LLM configurati con modelli finti (il trasporto nei test è il fake)."""
     monkeypatch.setenv("LLM_T1_MODEL", "test/finto-t1")
     monkeypatch.setenv("LLM_T2_MODEL", "test/finto-t2")
+
+
+@pytest.fixture
+def crea_client(dati_rw: Path, ambiente_llm: None) -> Callable[..., TestClient]:
+    """Factory di TestClient sull'app, con il trasporto LLM che serve al test."""
+
+    def _crea(completer: object | None = None) -> TestClient:
+        gateway = Gateway(completer=completer or FakeCompleter(dati_rw), attesa_retry=0)
+        return TestClient(create_app(data_dir=dati_rw, gateway=gateway))
+
+    return _crea
+
+
+@pytest.fixture
+def client(crea_client: Callable[..., TestClient]) -> TestClient:
+    """App con il fake che sa leggere le fatture delle fixtures."""
+    return crea_client()

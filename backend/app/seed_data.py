@@ -283,3 +283,36 @@ FATTURE: list[dict[str, Any]] = [
         },
     },
 ]
+
+# Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
+# I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
+UTENTI: list[dict[str, Any]] = [
+    {
+        "username": "salvo",
+        "nome": "Salvo Torrisi",
+        "ruolo": "operatore",
+        "cantieri": ["CNT-001"],
+        "pin": "1111",
+    },
+    {
+        "username": "giuseppe",
+        "nome": "Giuseppe Leotta",
+        "ruolo": "operatore",
+        "cantieri": ["CNT-002"],
+        "pin": "2222",
+    },
+    {
+        "username": "marco",
+        "nome": "Marco Finocchiaro",
+        "ruolo": "operatore",
+        "cantieri": ["CNT-003"],
+        "pin": "3333",
+    },
+    {
+        "username": "giovanna",
+        "nome": "Giovanna Russo",
+        "ruolo": "admin",
+        "cantieri": [],
+        "pin": "9999",
+    },
+]

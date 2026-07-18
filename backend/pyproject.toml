@@ -14,6 +14,8 @@ dependencies = [
     "litellm>=1.52,<1.92",
     "pymupdf>=1.24",
     "PyYAML>=6.0",
+    "PyJWT>=2.8",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +45,10 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# l'idioma FastAPI `parametro = Depends(...)` non è una chiamata nel default "vera"
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
