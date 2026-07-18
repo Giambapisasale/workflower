@@ -1,0 +1,24 @@
+# Dati (SoT — repo git separato, creato da `make seed`)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Ambiente
+.env
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

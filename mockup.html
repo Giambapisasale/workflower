@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workflower — wired mockup</title>
+<style>
+  :root{
+    --ink:#1f2328; --mut:#6b7280; --line:#c9ced6; --soft:#f3f4f6;
+    --acc:#2563eb; --ok:#1a7f37; --okbg:#e7f3ea; --warn:#9a6700; --warnbg:#fff3cd;
+    --err:#b42318; --errbg:#fdecea;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;color:var(--ink);background:#fafafa}
+  code,pre,.mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .app{display:flex;min-height:100vh}
+  /* ---------- sidebar ---------- */
+  aside{width:210px;flex:0 0 210px;border-right:1px solid var(--line);background:#fff;padding:14px 0}
+  .logo{font-weight:700;padding:4px 16px 14px;border-bottom:1px solid var(--line);letter-spacing:.3px}
+  .logo small{display:block;font-weight:400;color:var(--mut)}
+  nav a{display:block;padding:9px 16px;color:var(--ink);text-decoration:none;border-left:3px solid transparent;cursor:pointer}
+  nav a:hover{background:var(--soft)}
+  nav a.on{border-left-color:var(--ink);background:var(--soft);font-weight:600}
+  nav .sep{margin:10px 16px;border-top:1px dashed var(--line)}
+  nav .grp{padding:2px 16px;font-size:11px;text-transform:uppercase;color:var(--mut);letter-spacing:.6px}
+  /* ---------- main ---------- */
+  main{flex:1;padding:20px 26px 60px;max-width:1060px}
+  h1{font-size:19px;margin:0 0 4px}
+  h2{font-size:15px;margin:22px 0 8px}
+  .sub{color:var(--mut);margin:0 0 18px}
+  .card{border:1px solid var(--line);background:#fff;border-radius:6px;padding:14px 16px;margin-bottom:14px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row .card{flex:1;min-width:160px;margin-bottom:0}
+  .kpi{font-size:22px;font-weight:700;margin-top:2px}
+  .kpi small{font-size:12px;font-weight:400;color:var(--mut)}
+  table{width:100%;border-collapse:collapse;background:#fff}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--soft);font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  tr.new td{background:#eef4ff}
+  .r{text-align:right}
+  /* ---------- wireframe placeholders ---------- */
+  .ph{border:1.5px dashed var(--line);border-radius:6px;background:repeating-linear-gradient(45deg,#fcfcfc,#fcfcfc 9px,#f4f4f4 9px,#f4f4f4 10px);color:var(--mut);display:flex;align-items:center;justify-content:center;text-align:center}
+  /* ---------- buttons, badges, tags ---------- */
+  .btn{display:inline-block;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:5px;padding:6px 13px;cursor:pointer;font:inherit}
+  .btn:hover{background:var(--soft)}
+  .btn.pri{background:var(--ink);color:#fff}
+  .btn.pri:hover{background:#000}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.sm{padding:2px 8px;font-size:12px}
+  .badge{display:inline-block;border-radius:10px;padding:1px 9px;font-size:11.5px;white-space:nowrap}
+  .b-ok{background:var(--okbg);color:var(--ok)}
+  .b-warn{background:var(--warnbg);color:var(--warn)}
+  .b-err{background:var(--errbg);color:var(--err)}
+  .b-mut{background:var(--soft);color:var(--mut)}
+  .b-acc{background:#e8effd;color:var(--acc)}
+  .tag{font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 5px;color:var(--mut)}
+  /* ---------- stepper demo ---------- */
+  .stepper{display:flex;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-bottom:18px;background:#fff;font-size:12px}
+  .stepper div{flex:1;padding:6px 8px;border-right:1px solid var(--line);color:var(--mut);text-align:center}
+  .stepper div:last-child{border-right:0}
+  .stepper div.done{background:var(--okbg);color:var(--ok)}
+  .stepper div.cur{background:var(--ink);color:#fff}
+  /* ---------- pipeline ---------- */
+  .pipe{list-style:none;margin:0;padding:0}
+  .pipe li{display:none;padding:8px 10px;border-left:3px solid var(--line);margin:0 0 6px;background:#fff;border-radius:0 5px 5px 0;border-top:1px solid var(--soft);border-right:1px solid var(--soft);border-bottom:1px solid var(--soft)}
+  .pipe li.show{display:block}
+  .pipe li.run{border-left-color:var(--acc)}
+  .pipe li.ok{border-left-color:var(--ok)}
+  .pipe li.warn{border-left-color:var(--warn)}
+  .pipe .d{color:var(--mut);font-size:12.5px;margin-top:2px}
+  /* ---------- revisione ---------- */
+  .split{display:flex;gap:16px;align-items:flex-start}
+  .split>div{flex:1}
+  .field{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:5px;padding:7px 10px;margin-bottom:7px;background:#fff}
+  .field .lbl{width:150px;flex:0 0 150px;color:var(--mut);font-size:12.5px}
+  .field .val{flex:1;font-weight:600}
+  .field.warnf{border-color:var(--warn);background:#fffdf5}
+  .field .flag{margin-left:auto;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:4px;padding:1px 7px;font-size:12px;color:var(--mut)}
+  .field .flag:hover{border-color:var(--err);color:var(--err)}
+  .fakepdf{border:1px solid var(--line);background:#fff;border-radius:6px;padding:18px;min-height:420px}
+  .fl{height:9px;background:var(--soft);border-radius:3px;margin:7px 0}
+  .fl.hl{outline:2px dashed var(--warn);outline-offset:2px}
+  pre.json{background:#f7f8fa;border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;margin:0;max-height:340px}
+  /* ---------- diff ---------- */
+  .diff{border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:8px 0}
+  .diff div{padding:2px 10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap}
+  .diff .h{background:var(--soft);color:var(--mut);padding:5px 10px;font-family:inherit}
+  .diff .del{background:var(--errbg);color:var(--err)}
+  .diff .add{background:var(--okbg);color:var(--ok)}
+  /* ---------- chat / interroga ---------- */
+  .chatin{display:flex;gap:8px;margin-bottom:12px}
+  .chatin input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:5px;font:inherit}
+  /* ---------- barchart wireframe ---------- */
+  .bars{display:flex;align-items:flex-end;gap:18px;height:130px;padding:10px 6px 0}
+  .bars .b{width:46px;background:repeating-linear-gradient(45deg,#e5e7eb,#e5e7eb 6px,#d7dade 6px,#d7dade 7px);border:1px solid var(--line);border-bottom:2px solid var(--ink);position:relative}
+  .bars .b i{position:absolute;top:-18px;left:0;right:0;text-align:center;font-style:normal;font-size:11px;color:var(--mut)}
+  .bars .b b{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--mut);font-weight:400}
+  /* ---------- modal & toast ---------- */
+  .ovl{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40}
+  .ovl.show{display:flex;align-items:center;justify-content:center}
+  .modal{background:#fff;border-radius:8px;border:1px solid var(--line);width:520px;max-width:92vw;padding:18px}
+  .modal textarea{width:100%;height:74px;border:1px solid var(--line);border-radius:5px;padding:8px;font:inherit;resize:vertical}
+  #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:6px;display:none;z-index:50;max-width:80vw}
+  .page{display:none}
+  .page.on{display:block}
+  .note{font-size:12.5px;color:var(--mut)}
+  .simtag{font-size:10.5px;background:var(--soft);color:var(--mut);border-radius:3px;padding:1px 6px;vertical-align:middle;letter-spacing:.5px}
+  /* ---------- switch ruolo ---------- */
+  .rolebar{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .rolebar button{flex:1;padding:5px 0;border:1px solid var(--line);background:#fff;border-radius:5px;cursor:pointer;font-size:12px}
+  .rolebar button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  /* ---------- modalità operatore (mobile-first, "a prova di cantiere") ---------- */
+  #op-app{display:none;max-width:430px;margin:16px auto;background:#fff;border:1px solid var(--line);border-radius:26px;padding:20px 18px 26px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  body.op .app{display:none}
+  body.op #op-app{display:block}
+  #op-app h1{font-size:22px;margin:6px 0 14px}
+  .ophead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .opbtn{display:flex;align-items:center;gap:14px;width:100%;border:2px solid var(--ink);border-radius:14px;background:#fff;padding:20px 18px;font-size:19px;font-weight:700;cursor:pointer;margin-bottom:14px;min-height:76px;font-family:inherit;text-align:left}
+  .opbtn .i{font-size:30px}
+  .opbtn:hover{background:var(--soft)}
+  .opbtn.big{background:var(--ink);color:#fff}
+  .opbtn.big:hover{background:#000}
+  .opback{border:0;background:none;font-size:16px;cursor:pointer;color:var(--mut);padding:6px 0;margin-bottom:4px}
+  .opcard{border:1.5px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px;font-size:17px}
+  .opitem{display:flex;gap:12px;align-items:center;border:1.5px solid var(--line);border-radius:14px;padding:16px;margin-bottom:10px;font-size:17px}
+  .opitem .st{font-size:24px}
+  .opyn{display:flex;gap:10px;margin-top:12px}
+  .opyn button{flex:1;padding:16px;font-size:18px;border-radius:12px;border:2px solid var(--ink);background:#fff;cursor:pointer;font-family:inherit}
+  .opyn .si{background:var(--ok);border-color:var(--ok);color:#fff}
+  .opnote{font-size:13px;color:var(--mut)}
+  .opinput{width:100%;padding:14px;font-size:17px;border:2px solid var(--line);border-radius:12px;box-sizing:border-box;font-family:inherit}
+  .opdemo{border:1.5px dashed var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--mut);margin-top:10px}
+  .oppage{display:none}
+  .oppage.on{display:block}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="logo">WORKFLOWER <small>controllo costi cantieri · mockup</small></div>
+    <div class="rolebar"><button id="rb-op" onclick="setRole('op')">👷 Operatore</button><button id="rb-admin" class="on" onclick="setRole('admin')">⚙ Admin</button></div>
+    <nav id="nav">
+      <a data-p="dashboard" class="on">▦ Cruscotto</a>
+      <a data-p="carica">⇪ Carica documento</a>
+      <a data-p="revisione">✎ Revisione <span id="revdot" style="display:none;color:var(--err)">●</span></a>
+      <a data-p="segnalazioni">⚑ Segnalazioni <span id="segdot" style="display:none;color:var(--err)">●</span></a>
+      <a data-p="interroga">? Interroga</a>
+      <div class="sep"></div>
+      <div class="grp">Sistema</div>
+      <a data-p="workflows">⛓ Workflows</a>
+      <a data-p="tools">⚒ Skills &amp; Tools</a>
+      <a data-p="log">≣ Log &amp; Dataset</a>
+    </nav>
+  </aside>
+  <main>
+    <div class="stepper" id="stepper">
+      <div data-s="1">1 · Carica</div><div data-s="2">2 · Pipeline agente</div><div data-s="3">3 · Revisione</div><div data-s="4">4 · Feedback</div><div data-s="5">5 · Patch Improver</div><div data-s="6">6 · Cruscotto</div>
+    </div>
+
+    <!-- ================= CRUSCOTTO ================= -->
+    <section class="page on" id="p-dashboard">
+      <h1>Cruscotto costi <span class="simtag">DATI SIMULATI</span></h1>
+      <p class="sub">Aggregazioni live da viste DuckDB sulle entità JSON · luglio 2026</p>
+      <div class="row">
+        <div class="card"><div class="note">Costi mese corrente</div><div class="kpi">€ 184.320</div></div>
+        <div class="card"><div class="note">Scostamento vs preventivo</div><div class="kpi">+3,8% <small>media cantieri</small></div></div>
+        <div class="card"><div class="note">Fatture da validare</div><div class="kpi" id="kpi-fatt">5</div></div>
+        <div class="card"><div class="note">Scadenze entro 7 gg</div><div class="kpi">6</div></div>
+      </div>
+      <h2>Costi per cantiere</h2>
+      <table>
+        <tr><th>Cantiere</th><th class="r">Preventivo</th><th class="r">Consuntivo</th><th class="r">Scostamento</th><th class="r">Avanzamento SAL</th></tr>
+        <tr><td>CNT-001 · Via Roma 12</td><td class="r">€ 1.240.000</td><td class="r">€ 861.400</td><td class="r"><span class="badge b-warn">+5,2%</span></td><td class="r">68%</td></tr>
+        <tr><td>CNT-002 · Lottizzazione Fiorita</td><td class="r">€ 2.980.000</td><td class="r">€ 1.104.900</td><td class="r"><span class="badge b-ok">−1,1%</span></td><td class="r">37%</td></tr>
+        <tr><td>CNT-003 · Scuola G. Verdi</td><td class="r">€ 760.000</td><td class="r">€ 702.350</td><td class="r"><span class="badge b-err">+8,9%</span></td><td class="r">91%</td></tr>
+      </table>
+      <h2>Ultimi documenti acquisiti</h2>
+      <table id="tbl-docs">
+        <tr><th>ID</th><th>Tipo</th><th>Fornitore</th><th class="r">Importo</th><th>Cantiere</th><th>Stato</th></tr>
+        <tr><td class="mono">DDT-2026-1102</td><td>DDT</td><td>Calcestruzzi Sud</td><td class="r">—</td><td>CNT-001</td><td><span class="badge b-ok">validato</span></td></tr>
+        <tr><td class="mono">FT-2026-0339</td><td>Fattura</td><td>Ferramenta Blu</td><td class="r">€ 2.140,00</td><td>CNT-003</td><td><span class="badge b-warn">bozza</span></td></tr>
+        <tr><td class="mono">SAL-CNT001-03</td><td>SAL</td><td>—</td><td class="r">€ 96.500,00</td><td>CNT-001</td><td><span class="badge b-ok">validato</span></td></tr>
+      </table>
+      <p class="note">▸ Le altre viste (mezzi, lavorazioni, scadenze, registro pozzetti, cronoprogramma) sono simulate: stessa meccanica, entità diverse.</p>
+    </section>
+
+    <!-- ================= CARICA ================= -->
+    <section class="page" id="p-carica">
+      <h1>Carica documento</h1>
+      <p class="sub">Drop zone universale: un classificatore instrada il file al workflow giusto (fattura, DDT, SAL, rapportino…)</p>
+      <div class="ph" style="height:120px;margin-bottom:14px">Trascina qui PDF / immagini / Excel<br>oppure arrivano da SharePoint · Outlook (watcher)</div>
+      <div class="card">
+        <b>File di esempio:</b> <span class="mono">fattura_rossi_341-2026.pdf</span> <span class="tag">PDF · 2 pagine</span>
+        <div style="margin-top:10px"><button class="btn pri" id="btn-upload" onclick="startPipeline()">▶ Simula caricamento</button></div>
+      </div>
+      <h2 id="pipe-title" style="display:none">Pipeline · workflow <span class="mono" id="pipe-wf">carica-fattura v1.3</span></h2>
+      <ul class="pipe" id="pipe">
+        <li id="s1"><b>1 · Classificazione documento</b><div class="d">tipo: <b>fattura</b> (conf. 0.98) → instradato a <span class="mono">carica-fattura</span> · tier T2</div></li>
+        <li id="s2"><b>2 · OCR + estrazione LLM</b> <span class="tag">tier T1</span><div class="d">12 campi estratti secondo <span class="mono">schemas/fattura.schema.json</span></div></li>
+        <li id="s3"><b>3 · Collegamento entità</b><div class="d">fornitore <span class="mono">FRN-018</span> Rossi Costruzioni ✓ · cantiere <span class="mono">CNT-001</span> Via Roma 12 ✓ · 3 righe → voci computo</div></li>
+        <li id="s4"><b>4 · Validazione schema + regole</b><div class="d" id="s4d">⚠ campo <span class="mono">ritenuta_acconto</span> assente · confidence 0.41 &lt; soglia 0.90 → <b>revisione umana</b></div></li>
+        <li id="s5"><b>5 · Salvataggio bozza</b><div class="d"><span class="mono">/data/entities/fatture/2026/FT-2026-0341.json</span> · stato <span class="badge b-warn">bozza</span> · commit git <span class="mono">a41f2c</span> · trace <span class="mono">run-8f21</span></div></li>
+      </ul>
+      <div id="pipe-done" style="display:none;margin-top:12px">
+        <button class="btn pri" onclick="go('revisione');setStep(3)">Vai alla revisione →</button>
+      </div>
+    </section>
+    <!-- ================= REVISIONE ================= -->
+    <section class="page" id="p-revisione">
+      <h1>Revisione documento</h1>
+      <p class="sub" id="rev-sub">Nessun documento in coda — parti da <a style="cursor:pointer;text-decoration:underline" onclick="go('carica')">Carica documento</a>.</p>
+      <div id="rev-body" style="display:none">
+        <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <span class="mono"><b>FT-2026-0341</b></span>
+          <span class="badge b-warn" id="rev-state">bozza</span>
+          <span class="tag">workflow <span id="rev-wfv">carica-fattura v1.3</span></span>
+          <span class="tag">trace run-8f21</span>
+          <span style="margin-left:auto"></span>
+          <button class="btn sm" onclick="toggleJson()">{ } vedi JSON</button>
+          <button class="btn sm pri" id="btn-validate" disabled title="Risolvi prima le segnalazioni" onclick="validateDoc()">✓ Salva come validato</button>
+        </div>
+        <div class="split">
+          <div>
+            <h2>Originale (PDF)</h2>
+            <div class="fakepdf">
+              <div style="display:flex;justify-content:space-between"><b style="color:var(--mut)">ROSSI COSTRUZIONI Srl</b><span class="note">FATTURA n. 341/2026</span></div>
+              <div class="fl" style="width:55%"></div><div class="fl" style="width:40%"></div>
+              <div style="margin-top:18px" class="note">Righe fattura</div>
+              <div class="fl"></div><div class="fl" style="width:92%"></div><div class="fl" style="width:96%"></div>
+              <div style="margin-top:18px" class="note">Totali</div>
+              <div class="fl" style="width:60%"></div><div class="fl" style="width:60%"></div><div class="fl" style="width:70%"></div>
+              <div style="margin-top:14px" class="note">In calce</div>
+              <div class="fl hl" id="pdf-hl" style="width:52%" title="Qui c'è la ritenuta che il workflow v1.3 non estrae"></div>
+              <div class="note" style="margin-top:6px">⚠ riga evidenziata: <i>"Ritenuta 4% L.244/07 … € 406,56 — netto a pagare € 11.993,44"</i></div>
+            </div>
+          </div>
+          <div>
+            <h2>Dati estratti (JSON interpretato)</h2>
+            <div id="fields">
+              <div class="field"><span class="lbl">Fornitore</span><span class="val">Rossi Costruzioni Srl <span class="tag">FRN-018</span></span><span class="badge b-ok">0.99</span></div>
+              <div class="field"><span class="lbl">Numero / Data</span><span class="val">341/2026 · 02/07/2026</span><span class="badge b-ok">0.98</span></div>
+              <div class="field"><span class="lbl">Cantiere</span><span class="val">Via Roma 12 <span class="tag">CNT-001</span></span><span class="badge b-ok">0.95</span></div>
+              <div class="field"><span class="lbl">Imponibile</span><span class="val">€ 10.163,93</span><span class="badge b-ok">0.97</span></div>
+              <div class="field"><span class="lbl">IVA 22%</span><span class="val">€ 2.236,07</span><span class="badge b-ok">0.97</span></div>
+              <div class="field"><span class="lbl">Totale</span><span class="val">€ 12.400,00</span><span class="badge b-ok">0.99</span></div>
+              <div class="field warnf" id="f-rit"><span class="lbl">Ritenuta d'acconto</span><span class="val" id="v-rit" style="color:var(--warn)">— non estratta</span><span class="badge b-warn" id="b-rit">0.41</span><button class="flag" onclick="openModal()">⚑ segnala</button></div>
+              <div class="field"><span class="lbl">Righe (3)</span><span class="val note">collegate a voci computo VC-114, VC-115, VC-201</span><span class="badge b-warn">0.87</span></div>
+            </div>
+            <pre class="json" id="jsonview" style="display:none">{
+  "id": "FT-2026-0341", "tipo": "fattura", "stato": "bozza",
+  "dati": {
+    "fornitore_id": "FRN-018", "cantiere_id": "CNT-001",
+    "numero": "341/2026", "data": "2026-07-02",
+    "imponibile": 10163.93, "iva": 2236.07, "totale": 12400.00,
+    "ritenuta_acconto": <span id="j-rit" style="background:var(--warnbg)">null  ← ?</span>
+  },
+  "meta": { "workflow": "carica-fattura@<span id="j-wfv">1.3</span>",
+            "confidence": { "ritenuta_acconto": <span id="j-conf">0.41</span> } }
+}</pre>
+          </div>
+        </div>
+
+        <!-- pannello Improver -->
+        <div class="card" id="improver" style="display:none;border-color:var(--acc)">
+          <b>⚙ Agente Improver</b> <span class="badge b-acc" id="imp-status">analisi in corso…</span>
+          <div id="imp-body" style="display:none">
+            <p class="note" style="margin:8px 0 4px">Analisi di <span class="mono">trace run-8f21</span> + feedback utente → <b>causa</b>: la skill <span class="mono">estrazione-fattura.md</span> non istruisce il modello a cercare la ritenuta d'acconto; il campo esiste nello schema ma non è citato nel prompt.</p>
+            <div class="diff">
+              <div class="h">patch proposta · skills/estrazione-fattura.md · carica-fattura v1.3 → v1.4</div>
+              <div class="del">- Estrai: fornitore, numero, data, imponibile, IVA, totale.</div>
+              <div class="add">+ Estrai: fornitore, numero, data, imponibile, IVA, totale, ritenuta d'acconto.</div>
+              <div class="add">+ La ritenuta (es. 4% L.244/07) è spesso in calce, dopo i totali.</div>
+              <div class="add">+ Se assente, valorizza esplicitamente null: non omettere il campo.</div>
+              <div class="add">+ Verifica: netto_a_pagare = totale − ritenuta_acconto.</div>
+            </div>
+            <div class="diff">
+              <div class="h">nuova regola di validazione · carica-fattura.yaml</div>
+              <div class="add">+ rule: ritenuta_acconto presente (valore o null esplicito) se fornitore.settore == "edile"</div>
+            </div>
+            <p class="note">Regressione: replay su golden set → <span class="badge b-ok">12/12 run validati invariati ✓</span></p>
+            <button class="btn pri" onclick="approvePatch()">✓ Approva → v1.4</button>
+            <button class="btn" onclick="toast('Patch rifiutata: il workflow resta alla v1.3 (simulato)')">✗ Rifiuta</button>
+          </div>
+        </div>
+        <div id="rerun-box" style="display:none;margin-top:4px">
+          <button class="btn pri" onclick="rerun()">⟳ Riesegui estrazione con v1.4</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= INTERROGA ================= -->
+    <section class="page" id="p-interroga">
+      <h1>Interroga il sistema</h1>
+      <p class="sub">Linguaggio naturale → il Query Agent genera SQL sulle viste DuckDB (<span class="mono">v_fatture, v_ddt, v_ore, v_voci_preventivo…</span>) che leggono i file JSON</p>
+      <div class="chatin">
+        <input id="q" value="Quanto calcestruzzo abbiamo acquistato per Via Roma nel 2026, e come siamo rispetto al preventivo?">
+        <button class="btn pri" onclick="runQuery()">Esegui</button>
+      </div>
+      <div id="q-out" style="display:none">
+        <div class="card">
+          <div class="note" style="margin-bottom:6px">SQL generato <span class="tag">tier T2</span> · viste: v_fatture_righe ⋈ v_materiali ⋈ v_voci_preventivo</div>
+<pre class="json">SELECT m.descrizione, SUM(r.quantita) AS qta, SUM(r.importo) AS costo,
+       p.importo AS preventivo, SUM(r.importo) - p.importo AS scostamento
+FROM v_fatture_righe r
+JOIN v_materiali m        ON m.id = r.materiale_id
+JOIN v_voci_preventivo p  ON p.voce_id = r.voce_computo_id
+WHERE r.cantiere_id = 'CNT-001' AND m.categoria = 'calcestruzzo'
+  AND r.data BETWEEN '2026-01-01' AND '2026-12-31'
+GROUP BY 1, 4;</pre>
+        </div>
+        <table>
+          <tr><th>Materiale</th><th class="r">Q.tà</th><th class="r">Costo</th><th class="r">Preventivo</th><th class="r">Scostamento</th></tr>
+          <tr><td>Cls C25/30 XC2 S4</td><td class="r">142 m³</td><td class="r">€ 18.460</td><td class="r">€ 17.200</td><td class="r"><span class="badge b-warn">+€ 1.260 (+7,3%)</span></td></tr>
+          <tr><td>Cls C32/40 XC4 (getti speciali)</td><td class="r">28 m³</td><td class="r">€ 4.510</td><td class="r">€ 4.800</td><td class="r"><span class="badge b-ok">−€ 290 (−6,0%)</span></td></tr>
+        </table>
+        <div class="card" style="margin-top:12px;border-style:dashed">
+          ⚙ <b>Tracker consolidamento:</b> pattern simile generato <b>47 volte</b> negli ultimi 30 giorni →
+          <span class="badge b-acc">candidato tool</span>
+          <div style="margin-top:8px">
+            <button class="btn" id="btn-consolida" onclick="consolidate()">⚒ Consolida come tool <span class="mono">costi_materiale_cantiere()</span></button>
+            <span class="note" id="consolidated-note" style="display:none">→ il Toolsmith ha generato la funzione, 18/18 test dai trace storici ✓ · registrata e agganciata alla skill</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SEGNALAZIONI (admin) ================= -->
+    <section class="page" id="p-segnalazioni">
+      <h1>Segnalazioni operatori</h1>
+      <p class="sub">I "qualcosa non torna" degli operatori, in linguaggio naturale, agganciati al trace del run. L'Admin li trasforma in feedback puntuale o li passa all'Improver. L'operatore non vede mai questa meccanica.</p>
+      <div id="seg-list">
+        <div class="card"><b>SEG-011</b> <span class="badge b-mut">gestita</span> · da <b>Michele (capocantiere CNT-003)</b> · doc <span class="mono">DDT-2026-1098</span>
+          <div class="note" style="margin-top:4px">"la bolla della sabbia è del cantiere della scuola non di via roma"</div>
+          <div class="note">→ corretto il collegamento cantiere · il caso è entrato nel golden set di collega-entita</div></div>
+      </div>
+    </section>
+
+    <!-- ================= WORKFLOWS ================= -->
+    <section class="page" id="p-workflows">
+      <h1>Workflows <span class="simtag">PARZIALMENTE SIMULATO</span></h1>
+      <p class="sub">Ogni workflow = manifest YAML + skill, versionato in Git. Le patch dell'Improver compaiono qui per l'approvazione.</p>
+      <table>
+        <tr><th>Workflow</th><th>Versione</th><th class="r">Run 30gg</th><th class="r">Successo</th><th>Trigger</th><th></th></tr>
+        <tr><td class="mono">carica-fattura</td><td class="mono" id="wf-v">v1.3</td><td class="r">312</td><td class="r" id="wf-sr">94%</td><td class="note">upload · email · SharePoint</td><td><button class="btn sm" onclick="toast('Vista manifest YAML (simulato)')">yaml</button></td></tr>
+        <tr><td class="mono">carica-ddt</td><td class="mono">v2.1</td><td class="r">208</td><td class="r">97%</td><td class="note">upload · SharePoint</td><td><button class="btn sm" onclick="toast('Simulato')">yaml</button></td></tr>
+        <tr><td class="mono">report-mensile</td><td class="mono">v1.0</td><td class="r">12</td><td class="r">100%</td><td class="note">schedulato (fine mese)</td><td><button class="btn sm" onclick="toast('Simulato')">yaml</button></td></tr>
+        <tr><td class="mono">aggiorna-registro-pozzetti</td><td class="mono">v1.2</td><td class="r">44</td><td class="r">98%</td><td class="note">upload rilievi</td><td><button class="btn sm" onclick="toast('Simulato')">yaml</button></td></tr>
+        <tr><td class="mono">confronto-computo-preventivo</td><td class="mono">v0.9 β</td><td class="r">9</td><td class="r">89%</td><td class="note">manuale</td><td><button class="btn sm" onclick="toast('Simulato')">yaml</button></td></tr>
+      </table>
+      <h2>Changelog recente</h2>
+      <div class="card" id="wf-log">
+        <div class="note">— nessuna modifica recente —</div>
+      </div>
+    </section>
+    <!-- ================= SKILLS & TOOLS ================= -->
+    <section class="page" id="p-tools">
+      <h1>Skills &amp; Tools <span class="simtag">PARZIALMENTE SIMULATO</span></h1>
+      <p class="sub">Ciclo di vita: esplorativa → candidata → <b>consolidata</b> (codice deterministico, costo token ≈ 0) → deprecata</p>
+      <h2>Tools consolidati</h2>
+      <table id="tbl-tools">
+        <tr><th>Tool</th><th>Origine</th><th class="r">Esecuzioni</th><th class="r">Test (da trace)</th><th>Stato</th></tr>
+        <tr><td class="mono">ocr_pdf()</td><td class="note">nativo</td><td class="r">1.204</td><td class="r">—</td><td><span class="badge b-ok">stabile</span></td></tr>
+        <tr><td class="mono">cerca_fornitore()</td><td class="note">consolidato da skill</td><td class="r">642</td><td class="r">18/18 ✓</td><td><span class="badge b-ok">consolidato</span></td></tr>
+        <tr><td class="mono">estrai_totali_fattura()</td><td class="note">consolidato da skill</td><td class="r">296</td><td class="r">24/24 ✓</td><td><span class="badge b-ok">consolidato</span></td></tr>
+      </table>
+      <h2>Candidati al consolidamento</h2>
+      <table>
+        <tr><th>Pattern rilevato</th><th class="r">Generazioni simili / 30gg</th><th>Azione</th></tr>
+        <tr id="cand-row"><td class="note">query costi materiale per cantiere vs preventivo</td><td class="r"><b>47</b></td><td><span class="note">consolidabile da <a style="text-decoration:underline;cursor:pointer" onclick="go('interroga')">Interroga</a></span></td></tr>
+        <tr><td class="note">export riepilogo ore uomo → Excel</td><td class="r"><b>23</b></td><td><span class="badge b-mut">in osservazione</span></td></tr>
+      </table>
+      <h2>Skills</h2>
+      <table>
+        <tr><th>Skill</th><th>Versione</th><th>Usata da</th><th>Tools agganciati</th></tr>
+        <tr><td class="mono">estrazione-fattura.md</td><td class="mono" id="sk-v">v1.3</td><td class="note">carica-fattura</td><td class="mono note">ocr_pdf, cerca_fornitore, estrai_totali_fattura</td></tr>
+        <tr><td class="mono">collega-entita.md</td><td class="mono">v2.0</td><td class="note">carica-fattura, carica-ddt</td><td class="mono note">cerca_fornitore</td></tr>
+        <tr><td class="mono">report-mensile.md</td><td class="mono">v1.1</td><td class="note">report-mensile</td><td class="mono note">export_excel</td></tr>
+      </table>
+    </section>
+
+    <!-- ================= LOG & DATASET ================= -->
+    <section class="page" id="p-log">
+      <h1>Log &amp; Dataset fine-tuning <span class="simtag">DATI SIMULATI</span></h1>
+      <p class="sub">Ogni chiamata LLM e ogni tool call è loggata (JSONL). I run validati diventano esempi di training per distillare i workflow su modelli piccoli (FunctionGemma).</p>
+      <div class="row">
+        <div class="card"><div class="note">Chiamate LLM (30gg)</div><div class="kpi">12.408</div></div>
+        <div class="card"><div class="note">Tool call loggate</div><div class="kpi">8.412</div></div>
+        <div class="card"><div class="note">Esempi validati (dataset)</div><div class="kpi" id="kpi-ds">5.930</div></div>
+        <div class="card"><div class="note">Costo LLM mese</div><div class="kpi">€ 214</div></div>
+      </div>
+      <h2>Esempio di record (JSONL)</h2>
+      <pre class="json">{"run_id":"run-8f21","workflow":"carica-fattura@1.3","step":"estrai","tier":"T1",
+ "tools":[{"name":"cerca_fornitore","parameters":{"query":"string"}}, …],
+ "messages":[…contesto…],
+ "tool_call":{"name":"cerca_fornitore","args":{"query":"Rossi Costruzioni"}},
+ "result":{"id":"FRN-018","match":0.97},
+ "outcome":"success","validated_by_user":true}</pre>
+      <h2>Costo token per documento (trend)</h2>
+      <div class="card">
+        <div class="bars">
+          <div class="b" style="height:100%"><i>€ 0,42</i><b>mar</b></div>
+          <div class="b" style="height:88%"><i>€ 0,38</i><b>apr</b></div>
+          <div class="b" style="height:72%"><i>€ 0,31</i><b>mag</b></div>
+          <div class="b" style="height:52%"><i>€ 0,22</i><b>giu</b></div>
+          <div class="b" style="height:33%"><i>€ 0,14</i><b>lug</b></div>
+        </div>
+        <p class="note" style="margin-top:26px">Calo strutturale: consolidamento skill→tool + routing a tier. Prossimo step (F4): fine-tuning <b>FunctionGemma</b> (Gemma 3 270M) sul dataset validato → tier T3 locale per le tool call ricorrenti.</p>
+      </div>
+      <button class="btn" onclick="toast('Export dataset.jsonl — 5.930 esempi (simulato)')">⇩ Esporta dataset JSONL</button>
+    </section>
+  </main>
+</div>
+
+<!-- ================= MODALITÀ OPERATORE ================= -->
+<div id="op-app">
+  <div class="ophead">
+    <div><b style="font-size:18px">WORKFLOWER</b><div class="opnote">Ciao Salvatore 👷 · cantiere Via Roma 12</div></div>
+    <button class="opback" onclick="setRole('admin')" title="switch solo per la demo">⇄ vista admin</button>
+  </div>
+
+  <div class="oppage on" id="op-home">
+    <button class="opbtn big" onclick="opGo('carica')"><span class="i">📷</span> Carica un documento</button>
+    <button class="opbtn" onclick="opGo('docs')"><span class="i">📄</span> I miei documenti</button>
+    <button class="opbtn" onclick="opGo('chiedi')"><span class="i">💬</span> Chiedi qualcosa</button>
+    <p class="opnote" style="text-align:center;margin-top:18px">Fotografa bolle, fatture, rapportini.<br>Al resto ci pensiamo noi.</p>
+  </div>
+
+  <div class="oppage" id="op-carica">
+    <button class="opback" onclick="opGo('home')">← indietro</button>
+    <h1>Carica un documento</h1>
+    <button class="opbtn big" onclick="opShoot()"><span class="i">📷</span> Fotografa</button>
+    <button class="opbtn" onclick="opShoot()"><span class="i">📁</span> Scegli dal telefono</button>
+    <div class="opcard" id="op-prog" style="display:none">⏳ <b>Sto leggendo il documento…</b><div class="opnote">puoi anche uscire, ti avviso io quando ho finito</div></div>
+    <div class="opcard" id="op-result" style="display:none">
+      ✅ <b>Ho letto la fattura!</b>
+      <div style="margin:10px 0">Ditta: <b>Rossi Costruzioni</b><br>Importo: <b>€ 12.400</b><br>Cantiere: <b>Via Roma 12</b></div>
+      <div style="font-size:18px"><b>È tutto giusto?</b></div>
+      <div class="opyn">
+        <button class="si" onclick="opConfirm()">👍 Sì</button>
+        <button onclick="opWrong()">👎 Qualcosa non torna</button>
+      </div>
+      <div class="opdemo">nota demo: dietro c'è il workflow carica-fattura (bozza + trace), ma l'operatore vede solo questo</div>
+    </div>
+    <div class="opcard" id="op-wrong" style="display:none">
+      <b>Dimmi cosa non torna</b> — scrivi o tieni premuto per parlare
+      <textarea class="opinput" id="op-fb" style="margin-top:8px;height:74px">Manca la ritenuta, in fondo al foglio c'è scritto ritenuta 4% e il netto è 11.993</textarea>
+      <div class="opyn"><button class="si" onclick="opSendFb()">🎤 Invia</button></div>
+    </div>
+    <div class="opcard" id="op-thanks" style="display:none">🤝 <b>Grazie! Ci pensiamo noi.</b>
+      <div class="opnote">L'ufficio controlla e ti avvisa qui. Non devi fare altro.</div>
+      <button class="opbtn" style="margin-top:14px" onclick="opGo('home')"><span class="i">🏠</span> Torna alla home</button>
+    </div>
+  </div>
+
+  <div class="oppage" id="op-docs">
+    <button class="opback" onclick="opGo('home')">← indietro</button>
+    <h1>I miei documenti</h1>
+    <div id="op-doclist">
+      <div class="opitem"><span class="st">🟢</span><div>DDT calcestruzzo · ieri<div class="opnote">tutto a posto</div></div></div>
+      <div class="opitem"><span class="st">🔴</span><div>Bolla sabbia · lunedì<div class="opnote">serve una mano: l'ufficio ti chiama</div></div></div>
+    </div>
+  </div>
+
+  <div class="oppage" id="op-chiedi">
+    <button class="opback" onclick="opGo('home')">← indietro</button>
+    <h1>Chiedi qualcosa</h1>
+    <input class="opinput" id="op-q" value="Quante ore ho fatto questa settimana?">
+    <div class="opyn"><button class="si" onclick="opAsk()">Chiedi 🎤</button></div>
+    <div class="opcard" id="op-ans" style="display:none">💬 Questa settimana hai <b>38 ore</b> registrate, tutte sul cantiere <b>Via Roma 12</b>.
+      <div class="opdemo">nota demo: dietro c'è il Query Agent (SQL su v_ore via DuckDB) — mai mostrato all'operatore, solo risposta in italiano semplice</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL FEEDBACK ================= -->
+<div class="ovl" id="ovl">
+  <div class="modal">
+    <h2 style="margin-top:0">⚑ Segnala problema · campo "Ritenuta d'acconto"</h2>
+    <p class="note">Il feedback viene allegato al trace <span class="mono">run-8f21</span> e passato all'agente Improver.</p>
+    <textarea id="fb-text">Manca la ritenuta d'acconto: nel PDF è in calce, dopo i totali ("Ritenuta 4% L.244/07 — € 406,56"). Il netto a pagare è € 11.993,44.</textarea>
+    <div style="margin-top:10px;text-align:right">
+      <button class="btn" onclick="closeModal()">Annulla</button>
+      <button class="btn pri" onclick="sendFeedback()">Invia feedback →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ------------ stato demo ------------ */
+const S = { uploaded:false, wf:'1.3', patched:false, fixed:false, saved:false };
+
+/* ------------ navigazione ------------ */
+function go(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('on'));
+  document.getElementById('p-'+p).classList.add('on');
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on', a.dataset.p===p));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#nav a').forEach(a=>a.onclick=()=>go(a.dataset.p));
+
+function setStep(n){
+  document.querySelectorAll('#stepper div').forEach(d=>{
+    const s=+d.dataset.s;
+    d.className = s<n ? 'done' : (s===n ? 'cur' : '');
+  });
+}
+setStep(1);
+
+/* ------------ toast ------------ */
+let tmr;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.display='block';
+  clearTimeout(tmr); tmr=setTimeout(()=>t.style.display='none', 3800);
+}
+
+/* ------------ pipeline caricamento ------------ */
+function startPipeline(){
+  if(S.uploaded && !S.patched){ go('revisione'); return; }
+  document.getElementById('btn-upload').disabled=true;
+  document.getElementById('pipe-title').style.display='block';
+  setStep(2);
+  const steps=['s1','s2','s3','s4','s5'];
+  steps.forEach((id,i)=>{
+    setTimeout(()=>{
+      const li=document.getElementById(id);
+      li.classList.add('show','run');
+      setTimeout(()=>{
+        li.classList.remove('run');
+        li.classList.add(id==='s4' ? 'warn' : 'ok');
+      }, 450);
+      if(i===steps.length-1){
+        setTimeout(()=>{
+          document.getElementById('pipe-done').style.display='block';
+          S.uploaded=true;
+          document.getElementById('rev-sub').style.display='none';
+          document.getElementById('rev-body').style.display='block';
+          document.getElementById('revdot').style.display='inline';
+          toast('Bozza FT-2026-0341 creata — 1 campo sotto soglia richiede revisione');
+        }, 700);
+      }
+    }, 650*i);
+  });
+}
+
+/* ------------ modal feedback ------------ */
+function openModal(){ document.getElementById('ovl').classList.add('show'); setStep(4); }
+function closeModal(){ document.getElementById('ovl').classList.remove('show'); }
+function sendFeedback(){
+  closeModal();
+  toast('Feedback registrato sul trace run-8f21 — Improver in analisi…');
+  const imp=document.getElementById('improver');
+  imp.style.display='block';
+  imp.scrollIntoView({behavior:'smooth'});
+  setTimeout(()=>{
+    document.getElementById('imp-status').textContent='proposta pronta — richiede approvazione';
+    document.getElementById('imp-body').style.display='block';
+    setStep(5);
+  }, 1400);
+}
+
+/* ------------ approvazione patch ------------ */
+function approvePatch(){
+  S.patched=true; S.wf='1.4';
+  document.getElementById('improver').style.display='none';
+  document.getElementById('rerun-box').style.display='block';
+  document.getElementById('wf-v').textContent='v1.4';
+  document.getElementById('sk-v').textContent='v1.4';
+  document.getElementById('rev-wfv').textContent='carica-fattura v1.3 → rielabora con v1.4';
+  document.getElementById('wf-log').innerHTML=
+    '<b class="mono">carica-fattura v1.4</b> · 18/07/2026 · <span class="badge b-acc">Improver</span>'+
+    '<div class="note" style="margin-top:4px">Aggiunta estrazione ritenuta d\'acconto + regola di validazione. Origine: feedback utente su run-8f21. Regressione golden set 12/12 ✓. Approvato da: Giambattista. Rollback: git revert.</div>';
+  toast('carica-fattura v1.4 attiva (commit git b7d03e) — riesegui l\'estrazione');
+}
+
+/* ------------ ri-esecuzione con v1.4 ------------ */
+function rerun(){
+  S.fixed=true;
+  document.getElementById('rerun-box').style.display='none';
+  const f=document.getElementById('f-rit');
+  f.classList.remove('warnf');
+  document.getElementById('v-rit').style.color='';
+  document.getElementById('v-rit').innerHTML='€ 406,56 <span class="tag">4% L.244/07 · netto € 11.993,44</span>';
+  const b=document.getElementById('b-rit');
+  b.className='badge b-ok'; b.textContent='0.98';
+  f.querySelector('.flag').style.display='none';
+  document.getElementById('pdf-hl').classList.remove('hl');
+  document.getElementById('j-rit').textContent='406.56'; document.getElementById('j-rit').style.background='var(--okbg)';
+  document.getElementById('j-wfv').textContent='1.4';
+  document.getElementById('j-conf').textContent='0.98';
+  const bv=document.getElementById('btn-validate');
+  bv.disabled=false; bv.title='';
+  toast('Estrazione v1.4 completata: ritenuta € 406,56 (conf. 0.98) — nessuna segnalazione');
+}
+
+/* ------------ validazione finale ------------ */
+function validateDoc(){
+  if(S.saved) return;
+  S.saved=true;
+  document.getElementById('rev-state').className='badge b-ok';
+  document.getElementById('rev-state').textContent='validato';
+  document.getElementById('revdot').style.display='none';
+  document.getElementById('kpi-fatt').textContent='4';
+  const tbl=document.getElementById('tbl-docs');
+  const tr=document.createElement('tr'); tr.className='new';
+  tr.innerHTML='<td class="mono">FT-2026-0341 <span class="badge b-acc">nuovo</span></td><td>Fattura</td><td>Rossi Costruzioni</td><td class="r">€ 12.400,00</td><td>CNT-001</td><td><span class="badge b-ok">validato</span></td>';
+  tbl.insertBefore(tr, tbl.rows[1]);
+  setStep(6);
+  toast('FT-2026-0341 validata: entità aggiornata, viste DuckDB coerenti, esempio aggiunto al dataset');
+  document.getElementById('kpi-ds').textContent='5.931';
+  setTimeout(()=>go('dashboard'), 900);
+}
+
+/* ------------ ruoli: operatore / admin ------------ */
+function setRole(r){
+  document.body.classList.toggle('op', r==='op');
+  document.getElementById('rb-op').classList.toggle('on', r==='op');
+  document.getElementById('rb-admin').classList.toggle('on', r!=='op');
+  window.scrollTo(0,0);
+  if(r==='op') toast('Modalità Operatore: solo uso, meccanica LLM invisibile');
+}
+function opGo(p){
+  document.querySelectorAll('.oppage').forEach(x=>x.classList.remove('on'));
+  document.getElementById('op-'+p).classList.add('on');
+}
+function opShoot(){
+  document.getElementById('op-prog').style.display='block';
+  document.getElementById('op-result').style.display='none';
+  setTimeout(()=>{
+    document.getElementById('op-prog').style.display='none';
+    document.getElementById('op-result').style.display='block';
+  },1500);
+}
+function opConfirm(){
+  document.getElementById('op-result').style.display='none';
+  document.getElementById('op-thanks').style.display='block';
+  opAddDoc('🟡','Fattura Rossi Costruzioni · oggi','in lavorazione, la controlla l\'ufficio');
+}
+function opWrong(){
+  document.getElementById('op-result').style.display='none';
+  document.getElementById('op-wrong').style.display='block';
+}
+function opSendFb(){
+  document.getElementById('op-wrong').style.display='none';
+  document.getElementById('op-thanks').style.display='block';
+  opAddDoc('🟡','Fattura Rossi Costruzioni · oggi','segnalazione inviata, ci pensa l\'ufficio');
+  const q=document.getElementById('seg-list');
+  const d=document.createElement('div'); d.className='card'; d.style.borderColor='var(--warn)';
+  d.innerHTML='<b>SEG-012</b> <span class="badge b-warn">nuova</span> · da <b>Salvatore (operatore CNT-001)</b> · doc <span class="mono">FT-2026-0341</span> · trace <span class="mono">run-8f21</span>'
+    +'<div class="note" style="margin-top:4px">"'+document.getElementById('op-fb').value+'"</div>'
+    +'<div style="margin-top:8px"><button class="btn sm" onclick="go(\'revisione\')">apri in Revisione</button> '
+    +'<button class="btn sm" onclick="toast(\'Segnalazione passata all’Improver come feedback (simulato)\')">→ Improver</button></div>';
+  q.insertBefore(d, q.firstChild);
+  document.getElementById('segdot').style.display='inline';
+}
+function opAddDoc(st,t,sub){
+  const l=document.getElementById('op-doclist');
+  const d=document.createElement('div'); d.className='opitem';
+  d.innerHTML='<span class="st">'+st+'</span><div>'+t+'<div class="opnote">'+sub+'</div></div>';
+  l.insertBefore(d,l.firstChild);
+}
+function opAsk(){ document.getElementById('op-ans').style.display='block'; }
+
+/* ------------ vista JSON ------------ */
+function toggleJson(){
+  const j=document.getElementById('jsonview');
+  j.style.display = j.style.display==='none' ? 'block' : 'none';
+}
+
+/* ------------ interroga ------------ */
+function runQuery(){
+  document.getElementById('q-out').style.display='block';
+  toast('Query Agent: SQL generato ed eseguito su DuckDB (0,08 s — simulato)');
+}
+function consolidate(){
+  const btn=document.getElementById('btn-consolida');
+  btn.disabled=true; btn.textContent='⚒ Consolidato ✓';
+  document.getElementById('consolidated-note').style.display='inline';
+  const tbl=document.getElementById('tbl-tools');
+  const tr=document.createElement('tr'); tr.className='new';
+  tr.innerHTML='<td class="mono">costi_materiale_cantiere() <span class="badge b-acc">nuovo</span></td><td class="note">consolidato da Query Agent</td><td class="r">0</td><td class="r">18/18 ✓</td><td><span class="badge b-ok">consolidato</span></td>';
+  tbl.appendChild(tr);
+  document.getElementById('cand-row').style.display='none';
+  toast('Toolsmith: funzione generata, testata sui trace storici e registrata — da ora costo token ≈ 0');
+}
+</script>
+</main>
+</div>
+<div id="toast"></div>
+</body>
+</html>
