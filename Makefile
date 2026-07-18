@@ -1,5 +1,5 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
-.PHONY: setup dev dev-api dev-web test seed lint
+.PHONY: setup dev dev-api dev-web test seed fixtures lint
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -31,6 +31,9 @@ test: ## Test backend (pytest)
 
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed
+
+fixtures: ## Genera 3 PDF fattura sintetici in ./fixtures (uno con ritenuta)
+	$(PY) -m app.fixtures
 
 lint: ## Ruff (backend) + ESLint (frontend)
 	$(PY) -m ruff check backend

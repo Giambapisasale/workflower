@@ -1,0 +1,18 @@
+# Workflow carica-fattura (contratto §3.2 del piano).
+# Versionato: il bump di version passa dall'Improver + approvazione admin.
+name: carica-fattura
+version: "1.0"
+tier: T1
+steps:
+  - id: estrai
+    skill: skills/estrazione-fattura.md
+    tools: [ocr_pdf, cerca_fornitore, cerca_cantiere]
+    output_schema: schemas/fattura.schema.json
+  - id: valida
+    rules:
+      - "abs(dati.totale - (dati.imponibile + dati.iva)) < 0.01"
+      - "dati.data <= today()"
+    on_fail: retry_T1_once_then_flag
+  - id: salva
+    action: save_draft
+confidence_threshold: 0.90

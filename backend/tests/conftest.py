@@ -1,7 +1,9 @@
+import shutil
 from pathlib import Path
 
 import pytest
 
+from app.fixtures import genera
 from app.seed import init_data_repo, run_seed
 
 
@@ -19,3 +21,26 @@ def data_repo(tmp_path: Path) -> Path:
     data_dir = tmp_path / "data"
     init_data_repo(data_dir)
     return data_dir
+
+
+@pytest.fixture
+def dati_rw(seeded_dir: Path, tmp_path: Path) -> Path:
+    """Copia usa-e-getta del repo dati completo, per i test che scrivono."""
+    destinazione = tmp_path / "data"
+    shutil.copytree(seeded_dir, destinazione)
+    return destinazione
+
+
+@pytest.fixture(scope="session")
+def fixtures_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """I 3 PDF fattura sintetici di `make fixtures`, generati una volta sola."""
+    cartella = tmp_path_factory.mktemp("fixtures")
+    genera(cartella)
+    return cartella
+
+
+@pytest.fixture
+def ambiente_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tier LLM configurati con modelli finti (il trasporto nei test è il fake)."""
+    monkeypatch.setenv("LLM_T1_MODEL", "test/finto-t1")
+    monkeypatch.setenv("LLM_T2_MODEL", "test/finto-t2")

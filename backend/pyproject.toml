@@ -10,6 +10,10 @@ dependencies = [
     "jsonschema>=4.23",
     "GitPython>=3.1.43",
     "duckdb>=1.1",
+    # <1.92: dalla 1.92 il pacchetto compila un modulo Rust (niente wheel Windows)
+    "litellm>=1.52,<1.92",
+    "pymupdf>=1.24",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -17,6 +21,7 @@ dev = [
     "pytest>=8.3",
     "httpx>=0.28",
     "ruff>=0.8",
+    "reportlab>=4.2",
 ]
 
 [build-system]

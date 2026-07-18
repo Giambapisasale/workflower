@@ -49,6 +49,7 @@ def init_data_repo(data_dir: Path) -> None:
     for schema in sorted((ASSETS / "schemas").glob("*.schema.json")):
         shutil.copy(schema, data_dir / "schemas" / schema.name)
     shutil.copy(ASSETS / "config" / "views.sql", data_dir / "config" / "views.sql")
+    shutil.copytree(ASSETS / "workflows", data_dir / "workflows", dirs_exist_ok=True)
     (data_dir / "dataset" / "toolcalls.jsonl").touch()
     (data_dir / "README.md").write_text(README, encoding="utf-8")
     repo = Repo.init(data_dir)

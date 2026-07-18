@@ -1,6 +1,9 @@
 # Dati (SoT — repo git separato, creato da `make seed`)
 data/
 
+# PDF di prova generati da `make fixtures`
+fixtures/
+
 # Python
 __pycache__/
 *.py[cod]
