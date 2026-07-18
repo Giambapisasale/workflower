@@ -1,0 +1,11 @@
+# Classificatore documenti (Fase 2, M7): instrada l'upload al workflow giusto.
+# Non è un workflow d'ingresso (niente blocco `ingest`): è la "classificazione
+# documenti (T2)" di §3.1. Il catalogo dei tipi è auto-scoperto dai manifest che
+# dichiarano `ingest`, quindi aggiungere un tipo documento non tocca questo file.
+name: classifica-documento
+version: "1.0"
+tier: T2
+skill: skills/classificazione-documento.md
+# Se il modello è incerto o qualcosa va storto, si instrada qui: l'operatore non
+# riceve mai un errore bloccante (contratto §3.4).
+fallback: carica-fattura

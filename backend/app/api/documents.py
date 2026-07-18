@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.api.deps import get_dal, get_runtime, utente_corrente
 from app.core.auth import Utente
+from app.core.classificatore import Classificatore
 from app.core.dal import DAL, DalError, tipo_da_id
 from app.core.runtime import WorkflowRuntime
 from app.core.tools import salva_bozza
@@ -27,12 +28,12 @@ from app.models.envelope import Envelope, now_iso
 logger = logging.getLogger("workflower.documents")
 router = APIRouter(tags=["documents"])
 
-# v1: unico workflow di ingresso; l'instradamento per tipo documento arriverà
-# aggiungendo manifest, senza toccare questa API (non-goal §5).
-WORKFLOW_UPLOAD = "carica-fattura"
+# Il workflow d'ingresso non è più fisso (Fase 2, M7): un classificatore T2
+# instrada l'upload al workflow giusto (carica-fattura, carica-ddt, …). Aggiungere
+# un tipo documento = aggiungere un manifest con blocco `ingest`, zero codice qui.
 ESTENSIONI_LEGGIBILI = {".pdf", ".png", ".jpg", ".jpeg"}
 MAX_BYTES = 15 * 1024 * 1024
-ETICHETTE_TIPO = {"fattura": "Fattura", "documento": "Documento"}
+ETICHETTE_TIPO = {"fattura": "Fattura", "ddt": "DDT", "documento": "Documento"}
 
 MSG_RIPROVA = "Non riesco a riceverlo adesso. Riprova tra qualche minuto."
 MSG_TROPPO_GRANDE = "Il file è troppo pesante. Prova con una foto del documento."
@@ -107,7 +108,7 @@ def _accetta(
         "nome_originale": nome_originale or nome,
         "caricato_da": utente.username,
         "cantiere_id": cantiere_id,
-        "workflow": WORKFLOW_UPLOAD,
+        "workflow": None,  # deciso dal classificatore in _elabora
         "run_id": run_id,
         "esito": "in_corso" if leggibile else "errore",
         "entity_tipo": None,
@@ -133,12 +134,14 @@ def _accetta(
 
 
 def _elabora(dal: DAL, runtime: WorkflowRuntime, doc_id: str, blob_rel: str, run_id: str) -> None:
-    """Task in background: esegue il workflow e aggiorna il documento."""
-    esito = runtime.esegui(WORKFLOW_UPLOAD, blob_rel, run_id=run_id)  # non solleva mai
+    """Task in background: classifica il documento, esegue il workflow, aggiorna."""
+    workflow = Classificatore(dal, runtime.gateway).workflow_per(blob_rel)  # non solleva mai
+    esito = runtime.esegui(workflow, blob_rel, run_id=run_id)  # non solleva mai
     try:
         envelope = dal.read("documento", doc_id)
         envelope.dati.update(
             {
+                "workflow": workflow,
                 "esito": esito.esito,
                 "entity_id": esito.entity_id,
                 "entity_tipo": tipo_da_id(esito.entity_id),

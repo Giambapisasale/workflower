@@ -8,7 +8,10 @@ export function RigheRiepilogo({ riepilogo }: { riepilogo: Riepilogo }) {
   return (
     <div className="my-3 space-y-1">
       <Riga etichetta={TESTI.ditta} valore={riepilogo.ditta ?? "—"} />
-      <Riga etichetta={TESTI.importo} valore={euro(riepilogo.importo)} />
+      {/* i documenti di trasporto non hanno un importo: mostriamo la riga solo se c'è */}
+      {riepilogo.importo !== null ? (
+        <Riga etichetta={TESTI.importo} valore={euro(riepilogo.importo)} />
+      ) : null}
       <Riga etichetta={TESTI.cantiere} valore={riepilogo.cantiere ?? "—"} />
     </div>
   );

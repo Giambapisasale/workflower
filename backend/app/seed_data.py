@@ -284,6 +284,53 @@ FATTURE: list[dict[str, Any]] = [
     },
 ]
 
+DDT: list[dict[str, Any]] = [
+    {
+        "id": "DDT-2026-0001",
+        "dati": {
+            "fornitore_id": "FRN-002",
+            "cantiere_id": "CNT-002",
+            "numero": "445/T",
+            "data": "2026-03-16",
+            "causale": "Vendita",
+            "riferimento_ordine": "ODA-2026-071",
+            "righe": [
+                {
+                    "descrizione": "Blocchi Poroton P800 25x30x19",
+                    "quantita": 420,
+                    "unita_misura": "pz",
+                    "voce_computo_id": None,
+                },
+                {
+                    "descrizione": "Malta premiscelata M10",
+                    "quantita": 60,
+                    "unita_misura": "sacco",
+                    "voce_computo_id": None,
+                },
+            ],
+        },
+    },
+    {
+        "id": "DDT-2026-0002",
+        "dati": {
+            "fornitore_id": "FRN-001",
+            "cantiere_id": "CNT-001",
+            "numero": "1120/26",
+            "data": "2026-02-09",
+            "causale": "Vendita",
+            "riferimento_ordine": None,
+            "righe": [
+                {
+                    "descrizione": "Calcestruzzo C25/30 XC2",
+                    "quantita": 85,
+                    "unita_misura": "m3",
+                    "voce_computo_id": None,
+                }
+            ],
+        },
+    },
+]
+
 # Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
 # I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
 UTENTI: list[dict[str, Any]] = [

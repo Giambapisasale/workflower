@@ -4,6 +4,7 @@
   "description": "Caricamento di un operatore: il blob, chi lo ha portato e l'esito del run che lo ha elaborato. L'entità estratta (es. la fattura) è collegata, non contenuta.",
   "type": "object",
   "required": ["file", "nome_originale", "caricato_da", "workflow", "run_id", "esito"],
+  "$comment": "workflow è null finché il classificatore non instrada il documento (M7)",
   "additionalProperties": false,
   "properties": {
     "file": {
@@ -13,7 +14,10 @@
     "nome_originale": { "type": "string" },
     "caricato_da": { "type": "string", "description": "Username dell'operatore" },
     "cantiere_id": { "type": ["string", "null"] },
-    "workflow": { "type": "string", "description": "Workflow a cui è stato affidato" },
+    "workflow": {
+      "type": ["string", "null"],
+      "description": "Workflow d'ingresso scelto dal classificatore; null finché non deciso"
+    },
     "run_id": { "type": "string" },
     "esito": {
       "enum": ["in_corso", "ok", "errore"],

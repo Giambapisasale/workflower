@@ -40,12 +40,18 @@ export type Cruscotto = {
 
 export type RigaCoda = {
   id: string;
+  tipo: string;
   fornitore: string | null;
   cantiere: string | null;
   totale: number | null;
   data: string | null;
   confidence_min: number | null;
   creato: string | null;
+};
+
+export const ETICHETTA_TIPO: Record<string, string> = {
+  fattura: "Fattura",
+  ddt: "DDT",
 };
 
 export type Envelope = {

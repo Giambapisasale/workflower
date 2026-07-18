@@ -101,3 +101,53 @@ FROM read_json(
         )'
     }
 );
+
+CREATE OR REPLACE VIEW v_ddt AS
+SELECT id,
+       stato,
+       dati.numero             AS numero,
+       dati.data               AS data,
+       dati.fornitore_id       AS fornitore_id,
+       dati.cantiere_id        AS cantiere_id,
+       dati.causale            AS causale,
+       dati.riferimento_ordine AS riferimento_ordine,
+       len(dati.righe)         AS n_righe,
+       meta.workflow           AS workflow,
+       meta.validato_da        AS validato_da
+FROM read_json(
+    '${DATA_DIR}/entities/ddt/*/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            numero VARCHAR, data DATE, fornitore_id VARCHAR, cantiere_id VARCHAR,
+            causale VARCHAR, riferimento_ordine VARCHAR,
+            righe STRUCT(
+                descrizione VARCHAR, quantita DOUBLE, unita_misura VARCHAR,
+                voce_computo_id VARCHAR
+            )[]
+        )',
+        meta: 'STRUCT(workflow VARCHAR, validato_da VARCHAR)'
+    }
+);
+
+CREATE OR REPLACE VIEW v_ddt_righe AS
+SELECT id                AS ddt_id,
+       dati.cantiere_id  AS cantiere_id,
+       dati.fornitore_id AS fornitore_id,
+       dati.numero       AS numero,
+       dati.data         AS data,
+       unnest(dati.righe, recursive := true)
+FROM read_json(
+    '${DATA_DIR}/entities/ddt/*/*.json',
+    columns = {
+        id: 'VARCHAR',
+        dati: 'STRUCT(
+            numero VARCHAR, data DATE, fornitore_id VARCHAR, cantiere_id VARCHAR,
+            righe STRUCT(
+                descrizione VARCHAR, quantita DOUBLE, unita_misura VARCHAR,
+                voce_computo_id VARCHAR
+            )[]
+        )'
+    }
+);

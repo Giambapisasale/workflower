@@ -3,6 +3,11 @@
 name: carica-fattura
 version: "1.0"
 tier: T1
+ingest:
+  label: fattura
+  descrizione: >-
+    Fattura passiva di un fornitore: riporta imponibile, IVA e totale, con la
+    dicitura "Fattura" e la partita IVA in testa. È il documento di spesa.
 steps:
   - id: estrai
     skill: skills/estrazione-fattura.md

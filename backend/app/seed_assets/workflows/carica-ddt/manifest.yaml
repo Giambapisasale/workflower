@@ -1,0 +1,25 @@
+# Workflow carica-ddt — seconda entità d'ingresso (Fase 2, M7).
+# Nessun codice nuovo nel runtime: solo schema + manifest + skill + vista.
+# Il blocco `ingest` è letto dal classificatore per instradare gli upload.
+name: carica-ddt
+version: "1.0"
+tier: T1
+ingest:
+  label: ddt
+  descrizione: >-
+    Documento di trasporto (DDT / bolla di consegna): elenca la merce
+    consegnata in cantiere, con quantità e unità di misura, di solito senza
+    prezzi né IVA. In testa riporta "Documento di trasporto" o "D.D.T.".
+steps:
+  - id: estrai
+    skill: skills/estrazione-ddt.md
+    tools: [ocr_pdf, cerca_fornitore, cerca_cantiere]
+    output_schema: schemas/ddt.schema.json
+  - id: valida
+    rules:
+      - "dati.data <= today()"
+      - "len(dati.righe) >= 1"
+    on_fail: retry_T1_once_then_flag
+  - id: salva
+    action: save_draft
+confidence_threshold: 0.90

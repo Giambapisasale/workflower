@@ -20,6 +20,10 @@ from app.models.envelope import Envelope
 
 router = APIRouter(tags=["review"])
 
+# Entità prodotte dai workflow d'ingresso che passano dalla revisione umana.
+# Nuovo tipo documento = una voce qui (le anagrafiche cantiere/fornitore no).
+TIPI_REVISIONABILI = ("fattura", "ddt")
+
 
 # ------------------------------------------------------------------ interni
 
@@ -90,22 +94,24 @@ def coda_revisione(
 ) -> dict[str, Any]:
     """Le bozze in attesa di validazione (la coda del pannello Revisione)."""
     da_rivedere = []
-    for entita in dal.list_all("fattura"):
-        if entita.stato != "bozza":
-            continue
-        confidence = entita.meta.confidence or {}
-        forn_id = entita.dati.get("fornitore_id")
-        da_rivedere.append(
-            {
-                "id": entita.id,
-                "fornitore": _nome(dal, "fornitore", forn_id, "ragione_sociale"),
-                "cantiere": _nome(dal, "cantiere", entita.dati.get("cantiere_id"), "nome"),
-                "totale": entita.dati.get("totale"),
-                "data": entita.dati.get("data"),
-                "confidence_min": min(confidence.values()) if confidence else None,
-                "creato": entita.meta.created,
-            }
-        )
+    for tipo in TIPI_REVISIONABILI:
+        for entita in dal.list_all(tipo):
+            if entita.stato != "bozza":
+                continue
+            confidence = entita.meta.confidence or {}
+            forn_id = entita.dati.get("fornitore_id")
+            da_rivedere.append(
+                {
+                    "id": entita.id,
+                    "tipo": tipo,
+                    "fornitore": _nome(dal, "fornitore", forn_id, "ragione_sociale"),
+                    "cantiere": _nome(dal, "cantiere", entita.dati.get("cantiere_id"), "nome"),
+                    "totale": entita.dati.get("totale"),
+                    "data": entita.dati.get("data"),
+                    "confidence_min": min(confidence.values()) if confidence else None,
+                    "creato": entita.meta.created,
+                }
+            )
     da_rivedere.sort(key=lambda d: d.get("creato") or "", reverse=True)
     return {"da_rivedere": da_rivedere}
 

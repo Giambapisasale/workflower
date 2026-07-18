@@ -186,8 +186,9 @@ def test_upload_formato_sconosciuto_mai_bloccante(
 
 
 def test_upload_con_llm_rotto_mai_500(crea_client, dati_rw: Path, fixtures_dir: Path) -> None:
+    # chiave errata: rompe OGNI chiamata (classificazione ed estrazione)
     guasto = AuthenticationError("chiave errata", llm_provider="test", model="finto")
-    client = crea_client(FakeCompleter(dati_rw, guasti=[guasto]))
+    client = crea_client(FakeCompleter(dati_rw, guasto_persistente=guasto))
     intestazioni = accedi(client)
 
     risposta = _carica(client, intestazioni, fixtures_dir / "fattura-calcestruzzi-etna.pdf")

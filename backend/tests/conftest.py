@@ -6,6 +6,7 @@ import pytest
 from fake_llm import FakeCompleter
 from fastapi.testclient import TestClient
 
+from app import fixtures_docs
 from app.core.gateway import Gateway
 from app.fixtures import genera
 from app.main import create_app
@@ -41,6 +42,14 @@ def fixtures_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """I 3 PDF fattura sintetici di `make fixtures`, generati una volta sola."""
     cartella = tmp_path_factory.mktemp("fixtures")
     genera(cartella)
+    return cartella
+
+
+@pytest.fixture(scope="session")
+def fixtures_docs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """I documenti sintetici di Fase 2 (DDT, SAL, …), generati una volta sola."""
+    cartella = tmp_path_factory.mktemp("fixtures_docs")
+    fixtures_docs.genera(cartella)
     return cartella
 
 

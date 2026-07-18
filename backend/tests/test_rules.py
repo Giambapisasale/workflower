@@ -34,6 +34,18 @@ def test_campo_mancante_non_valutabile() -> None:
         valuta_regola("dati.sconto <= 5", DATI)  # None <= 5 non è confrontabile
 
 
+def test_regola_len_sui_contenitori() -> None:
+    dati = {"righe": [{"x": 1}, {"x": 2}], "numero": "778/T"}
+    assert valuta_regola("len(dati.righe) >= 1", dati) is True
+    assert valuta_regola("len(dati.righe) >= 3", dati) is False
+    assert valuta_regola("len(dati.numero) > 0", dati) is True
+
+
+def test_regola_len_su_non_contenitore_non_valutabile() -> None:
+    with pytest.raises(RegolaNonValutabile):
+        valuta_regola("len(dati.totale) > 0", {"totale": 10.0})
+
+
 def test_costrutti_vietati() -> None:
     for espressione in (
         "__import__('os').system('echo x')",

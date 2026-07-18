@@ -15,7 +15,7 @@ from git import Repo
 from app.core.auth import hash_pin
 from app.core.dal import DAL, GIT_AUTHOR
 from app.models.envelope import Envelope, Meta
-from app.seed_data import CANTIERI, FATTURE, FORNITORI, UTENTI
+from app.seed_data import CANTIERI, DDT, FATTURE, FORNITORI, UTENTI
 
 ASSETS = Path(__file__).parent / "seed_assets"
 
@@ -23,6 +23,7 @@ SKELETON = [
     "entities/cantieri",
     "entities/fornitori",
     "entities/fatture/2026",
+    "entities/ddt/2026",
     "entities/documenti",
     "blobs/fatture/2026",
     "blobs/caricati",
@@ -85,7 +86,12 @@ def _utenti_config() -> list[dict[str, object]]:
 def populate(data_dir: Path) -> None:
     """Inserisce i dati d'esempio via DAL: stato validato, un commit ciascuno."""
     dal = DAL(data_dir)
-    per_tipo = (("cantiere", CANTIERI), ("fornitore", FORNITORI), ("fattura", FATTURE))
+    per_tipo = (
+        ("cantiere", CANTIERI),
+        ("fornitore", FORNITORI),
+        ("fattura", FATTURE),
+        ("ddt", DDT),
+    )
     for tipo, items in per_tipo:
         for item in items:
             envelope = Envelope(
@@ -142,6 +148,7 @@ def main() -> None:
     print(f"  cantieri:  {len(CANTIERI)}")
     print(f"  fornitori: {len(FORNITORI)}")
     print(f"  fatture:   {len(FATTURE)} (validate)")
+    print(f"  ddt:       {len(DDT)} (validate)")
     print(f"  utenti:    {len(UTENTI)} (PIN demo in app/seed_data.py)")
 
 

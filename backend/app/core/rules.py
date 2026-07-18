@@ -2,7 +2,7 @@
 
 Niente eval libero: mini-parser sull'AST Python che ammette solo ciò che
 serve alle regole — costanti, aritmetica, confronti, ``dati.campo`` e le
-funzioni in whitelist (``abs``, ``today``). Nessun accesso ai builtins.
+funzioni in whitelist (``abs``, ``today``, ``len``). Nessun accesso ai builtins.
 """
 
 import ast
@@ -21,7 +21,14 @@ def _today() -> str:
     return datetime.now(UTC).date().isoformat()
 
 
-_FUNZIONI: dict[str, Any] = {"abs": abs, "today": _today}
+def _len(valore: Any) -> int:
+    """len() ristretto ai contenitori dei dati (liste, stringhe, dizionari)."""
+    if isinstance(valore, list | str | dict):
+        return len(valore)
+    raise RegolaNonValutabile(f"len non applicabile a {type(valore).__name__}")
+
+
+_FUNZIONI: dict[str, Any] = {"abs": abs, "today": _today, "len": _len}
 
 _OPERATORI_BINARI = {
     ast.Add: lambda a, b: a + b,
