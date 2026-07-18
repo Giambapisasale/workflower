@@ -102,6 +102,19 @@ export async function richiestaBlob(percorso: string): Promise<Blob> {
   return risposta.blob();
 }
 
+/** Scarica un file dal backend e ne avvia il salvataggio nel browser. */
+export async function scaricaFile(percorso: string, nomeFile: string): Promise<void> {
+  const blob = await richiestaBlob(percorso);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeFile;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function corpoJson(dati: unknown): RequestInit {
   return {
     method: "POST",

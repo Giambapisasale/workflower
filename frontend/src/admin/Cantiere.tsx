@@ -3,7 +3,7 @@
 import { Link, useParams } from "react-router-dom";
 import { admin } from "./api";
 import { dataBreve, euro, percento, useCarica } from "./formato";
-import { Badge, Card, Errore, Kpi, Stato } from "./ui";
+import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
 function statoBadge(stato: string) {
   const tono = stato === "validato" ? "verde" : stato === "errore" ? "rosso" : "giallo";
@@ -26,6 +26,9 @@ export default function Cantiere() {
         <Link to="/admin" className="text-slate-400 hover:text-slate-700">← Cruscotto</Link>
         <h1 className="text-lg font-bold">{String(c.nome ?? id)}</h1>
         <span className="text-sm text-slate-500">{String(c.comune ?? "")}</span>
+        <div className="ml-auto">
+          <Bottone onClick={() => admin.scaricaReport(id)}>⬇ Scarica Excel</Bottone>
+        </div>
       </div>
       <div className="mb-6 text-sm text-slate-500">
         Committente: <b className="text-slate-700">{String(c.committente ?? "—")}</b> · Capocantiere:{" "}

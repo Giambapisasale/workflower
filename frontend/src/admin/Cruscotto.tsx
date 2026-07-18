@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { admin } from "./api";
 import { euro, percento, useCarica } from "./formato";
-import { Card, Errore, Kpi, Stato } from "./ui";
+import { Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
 export default function Cruscotto() {
   const { dati, errore, inCorso } = useCarica(() => admin.cruscotto());
@@ -26,7 +26,10 @@ export default function Cruscotto() {
         <Kpi etichetta="Costo manodopera" valore={euro(a.costo_manodopera)} />
       </div>
 
-      <Card titolo="Costi per cantiere">
+      <Card
+        titolo="Costi per cantiere"
+        azioni={<Bottone onClick={() => admin.scaricaReport()}>⬇ Scarica report Excel</Bottone>}
+      >
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">

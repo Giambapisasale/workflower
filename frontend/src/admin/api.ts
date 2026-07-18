@@ -4,7 +4,7 @@
  * confidence, SQL, trace — l'admin governa il sistema (§3.9).
  */
 
-import { richiesta, richiestaBlob } from "../shared/api";
+import { richiesta, richiestaBlob, scaricaFile } from "../shared/api";
 
 export type Totali = {
   n_fatture: number;
@@ -260,6 +260,12 @@ export const admin = {
 
   registro: (cantiereId: string) =>
     richiesta<RegistroCantiere>(`/cantieri/${cantiereId}/registro`),
+
+  scaricaReport: (cantiereId?: string) =>
+    scaricaFile(
+      `/reports/mensile.xlsx${cantiereId ? `?cantiere_id=${cantiereId}` : ""}`,
+      `report-${cantiereId ?? "tutti"}.xlsx`,
+    ),
 
   scostamenti: (cantiereId?: string) =>
     richiesta<Scostamenti>(
