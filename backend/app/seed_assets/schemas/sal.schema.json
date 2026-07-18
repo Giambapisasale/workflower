@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SAL",
+  "description": "Stato Avanzamento Lavori: certificato dell'avanzamento di un cantiere",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "cantiere_id",
+    "numero",
+    "data",
+    "importo_lavori",
+    "importo_progressivo",
+    "percentuale_avanzamento"
+  ],
+  "properties": {
+    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "numero": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Numero progressivo del SAL come stampato (es. 3 o SAL-03)"
+    },
+    "data": { "type": "string", "format": "date", "description": "Data di emissione (ISO 8601)" },
+    "importo_lavori": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Importo contrattuale dei lavori, in euro"
+    },
+    "importo_progressivo": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Lavori eseguiti a tutto il presente SAL (progressivo), in euro"
+    },
+    "percentuale_avanzamento": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Percentuale di avanzamento complessiva (0-100)"
+    }
+  }
+}

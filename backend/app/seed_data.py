@@ -331,6 +331,62 @@ DDT: list[dict[str, Any]] = [
     },
 ]
 
+SAL: list[dict[str, Any]] = [
+    {
+        "id": "SAL-2026-0001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "numero": "3",
+            "data": "2026-06-30",
+            "importo_lavori": 1720000.00,
+            "importo_progressivo": 561000.00,
+            "percentuale_avanzamento": 32.6,
+        },
+    },
+    {
+        "id": "SAL-2026-0002",
+        "dati": {
+            "cantiere_id": "CNT-003",
+            "numero": "2",
+            "data": "2026-05-31",
+            "importo_lavori": 1980000.00,
+            "importo_progressivo": 445000.00,
+            "percentuale_avanzamento": 22.5,
+        },
+    },
+]
+
+def _ora(nominativo: str, mansione: str, ore: float, costo: float) -> dict[str, Any]:
+    """Una riga di rapportino, per tenere il seed compatto e leggibile."""
+    return {"nominativo": nominativo, "mansione": mansione, "ore": ore, "costo_orario": costo}
+
+
+RAPPORTINI: list[dict[str, Any]] = [
+    {
+        "id": "RAP-2026-0001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "data": "2026-07-14",
+            "righe": [
+                _ora("Salvo Torrisi", "Capocantiere", 8, 32.0),
+                _ora("Mario Rossi", "Muratore", 8, 26.5),
+                _ora("Antonio Greco", "Manovale", 8, 22.0),
+            ],
+        },
+    },
+    {
+        "id": "RAP-2026-0002",
+        "dati": {
+            "cantiere_id": "CNT-002",
+            "data": "2026-07-15",
+            "righe": [
+                _ora("Giuseppe Leotta", "Capocantiere", 8, 30.0),
+                _ora("Squadra edile", "Muratura", 16, 24.0),
+            ],
+        },
+    },
+]
+
 # Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
 # I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
 UTENTI: list[dict[str, Any]] = [

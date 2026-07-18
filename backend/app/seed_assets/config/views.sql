@@ -151,3 +151,79 @@ FROM read_json(
         )'
     }
 );
+
+CREATE OR REPLACE VIEW v_sal AS
+SELECT id,
+       stato,
+       dati.numero                  AS numero,
+       dati.data                    AS data,
+       dati.cantiere_id             AS cantiere_id,
+       dati.importo_lavori          AS importo_lavori,
+       dati.importo_progressivo     AS importo_progressivo,
+       dati.percentuale_avanzamento AS percentuale_avanzamento,
+       meta.workflow                AS workflow,
+       meta.validato_da             AS validato_da
+FROM read_json(
+    '${DATA_DIR}/entities/sal/*/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            numero VARCHAR, data DATE, cantiere_id VARCHAR, importo_lavori DOUBLE,
+            importo_progressivo DOUBLE, percentuale_avanzamento DOUBLE
+        )',
+        meta: 'STRUCT(workflow VARCHAR, validato_da VARCHAR)'
+    }
+);
+
+CREATE OR REPLACE VIEW v_rapportini AS
+SELECT id,
+       stato,
+       dati.data                                        AS data,
+       dati.cantiere_id                                 AS cantiere_id,
+       len(dati.righe)                                  AS n_righe,
+       list_sum(list_transform(dati.righe, r -> r.ore)) AS ore_totali,
+       meta.workflow                                    AS workflow,
+       meta.validato_da                                 AS validato_da
+FROM read_json(
+    '${DATA_DIR}/entities/rapportini/*/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            data DATE, cantiere_id VARCHAR,
+            righe STRUCT(
+                nominativo VARCHAR, mansione VARCHAR, ore DOUBLE, costo_orario DOUBLE
+            )[]
+        )',
+        meta: 'STRUCT(workflow VARCHAR, validato_da VARCHAR)'
+    }
+);
+
+CREATE OR REPLACE VIEW v_rapportini_righe AS
+SELECT rapportino_id,
+       cantiere_id,
+       data,
+       nominativo,
+       mansione,
+       ore,
+       costo_orario,
+       ore * COALESCE(costo_orario, 0) AS costo
+FROM (
+    SELECT id               AS rapportino_id,
+           dati.cantiere_id AS cantiere_id,
+           dati.data        AS data,
+           unnest(dati.righe, recursive := true)
+    FROM read_json(
+        '${DATA_DIR}/entities/rapportini/*/*.json',
+        columns = {
+            id: 'VARCHAR',
+            dati: 'STRUCT(
+                data DATE, cantiere_id VARCHAR,
+                righe STRUCT(
+                    nominativo VARCHAR, mansione VARCHAR, ore DOUBLE, costo_orario DOUBLE
+                )[]
+            )'
+        }
+    )
+);

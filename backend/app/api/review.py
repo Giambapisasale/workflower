@@ -22,7 +22,7 @@ router = APIRouter(tags=["review"])
 
 # Entità prodotte dai workflow d'ingresso che passano dalla revisione umana.
 # Nuovo tipo documento = una voce qui (le anagrafiche cantiere/fornitore no).
-TIPI_REVISIONABILI = ("fattura", "ddt")
+TIPI_REVISIONABILI = ("fattura", "ddt", "sal", "rapportino")
 
 
 # ------------------------------------------------------------------ interni

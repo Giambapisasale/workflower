@@ -33,7 +33,13 @@ router = APIRouter(tags=["documents"])
 # un tipo documento = aggiungere un manifest con blocco `ingest`, zero codice qui.
 ESTENSIONI_LEGGIBILI = {".pdf", ".png", ".jpg", ".jpeg"}
 MAX_BYTES = 15 * 1024 * 1024
-ETICHETTE_TIPO = {"fattura": "Fattura", "ddt": "DDT", "documento": "Documento"}
+ETICHETTE_TIPO = {
+    "fattura": "Fattura",
+    "ddt": "DDT",
+    "sal": "SAL",
+    "rapportino": "Rapportino",
+    "documento": "Documento",
+}
 
 MSG_RIPROVA = "Non riesco a riceverlo adesso. Riprova tra qualche minuto."
 MSG_TROPPO_GRANDE = "Il file è troppo pesante. Prova con una foto del documento."

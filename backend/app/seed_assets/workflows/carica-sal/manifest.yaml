@@ -1,0 +1,25 @@
+# Workflow carica-sal — avanzamento lavori (Fase 2, M8). Stesso runtime.
+# Usa solo cerca_cantiere: un SAL non ha un fornitore.
+name: carica-sal
+version: "1.0"
+tier: T1
+ingest:
+  label: sal
+  descrizione: >-
+    Stato Avanzamento Lavori (S.A.L.): certificato dell'avanzamento di un
+    cantiere, con l'importo dei lavori eseguiti a tutto il SAL e la percentuale
+    di avanzamento. In testa riporta "Stato Avanzamento Lavori" o "S.A.L.".
+steps:
+  - id: estrai
+    skill: skills/estrazione-sal.md
+    tools: [ocr_pdf, cerca_cantiere]
+    output_schema: schemas/sal.schema.json
+  - id: valida
+    rules:
+      - "dati.data <= today()"
+      - "dati.percentuale_avanzamento >= 0"
+      - "dati.percentuale_avanzamento <= 100"
+    on_fail: retry_T1_once_then_flag
+  - id: salva
+    action: save_draft
+confidence_threshold: 0.90

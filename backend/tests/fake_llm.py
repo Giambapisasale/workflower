@@ -5,11 +5,11 @@ pymupdf — il layout delle fixtures è fatto apposta), chiama i tool nell'ordin
 naturale (ocr_pdf → cerca_fornitore → cerca_cantiere) leggendo i loro risultati
 dalla conversazione, e consegna il JSON ``{dati, confidence}``.
 
-Copre tre compiti, riconosciuti dal marker nella skill (primo messaggio system):
+Compiti, riconosciuti dal marker nella skill (primo messaggio system):
 
-- "Classificazione del documento" → legge l'intestazione e dice se è fattura o DDT.
+- "Classificazione del documento" → legge l'intestazione e dice il tipo.
 - "Estrazione fattura" → trascrive la fattura (con lo scenario ritenuta M5).
-- "Estrazione DDT" → trascrive il documento di trasporto.
+- "Estrazione DDT|SAL|rapportino" → trascrive il documento (percorso generico).
 
 Contratto con lo scenario M5 (ritenuta d'acconto): il fake estrae la ritenuta
 SOLO se la skill dell'estrazione fattura contiene la parola "calce".
@@ -25,7 +25,7 @@ import pymupdf
 
 
 def _importo(testo: str) -> float:
-    """'8.330,00' → 8330.0 (dal formato italiano stampato in fattura)."""
+    """'8.330,00' → 8330.0 (dal formato italiano stampato nei documenti)."""
     return float(testo.replace(".", "").replace(",", "."))
 
 
@@ -34,9 +34,17 @@ def _testo_documento(percorso: Path) -> str:
         return "\n".join(pagina.get_text() for pagina in documento)
 
 
+def _righe_utili(testo: str) -> list[str]:
+    return [riga.strip() for riga in testo.splitlines() if riga.strip()]
+
+
+def _data_iso(giorno: str, mese: str, anno: str) -> str:
+    return f"{anno}-{mese}-{giorno}"
+
+
 def _leggi_fattura(percorso: Path) -> dict[str, Any]:
     testo = _testo_documento(percorso)
-    righe_doc = [riga.strip() for riga in testo.splitlines() if riga.strip()]
+    righe_doc = _righe_utili(testo)
 
     testata = re.search(r"FATTURA N\. (\S+) del (\d{2})/(\d{2})/(\d{4})", testo)
     if not testata:
@@ -70,7 +78,7 @@ def _leggi_fattura(percorso: Path) -> dict[str, Any]:
         "fornitore": righe_doc[0],
         "cantiere": re.search(r"Cantiere: (.+)", testo).group(1).strip(),
         "numero": testata.group(1),
-        "data_iso": f"{testata.group(4)}-{testata.group(3)}-{testata.group(2)}",
+        "data_iso": _data_iso(testata.group(2), testata.group(3), testata.group(4)),
         "imponibile": euro("Imponibile"),
         "iva": euro(r"IVA \d+%"),
         "totale": euro("TOTALE"),
@@ -79,10 +87,14 @@ def _leggi_fattura(percorso: Path) -> dict[str, Any]:
     }
 
 
+# ---------- lettori dei documenti "semplici" (DDT/SAL/rapportino) ----------
+# Ognuno ritorna {query_fornitore?, query_cantiere?, dati}: il fake riempie
+# fornitore_id/cantiere_id dai risultati dei tool, come farebbe il modello.
+
+
 def _leggi_ddt(percorso: Path) -> dict[str, Any]:
     testo = _testo_documento(percorso)
-    righe_doc = [riga.strip() for riga in testo.splitlines() if riga.strip()]
-
+    righe_doc = _righe_utili(testo)
     testata = re.search(r"DDT N\. (\S+) del (\d{2})/(\d{2})/(\d{4})", testo)
     if not testata:
         raise AssertionError(f"fixture DDT illeggibile: {percorso}")
@@ -110,14 +122,87 @@ def _leggi_ddt(percorso: Path) -> dict[str, Any]:
 
     cantiere = re.search(r"Destinazione \(cantiere\): (.+)", testo)
     return {
-        "fornitore": righe_doc[0],
-        "cantiere": cantiere.group(1).strip() if cantiere else "",
-        "numero": testata.group(1),
-        "data_iso": f"{testata.group(4)}-{testata.group(3)}-{testata.group(2)}",
-        "causale": campo("Causale"),
-        "riferimento_ordine": campo(r"Rif\. ordine"),
-        "righe": righe,
+        "query_fornitore": righe_doc[0],
+        "query_cantiere": cantiere.group(1).strip() if cantiere else "",
+        "dati": {
+            "fornitore_id": None,
+            "cantiere_id": None,
+            "numero": testata.group(1),
+            "data": _data_iso(testata.group(2), testata.group(3), testata.group(4)),
+            "causale": campo("Causale"),
+            "riferimento_ordine": campo(r"Rif\. ordine"),
+            "righe": righe,
+        },
     }
+
+
+def _leggi_sal(percorso: Path) -> dict[str, Any]:
+    testo = _testo_documento(percorso)
+    testata = re.search(r"SAL N\. (\S+) del (\d{2})/(\d{2})/(\d{4})", testo)
+    if not testata:
+        raise AssertionError(f"fixture SAL illeggibile: {percorso}")
+
+    def euro(etichetta: str) -> float | None:
+        match = re.search(etichetta + r": EUR ([\d.,]+)", testo)
+        return _importo(match.group(1)) if match else None
+
+    cantiere = re.search(r"Cantiere: (.+)", testo)
+    percentuale = re.search(r"Avanzamento complessivo: ([\d.,]+) %", testo)
+    return {
+        "query_cantiere": cantiere.group(1).strip() if cantiere else "",
+        "dati": {
+            "cantiere_id": None,
+            "numero": testata.group(1),
+            "data": _data_iso(testata.group(2), testata.group(3), testata.group(4)),
+            "importo_lavori": euro("Importo lavori contrattuali"),
+            "importo_progressivo": euro("Lavori eseguiti a tutto il presente SAL"),
+            "percentuale_avanzamento": _importo(percentuale.group(1)) if percentuale else None,
+        },
+    }
+
+
+def _leggi_rapportino(percorso: Path) -> dict[str, Any]:
+    testo = _testo_documento(percorso)
+    testata = re.search(r"Data: (\d{2})/(\d{2})/(\d{4})", testo)
+    if not testata:
+        raise AssertionError(f"fixture rapportino illeggibile: {percorso}")
+
+    righe = []
+    for riga in _righe_utili(testo):
+        match = re.fullmatch(r"(.+?) \| (.+?) \| (.+?) \| (.+)", riga)
+        if not match or match.group(1) == "Nominativo":
+            continue
+        mansione = match.group(2).strip()
+        costo = match.group(4).strip()
+        righe.append(
+            {
+                "nominativo": match.group(1).strip(),
+                "mansione": None if mansione == "-" else mansione,
+                "ore": _importo(match.group(3).strip()),
+                "costo_orario": None if costo == "-" else _importo(costo),
+            }
+        )
+
+    cantiere = re.search(r"Cantiere: (.+)", testo)
+    return {
+        "query_cantiere": cantiere.group(1).strip() if cantiere else "",
+        "dati": {
+            "cantiere_id": None,
+            "data": _data_iso(testata.group(1), testata.group(2), testata.group(3)),
+            "righe": righe,
+        },
+    }
+
+
+LETTORI = {"ddt": _leggi_ddt, "sal": _leggi_sal, "rapportino": _leggi_rapportino}
+
+
+def _tipo_estrazione(skill: str) -> str | None:
+    for marker, tipo in (("Estrazione DDT", "ddt"), ("Estrazione SAL", "sal"),
+                         ("Estrazione rapportino", "rapportino")):
+        if marker in skill:
+            return tipo
+    return None
 
 
 class FakeCompleter:
@@ -158,23 +243,32 @@ class FakeCompleter:
         skill = str(messages[0]["content"])
         if "Classificazione del documento" in skill:
             return self._classifica(model, messages)
-        if "Estrazione DDT" in skill:
-            return self._estrai_ddt(model, messages, tools)
+        tipo = _tipo_estrazione(skill)
+        if tipo:
+            return self._estrai_semplice(model, messages, tools, tipo)
         return self._estrai_fattura(model, messages, tools, skill)
 
     # ------------------------------------------------------- classificazione
 
     def _classifica(self, model: str, messages: list[dict[str, Any]]) -> dict[str, Any]:
         testo = _testo_documento(self.data_dir / self._doc_path(messages)).lower()
-        tipo = "ddt" if ("documento di trasporto" in testo or "d.d.t" in testo) else "fattura"
+        if "stato avanzamento" in testo or "s.a.l" in testo:
+            tipo = "sal"
+        elif "rapportino" in testo:
+            tipo = "rapportino"
+        elif "documento di trasporto" in testo or "d.d.t" in testo:
+            tipo = "ddt"
+        else:
+            tipo = "fattura"
         return self._risposta_finale(
             model, json.dumps({"tipo": tipo, "confidence": 0.95}, ensure_ascii=False)
         )
 
-    # ------------------------------------------------------- estrazione DDT
+    # ---------------------------------------- estrazione generica (DDT/SAL/…)
 
-    def _estrai_ddt(
-        self, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None
+    def _estrai_semplice(
+        self, model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None,
+        tipo: str,
     ) -> dict[str, Any]:
         doc = self._doc_path(messages)
         gia_chiamati = self._tool_chiamati(messages)
@@ -182,21 +276,19 @@ class FakeCompleter:
         if "ocr_pdf" in offerti and "ocr_pdf" not in gia_chiamati:
             return self._risposta_tool(model, "ocr_pdf", {"path": doc})
 
-        campi = _leggi_ddt(self.data_dir / doc)
-        if "cerca_fornitore" in offerti and "cerca_fornitore" not in gia_chiamati:
-            return self._risposta_tool(model, "cerca_fornitore", {"query": campi["fornitore"]})
-        if "cerca_cantiere" in offerti and "cerca_cantiere" not in gia_chiamati:
-            return self._risposta_tool(model, "cerca_cantiere", {"query": campi["cantiere"]})
+        lettura = LETTORI[tipo](self.data_dir / doc)
+        query_forn = lettura.get("query_fornitore")
+        query_cant = lettura.get("query_cantiere")
+        if "cerca_fornitore" in offerti and "cerca_fornitore" not in gia_chiamati and query_forn:
+            return self._risposta_tool(model, "cerca_fornitore", {"query": query_forn})
+        if "cerca_cantiere" in offerti and "cerca_cantiere" not in gia_chiamati and query_cant:
+            return self._risposta_tool(model, "cerca_cantiere", {"query": query_cant})
 
-        dati = {
-            "fornitore_id": self._miglior_id(messages, "cerca_fornitore"),
-            "cantiere_id": self._miglior_id(messages, "cerca_cantiere"),
-            "numero": campi["numero"],
-            "data": campi["data_iso"],
-            "causale": campi["causale"],
-            "riferimento_ordine": campi["riferimento_ordine"],
-            "righe": campi["righe"],
-        }
+        dati = dict(lettura["dati"])
+        if "fornitore_id" in dati:
+            dati["fornitore_id"] = self._miglior_id(messages, "cerca_fornitore")
+        if "cantiere_id" in dati:
+            dati["cantiere_id"] = self._miglior_id(messages, "cerca_cantiere")
         self.risposte_finali += 1
         confidence = self.confidence_override or dict.fromkeys(dati, 0.96)
         testo = json.dumps({"dati": dati, "confidence": confidence}, ensure_ascii=False)

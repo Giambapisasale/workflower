@@ -5,6 +5,7 @@ import { euro, percento, useCarica } from "./formato";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
 const MONETARI = new Set(["imponibile", "iva", "totale", "ritenuta_acconto"]);
+const MONETARI_RIGA = new Set(["importo", "costo_orario"]);
 
 function tono(c: number | undefined): string {
   if (c === undefined) return "grigio";
@@ -14,6 +15,12 @@ function tono(c: number | undefined): string {
 function mostraValore(campo: string, v: unknown): string {
   if (v === null || v === undefined) return "— (vuoto)";
   if (MONETARI.has(campo) && typeof v === "number") return euro(v);
+  return String(v);
+}
+
+function cella(campo: string, v: unknown): string {
+  if (v === null || v === undefined || v === "") return "—";
+  if (MONETARI_RIGA.has(campo) && typeof v === "number") return euro(v);
   return String(v);
 }
 
@@ -45,6 +52,9 @@ export default function RevisioneDettaglio() {
 
   const dati = rev.entita.dati as Record<string, unknown>;
   const righe = (Array.isArray(dati.righe) ? dati.righe : []) as Record<string, unknown>[];
+  const colonneRighe = righe.length
+    ? Object.keys(righe[0]).filter((k) => k !== "voce_computo_id")
+    : [];
   const scalari = Object.entries(dati).filter(([k]) => k !== "righe");
   const noteDi = (campo: string) => rev.feedback.filter((f) => f.campo === campo);
 
@@ -152,14 +162,19 @@ export default function RevisioneDettaglio() {
             <div className="mt-4">
               <div className="mb-1 text-xs font-medium uppercase text-slate-400">Righe</div>
               <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-slate-400">
+                    {colonneRighe.map((c) => (
+                      <th key={c} className="pb-1 pr-3 font-medium">{c}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
                   {righe.map((r, i) => (
                     <tr key={i} className="border-b border-slate-50">
-                      <td className="py-1 text-slate-700">{String(r.descrizione ?? "")}</td>
-                      <td className="py-1 text-right text-slate-500">
-                        {r.quantita ? `${r.quantita} ${r.unita_misura ?? ""}` : ""}
-                      </td>
-                      <td className="py-1 text-right tabular-nums">{euro(r.importo as number)}</td>
+                      {colonneRighe.map((c) => (
+                        <td key={c} className="py-1 pr-3 text-slate-700">{cella(c, r[c])}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>

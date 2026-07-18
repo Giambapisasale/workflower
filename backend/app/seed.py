@@ -15,7 +15,7 @@ from git import Repo
 from app.core.auth import hash_pin
 from app.core.dal import DAL, GIT_AUTHOR
 from app.models.envelope import Envelope, Meta
-from app.seed_data import CANTIERI, DDT, FATTURE, FORNITORI, UTENTI
+from app.seed_data import CANTIERI, DDT, FATTURE, FORNITORI, RAPPORTINI, SAL, UTENTI
 
 ASSETS = Path(__file__).parent / "seed_assets"
 
@@ -24,6 +24,8 @@ SKELETON = [
     "entities/fornitori",
     "entities/fatture/2026",
     "entities/ddt/2026",
+    "entities/sal/2026",
+    "entities/rapportini/2026",
     "entities/documenti",
     "blobs/fatture/2026",
     "blobs/caricati",
@@ -91,6 +93,8 @@ def populate(data_dir: Path) -> None:
         ("fornitore", FORNITORI),
         ("fattura", FATTURE),
         ("ddt", DDT),
+        ("sal", SAL),
+        ("rapportino", RAPPORTINI),
     )
     for tipo, items in per_tipo:
         for item in items:
@@ -149,6 +153,8 @@ def main() -> None:
     print(f"  fornitori: {len(FORNITORI)}")
     print(f"  fatture:   {len(FATTURE)} (validate)")
     print(f"  ddt:       {len(DDT)} (validate)")
+    print(f"  sal:       {len(SAL)} (validati)")
+    print(f"  rapportini:{len(RAPPORTINI)} (validati)")
     print(f"  utenti:    {len(UTENTI)} (PIN demo in app/seed_data.py)")
 
 

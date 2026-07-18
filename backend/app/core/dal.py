@@ -47,6 +47,18 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": True,
         "fmt": lambda anno, n: f"DDT-{anno}-{n:04d}",
     },
+    "sal": {
+        "dir": "sal",
+        "id": re.compile(r"^SAL-\d{4}-\d{4,}$"),
+        "per_anno": True,
+        "fmt": lambda anno, n: f"SAL-{anno}-{n:04d}",
+    },
+    "rapportino": {
+        "dir": "rapportini",
+        "id": re.compile(r"^RAP-\d{4}-\d{4,}$"),
+        "per_anno": True,
+        "fmt": lambda anno, n: f"RAP-{anno}-{n:04d}",
+    },
     "documento": {
         "dir": "documenti",
         "id": re.compile(r"^DOC-\d{4}-\d{4,}$"),

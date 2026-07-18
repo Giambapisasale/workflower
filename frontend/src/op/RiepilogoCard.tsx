@@ -7,8 +7,10 @@ import { euro, TESTI } from "./testi";
 export function RigheRiepilogo({ riepilogo }: { riepilogo: Riepilogo }) {
   return (
     <div className="my-3 space-y-1">
-      <Riga etichetta={TESTI.ditta} valore={riepilogo.ditta ?? "—"} />
-      {/* i documenti di trasporto non hanno un importo: mostriamo la riga solo se c'è */}
+      {/* SAL e rapportini non hanno una ditta né un importo: mostriamo la riga solo se c'è */}
+      {riepilogo.ditta !== null ? (
+        <Riga etichetta={TESTI.ditta} valore={riepilogo.ditta} />
+      ) : null}
       {riepilogo.importo !== null ? (
         <Riga etichetta={TESTI.importo} valore={euro(riepilogo.importo)} />
       ) : null}

@@ -52,6 +52,8 @@ export type RigaCoda = {
 export const ETICHETTA_TIPO: Record<string, string> = {
   fattura: "Fattura",
   ddt: "DDT",
+  sal: "SAL",
+  rapportino: "Rapportino",
 };
 
 export type Envelope = {

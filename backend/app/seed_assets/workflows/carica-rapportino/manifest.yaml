@@ -1,0 +1,23 @@
+# Workflow carica-rapportino — manodopera (Fase 2, M8). Stesso runtime.
+# Usa solo cerca_cantiere: un rapportino non ha un fornitore.
+name: carica-rapportino
+version: "1.0"
+tier: T1
+ingest:
+  label: rapportino
+  descrizione: >-
+    Rapportino giornaliero di cantiere: elenca i lavoratori e le ore svolte in
+    una giornata, spesso con la mansione. In testa riporta "Rapportino".
+steps:
+  - id: estrai
+    skill: skills/estrazione-rapportino.md
+    tools: [ocr_pdf, cerca_cantiere]
+    output_schema: schemas/rapportino.schema.json
+  - id: valida
+    rules:
+      - "dati.data <= today()"
+      - "len(dati.righe) >= 1"
+    on_fail: retry_T1_once_then_flag
+  - id: salva
+    action: save_draft
+confidence_threshold: 0.90
