@@ -15,6 +15,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
 from app.core.gateway import Gateway
+from app.core.improver import Improver
 from app.core.interroga import Interroga
 from app.core.runtime import WorkflowRuntime
 
@@ -52,6 +53,12 @@ def get_interroga(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> Interroga:
     return Interroga(dal.data_dir, gateway)
+
+
+def get_improver(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> Improver:
+    return Improver(dal, gateway)
 
 
 def utente_corrente(

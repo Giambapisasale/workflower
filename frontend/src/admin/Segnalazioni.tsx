@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { admin } from "./api";
 import { dataBreve, euro, useCarica } from "./formato";
 import TracePanel from "./TracePanel";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
+// v1: unico workflow d'ingresso documenti (vedi documents.WORKFLOW_UPLOAD)
+const WORKFLOW_DOC = "carica-fattura";
+
 export default function Segnalazioni() {
   const { dati, errore, inCorso, ricarica } = useCarica(() => admin.issues());
   const [azione, setAzione] = useState<string | null>(null);
   const [traceAperto, setTraceAperto] = useState<string | null>(null);
+  const naviga = useNavigate();
 
   if (inCorso) return <Stato>Carico le segnalazioni…</Stato>;
   if (errore) return <Errore>{errore}</Errore>;
@@ -19,6 +23,16 @@ export default function Segnalazioni() {
     try {
       await admin.chiudiIssue(id);
       ricarica();
+    } finally {
+      setAzione(null);
+    }
+  }
+
+  async function migliora(issueId: string) {
+    setAzione(`migliora:${issueId}`);
+    try {
+      await admin.migliora(WORKFLOW_DOC, { issue_id: issueId });
+      naviga("/admin/workflows");
     } finally {
       setAzione(null);
     }
@@ -63,6 +77,15 @@ export default function Segnalazioni() {
                   >
                     {traceAperto === i.run_id ? "Nascondi trace" : "Trace"}
                   </button>
+                ) : null}
+                {i.stato === "aperta" && i.run_id ? (
+                  <Bottone
+                    variante="primario"
+                    onClick={() => migliora(i.id)}
+                    disabled={azione === `migliora:${i.id}`}
+                  >
+                    {azione === `migliora:${i.id}` ? "Analizzo…" : "Migliora il workflow"}
+                  </Bottone>
                 ) : null}
                 {i.stato === "aperta" ? (
                   <Bottone onClick={() => chiudi(i.id)} disabled={azione === i.id}>

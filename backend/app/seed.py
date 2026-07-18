@@ -32,6 +32,7 @@ SKELETON = [
     "golden",
     "dataset",
     "issues",
+    "patches",
     "config",
 ]
 

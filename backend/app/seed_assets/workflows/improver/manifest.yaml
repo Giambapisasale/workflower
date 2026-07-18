@@ -1,0 +1,10 @@
+# Meta-workflow Improver (ciclo di auto-miglioramento §3.5).
+# Propone patch alle skill (T1) e giudica il replay sul golden set (T2).
+# I prompt sono dati (skills/*.md), mai hard-coded nel codice.
+name: improver
+version: "1.0"
+tier_proposta: T1
+tier_giudizio: T2
+skills:
+  proposta: skills/proposta-patch.md
+  giudizio: skills/giudizio-replay.md

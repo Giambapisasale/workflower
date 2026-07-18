@@ -228,6 +228,47 @@ class DAL:
             )
         return issue
 
+    def leggi_issue(self, issue_id: str) -> Issue:
+        percorso = self.data_dir / "issues" / f"{issue_id}.json"
+        if not percorso.is_file():
+            raise NotFoundError(f"issue {issue_id} non trovata")
+        return Issue.model_validate_json(percorso.read_text(encoding="utf-8"))
+
+    def salva_patch(self, patch: dict[str, Any]) -> dict[str, Any]:
+        """Registra una proposta di patch dell'Improver (id progressivo PATCH-nnnn)."""
+        with self._write_lock:
+            cartella = self.data_dir / "patches"
+            cartella.mkdir(parents=True, exist_ok=True)
+            patch = {**patch, "id": self._prossimo_id_progressivo(cartella, "PATCH")}
+            pid = patch["id"]
+            self._committa_json(
+                cartella / f"{pid}.json", patch, f"patch {pid}: proposta [{pid}]"
+            )
+        return patch
+
+    def aggiorna_patch(self, patch: dict[str, Any], azione: str) -> dict[str, Any]:
+        with self._write_lock:
+            percorso = self.data_dir / "patches" / f"{patch['id']}.json"
+            if not percorso.is_file():
+                raise NotFoundError(f"patch {patch['id']} non trovata")
+            self._committa_json(
+                percorso, patch, f"patch {patch['id']}: {azione} [{patch['id']}]"
+            )
+        return patch
+
+    def leggi_patch(self, patch_id: str) -> dict[str, Any]:
+        percorso = self.data_dir / "patches" / f"{patch_id}.json"
+        if not percorso.is_file():
+            raise NotFoundError(f"patch {patch_id} non trovata")
+        return json.loads(percorso.read_text(encoding="utf-8"))
+
+    def list_patches(self) -> list[dict[str, Any]]:
+        cartella = self.data_dir / "patches"
+        return [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted(cartella.glob("PATCH-*.json"))
+        ]
+
     def crea_golden(
         self,
         workflow: str,
