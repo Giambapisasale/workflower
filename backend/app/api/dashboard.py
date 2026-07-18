@@ -37,6 +37,13 @@ GROUP BY c.id, c.nome, c.budget
 ORDER BY speso DESC
 """
 
+SQL_ATTIVITA = """
+SELECT (SELECT COUNT(*) FROM v_ddt)                            AS n_ddt,
+       (SELECT COUNT(*) FROM v_sal)                            AS n_sal,
+       (SELECT COALESCE(SUM(ore), 0) FROM v_rapportini_righe)   AS ore_totali,
+       (SELECT COALESCE(SUM(costo), 0) FROM v_rapportini_righe) AS costo_manodopera
+"""
+
 SQL_PER_FORNITORE = """
 SELECT f.fornitore_id            AS fornitore_id,
        fo.ragione_sociale        AS fornitore,
@@ -65,6 +72,7 @@ def costi(
         riga["quota_budget"] = round(speso / budget, 4) if budget else None
     return {
         "totali": totali,
+        "attivita": query(data_dir, SQL_ATTIVITA)[0],
         "per_cantiere": per_cantiere,
         "per_fornitore": query(data_dir, SQL_PER_FORNITORE),
     }

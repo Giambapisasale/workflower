@@ -32,10 +32,38 @@ export type CostoFornitore = {
   speso: number;
 };
 
+export type Attivita = {
+  n_ddt: number;
+  n_sal: number;
+  ore_totali: number;
+  costo_manodopera: number;
+};
+
 export type Cruscotto = {
   totali: Totali;
+  attivita: Attivita;
   per_cantiere: CostoCantiere[];
   per_fornitore: CostoFornitore[];
+};
+
+export type RegistroTotali = {
+  speso_fatture: number;
+  n_fatture: number;
+  budget: number | null;
+  quota_budget: number | null;
+  ore_totali: number;
+  costo_manodopera: number;
+  giornate: number;
+  avanzamento: number | null;
+  scostamento: { previsto: number; consuntivo_abbinato: number; delta: number } | null;
+};
+
+export type RegistroCantiere = {
+  cantiere: Record<string, unknown>;
+  totali: RegistroTotali;
+  fatture: { id: string; numero: string | null; data: string | null; totale: number | null; stato: string; fornitore: string | null }[];
+  ddt: { id: string; numero: string | null; data: string | null; n_righe: number; stato: string; fornitore: string | null }[];
+  sal: { id: string; numero: string | null; data: string | null; importo_progressivo: number | null; percentuale_avanzamento: number | null; stato: string }[];
 };
 
 export type RigaCoda = {
@@ -229,6 +257,9 @@ export const admin = {
 
   rifiuta: (id: string) =>
     richiesta<{ stato: string }>(`/patches/${id}/reject`, corpo({})),
+
+  registro: (cantiereId: string) =>
+    richiesta<RegistroCantiere>(`/cantieri/${cantiereId}/registro`),
 
   scostamenti: (cantiereId?: string) =>
     richiesta<Scostamenti>(

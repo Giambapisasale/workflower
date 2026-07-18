@@ -8,6 +8,7 @@ export default function Cruscotto() {
   if (inCorso) return <Stato>Carico il cruscotto…</Stato>;
   if (errore || !dati) return <Errore>{errore ?? "Nessun dato"}</Errore>;
   const t = dati.totali;
+  const a = dati.attivita;
 
   return (
     <>
@@ -16,6 +17,13 @@ export default function Cruscotto() {
         <Kpi etichetta="Totale documenti" valore={euro(t.totale)} nota={`imponibile ${euro(t.imponibile)}`} />
         <Kpi etichetta="IVA" valore={euro(t.iva)} />
         <Kpi etichetta="Ritenute d'acconto" valore={euro(t.ritenute)} />
+      </div>
+
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+        <Kpi etichetta="DDT" valore={a.n_ddt} nota="documenti di trasporto" />
+        <Kpi etichetta="SAL" valore={a.n_sal} nota="stati avanzamento" />
+        <Kpi etichetta="Ore manodopera" valore={a.ore_totali} nota="da rapportini" />
+        <Kpi etichetta="Costo manodopera" valore={euro(a.costo_manodopera)} />
       </div>
 
       <Card titolo="Costi per cantiere">
@@ -32,7 +40,11 @@ export default function Cruscotto() {
           <tbody>
             {dati.per_cantiere.map((c) => (
               <tr key={c.cantiere_id} className="border-b border-slate-50">
-                <td className="py-2 font-medium text-slate-700">{c.cantiere ?? c.cantiere_id}</td>
+                <td className="py-2 font-medium">
+                  <Link className="text-sky-700 hover:underline" to={`/admin/cantiere/${c.cantiere_id}`}>
+                    {c.cantiere ?? c.cantiere_id}
+                  </Link>
+                </td>
                 <td className="py-2 text-right tabular-nums">{c.n_fatture}</td>
                 <td className="py-2 text-right tabular-nums">{euro(c.speso)}</td>
                 <td className="py-2 text-right tabular-nums text-slate-500">{euro(c.budget)}</td>

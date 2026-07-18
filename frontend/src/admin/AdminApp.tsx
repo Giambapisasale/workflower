@@ -9,6 +9,7 @@ import {
   type Sessione,
 } from "../shared/api";
 import AdminLogin from "./AdminLogin";
+import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
 import Interroga from "./Interroga";
 import Log from "./Log";
@@ -91,6 +92,7 @@ export default function AdminApp() {
       <main className="mx-auto max-w-6xl p-6">
         <Routes>
           <Route index element={<Cruscotto />} />
+          <Route path="cantiere/:id" element={<Cantiere />} />
           <Route path="scostamenti" element={<Scostamenti />} />
           <Route path="revisione" element={<Revisione />} />
           <Route path="revisione/:id" element={<RevisioneDettaglio />} />
