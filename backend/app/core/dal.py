@@ -6,6 +6,7 @@ git non tollera scritture concorrenti. La granularità per cantiere diventa
 utile solo quando i commit saranno raggruppabili; a questa scala non serve.
 """
 
+import contextlib
 import json
 import re
 import threading
@@ -173,6 +174,10 @@ _VISTE_FINE = "-- === FINE VISTE CONSOLIDATE ==="
 # vanno caricate DOPO le viste (le referenziano): l'ordine dei file lo garantisce.
 _TOOL_INIZIO = "-- === TOOL PARAMETRICI (MACRO) — generati da /api/dataset/consolida-tool ==="
 _TOOL_FINE = "-- === FINE TOOL PARAMETRICI ==="
+
+# Registro dei tool Python consolidati (M15): metadati in ``dataset/pytools.jsonl``,
+# sorgente in ``tools/<nome>/tool.py`` — dato, mai importato in-process.
+LEDGER_PYTOOL = "pytools.jsonl"
 _INTESTAZIONE_MACRO = (
     "-- Tool parametrici (macro tabellari DuckDB) sul repo dati, in sola lettura.\n"
     "-- Generati da /api/dataset/consolida-tool: sono DATO, non codice.\n"
@@ -672,6 +677,130 @@ class DAL:
                 f"consolida: rimuove vista {vista} [{eliminato_da}]",
             )
         return True
+
+    # ------------------------------------------------ tool Python (M15)
+
+    def consolida_pytool(
+        self,
+        *,
+        nome: str,
+        codice: str,
+        schema: dict[str, Any],
+        test: list[dict[str, Any]],
+        fingerprint: str | None = None,
+        creato_da: str,
+        ciclo: str = "consolidata",
+    ) -> dict[str, Any]:
+        """Registra un tool Python consolidato: ledger ``pytools.jsonl`` + sorgente.
+
+        Terza forma di consolidamento del §3.6, gemella di :meth:`consolida_tool`
+        ma per **codice** invece che per una macro SQL. Il sorgente è dato: vive
+        in ``data/tools/<nome>/tool.py`` e non viene mai importato in-process.
+
+        Rete di sicurezza in stile :meth:`_commit_catalogo`: **prima** di scrivere
+        qualsiasi cosa, carica il tool ed esegue i suoi casi di test **in sandbox**
+        (M14); se anche uno solo non passa, non tocca il repo e solleva
+        :class:`CatalogoNonValido` (→ HTTP 409). Idempotente sul nome. La sandbox
+        esegue esattamente il ``codice`` che stiamo per scrivere, perciò verificare
+        in anticipo equivale a scrivere-e-annullare, ma senza lasciare residui.
+        """
+        from app.core.pytools import CICLI, NOME_PYTOOL
+
+        if not NOME_PYTOOL.match(nome or ""):
+            raise ValueError(f"nome di tool non valido: {nome!r}")
+        if ciclo not in CICLI:
+            raise ValueError(f"ciclo di vita non valido: {ciclo!r}")
+
+        with self._write_lock:
+            self._verifica_pytool(codice, test)
+            ledger = self.data_dir / "dataset" / LEDGER_PYTOOL
+            voci = [v for v in self._righe_jsonl(ledger) if v.get("nome") != nome]
+            voce = {
+                "creato": now_iso(),
+                "nome": nome,
+                "ciclo": ciclo,
+                "fingerprint": fingerprint,
+                "schema": schema,
+                "test": test,
+                "creato_da": creato_da,
+            }
+            voci.append(voce)
+            sorgente = self.data_dir / "tools" / nome / "tool.py"
+            self._scrivi_atomico(ledger, _righe_ndjson(voci))
+            self._scrivi_atomico(
+                sorgente, codice if codice.endswith("\n") else codice + "\n"
+            )
+            self.repo.index.add(
+                [
+                    ledger.relative_to(self.data_dir).as_posix(),
+                    sorgente.relative_to(self.data_dir).as_posix(),
+                ]
+            )
+            self.repo.index.commit(
+                f"consolida: pytool {nome} [{creato_da}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
+        return voce
+
+    def elimina_pytool(self, *, nome: str, eliminato_da: str) -> bool:
+        """Rimuove un tool Python consolidato. Ritorna False se non esisteva.
+
+        Toglie la riga da ``pytools.jsonl`` ed elimina il sorgente
+        ``data/tools/<nome>/``. I tool Python sono indipendenti fra loro: rimuoverne
+        uno non può rompere gli altri, quindi qui non serve la verifica del catalogo.
+        Con il candidato di nuovo libero, il tool può essere ri-consolidato; ogni
+        mutazione è reversibile via git.
+        """
+        with self._write_lock:
+            ledger = self.data_dir / "dataset" / LEDGER_PYTOOL
+            voci = self._righe_jsonl(ledger)
+            restanti = [v for v in voci if v.get("nome") != nome]
+            if len(restanti) == len(voci):
+                return False
+            self._scrivi_atomico(ledger, _righe_ndjson(restanti))
+            self.repo.index.add([ledger.relative_to(self.data_dir).as_posix()])
+            sorgente = self.data_dir / "tools" / nome / "tool.py"
+            if sorgente.is_file():
+                self.repo.index.remove(
+                    [sorgente.relative_to(self.data_dir).as_posix()], working_tree=True
+                )
+                with contextlib.suppress(OSError):
+                    sorgente.parent.rmdir()
+            self.repo.index.commit(
+                f"consolida: rimuove pytool {nome} [{eliminato_da}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
+        return True
+
+    def _verifica_pytool(self, codice: str, test: list[dict[str, Any]]) -> None:
+        """Esegue i casi di test in sandbox; solleva se il tool non è affidabile.
+
+        La rete di sicurezza del consolidamento Python: import di ``sandbox`` e
+        ``ToolError`` in locale per non creare un ciclo di import a livello di modulo
+        (``dal`` non deve dipendere da ``core.tools`` al caricamento).
+        """
+        from app.core.sandbox import esegui_in_sandbox
+        from app.core.tools.base import ToolError
+
+        if not test:
+            raise CatalogoNonValido(
+                "un tool Python richiede almeno un caso di test dai trace validati"
+            )
+        for i, caso in enumerate(test, start=1):
+            argomenti = caso.get("argomenti") if isinstance(caso, dict) else None
+            if not isinstance(argomenti, dict):
+                raise CatalogoNonValido(f"caso di test {i} malformato: manca «argomenti»")
+            try:
+                ottenuto = esegui_in_sandbox(codice, argomenti)
+            except ToolError as exc:
+                raise CatalogoNonValido(f"il test {i} non passa in sandbox: {exc}") from exc
+            atteso = caso.get("atteso")
+            if ottenuto != atteso:
+                raise CatalogoNonValido(
+                    f"il test {i} non passa: atteso {atteso!r}, ottenuto {ottenuto!r}"
+                )
 
     def _commit_catalogo(self, aggiornamenti: list[tuple[Path, str]], messaggio: str) -> None:
         """Scrive file di catalogo (ledger + .sql), verifica ``connect()``, poi committa.

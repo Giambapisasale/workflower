@@ -192,6 +192,22 @@ def rimuovi_tool(
     return {"rimosso": macro}
 
 
+@router.delete("/dataset/pytool/{nome}")
+def rimuovi_pytool(
+    nome: str,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, str]:
+    """Rimuove un tool Python consolidato (M15): sorgente + riga di ledger.
+
+    I tool Python sono indipendenti: la rimozione non può rompere il catalogo.
+    Con il tool tolto, il candidato torna libero e può essere ri-consolidato.
+    """
+    if not dal.elimina_pytool(nome=nome, eliminato_da=admin.username):
+        raise HTTPException(status_code=404, detail=f"tool non trovato: {nome}")
+    return {"rimosso": nome}
+
+
 @router.delete("/dataset/vista/{vista}")
 def rimuovi_vista(
     vista: str,
@@ -244,8 +260,10 @@ def elenco_tool(
 ) -> dict[str, Any]:
     """Registry dei tool nativi con i contatori d'uso + i candidati al consolidamento."""
     usi = conteggio_tool(dal.data_dir)
+    # ``elenco()`` porta già ciclo e origine (nativa | pytool): non li sovrascriviamo,
+    # così i tool Python consolidati compaiono col loro stato di ciclo reale (M15).
     tools = [
-        {**voce, "usi": usi.get(voce["name"], 0), "ciclo": "consolidata"}
+        {**voce, "usi": usi.get(voce["name"], 0)}
         for voce in Toolset(dal).elenco()
     ]
     tools.sort(key=lambda t: t["usi"], reverse=True)
