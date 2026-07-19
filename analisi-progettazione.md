@@ -1,7 +1,7 @@
 # Workflower — Analisi di progettazione
 
 **Sistema LLM-driven per gestione e controllo costi di cantieri edili**
-Versione 0.1 — 18/07/2026 — AITHO / Giambattista
+Versione 0.2 — 19/07/2026 — AITHO / Giambattista
 
 ---
 
@@ -161,14 +161,15 @@ Questo pattern (skill library + self-refinement guidato da valutazione, con veri
 
 ### 3.6 Consolidamento skill → tool ("hardening")
 
-Ogni operazione generata dagli agenti (query SQL, parser, trasformazioni) viene fingerprintata. Un tracker conta le generazioni *simili*; oltre soglia, l'agente **Toolsmith**:
+Ogni operazione generata dagli agenti (query SQL, calcoli, trasformazioni) viene fingerprintata. Un tracker conta le generazioni *simili*; oltre soglia diventano **candidati al consolidamento**, che l'ufficio promuove (human-in-the-loop) in una di **tre forme, tutte dato-non-codice**:
 
-1. scrive la funzione deterministica equivalente (Python o vista SQL);
-2. genera i test **dai trace storici** (coppie input/output reali già validate);
-3. la esegue in sandbox contro i test;
-4. la registra nel tool registry e aggiorna la skill perché la invochi invece di rigenerare.
+- **Vista `v_*`** (aggregati/elenchi): una vista SQL in `config/views.sql`. *Consegnata (F2).*
+- **Tool parametrico `t_*`** (query con un valore variabile, es. il cantiere): una **macro tabellare DuckDB** in `config/macros.sql`, non Python. *Consegnata (F2).*
+- **Tool Python** (calcoli e trasformazioni che l'SQL non esprime, es. il calcolo della ritenuta d'acconto): una funzione deterministica in `data/tools/`. *Fase 3.* Il **Toolsmith** (1) scrive la funzione equivalente, (2) genera i test **dai trace storici** (coppie input/output già validate), (3) la esegue **in sandbox** contro i test, (4) su approvazione umana la registra e propone — via Improver — una patch di skill perché la invochi, con l'LLM come fallback.
 
-Ciclo di vita: `esplorativa → candidata → consolidata → deprecata`. Benefici: costo token ≈ 0 sulle operazioni ricorrenti, latenza costante, determinismo, testabilità. La UI mostra i contatori e i "candidati al consolidamento" per tenerne il controllo.
+**Invariante — il codice generato è dato, non runtime.** Un tool Python vive in `data/tools/` (sorgente + schema + test + ledger), versionato e committato come le viste; il runtime non lo importa mai in-process, lo **esegue solo in sandbox isolata** (subprocess, niente rete/filesystem/ambiente, import in whitelist, limiti di CPU/memoria/tempo). La cornice stabile — runtime, gateway, dal — non cambia: cresce solo il dato.
+
+Ciclo di vita: `esplorativa → candidata → consolidata → deprecata`. Benefici: costo token ≈ 0 sulle operazioni ricorrenti, latenza costante, determinismo, testabilità. La pagina Skills & Tools mostra contatori, candidati e artefatti consolidati; rimuovere un consolidato libera di nuovo il candidato (reversibile via git).
 
 ### 3.7 Logging tool call e distillazione (FunctionGemma)
 
@@ -180,7 +181,7 @@ Ogni chiamata LLM e ogni function call è loggata in JSONL standard:
  "result":{…},"outcome":"success","validated_by_user":true}
 ```
 
-Il **dataset builder** filtra le tool call dei run validati → training set per fine-tuning di **FunctionGemma** (Gemma 3 270M specializzata in function calling, fine-tuning LoRA documentato da Google) o Gemma 3 1B. La distillazione da tracce di modelli frontier verso studenti piccoli è una pratica ormai standard con guadagni documentati. Il router (§3.1) sposta progressivamente i workflow consolidati sul tier T3 locale: **il costo marginale per documento tende a zero** man mano che il sistema matura.
+Il **dataset builder** filtra le tool call dei run validati → training set per fine-tuning di **FunctionGemma** (Gemma 3 270M specializzata in function calling, fine-tuning LoRA documentato da Google) o Gemma 3 1B. La distillazione da tracce di modelli frontier verso studenti piccoli è una pratica ormai standard con guadagni documentati. Il router (§3.1) sposta progressivamente i workflow consolidati sul tier T3 locale: **il costo marginale per documento tende a zero** man mano che il sistema matura. *Stato*: il dataset builder è consegnato (F2); la **valutazione offline** del modello candidato, l'**escalation T3→T1** e il wiring dell'endpoint locale sono la **Fase 3** — il training LoRA reale resta un runbook operativo fuori dal repo, attivabile a modello pronto.
 
 ### 3.8 Integrazioni Microsoft 365
 
@@ -226,6 +227,7 @@ Il mockup (`mockup.html`) ha lo **switch Operatore/Admin**: in modalità Operato
 | Drift dei workflow auto-modificati | Versioning Git + golden set di regressione + approvazione umana obbligatoria |
 | Concorrenza su file | Coda single-writer nell'orchestratore + lock per cantiere |
 | Costi token | Routing a tier + consolidamento in tool + distillazione su modello locale |
+| Esecuzione di codice generato dall'LLM (Toolsmith §3.6) | Sandbox obbligatoria: subprocess isolato, no rete/FS/ambiente, import in whitelist, limiti CPU/memoria/tempo; il codice è dato, mai importato in-process; test dai trace validati; approvazione umana; fallback all'LLM se il tool sbaglia |
 | Lock-in provider | Gateway LiteLLM, manifest dichiarano tier non modelli |
 | Privacy dati cantiere | Provider con no-training garantito per T1/T2; T3 gira in locale; originali mai inviati a terzi se non necessario |
 | Scalabilità query | DuckDB regge ordini di grandezza oltre il perimetro; exit strategy: Redis Stack come indice (§3.2) senza toccare i workflow |
@@ -233,12 +235,18 @@ Il mockup (`mockup.html`) ha lo **switch Operatore/Admin**: in modalità Operato
 
 ## 6. Roadmap
 
-- **F1 — PoC (4-6 settimane)**: entità core (Cantiere, Fornitore, Fattura), workflow carica-fattura completo di ciclo di feedback, cruscotto minimale, viste DuckDB, **due modalità UI (Operatore mobile-first + Admin)** con RBAC minimale.
-- **F2**: DDT, SAL, rapportini ore; report mensili Excel; Interroga (text-to-SQL).
-- **F3**: integrazioni M365 (watcher SharePoint, Planner, ingest email); registri e riepiloghi automatici (pozzetti, cronoprogrammi).
-- **F4**: Toolsmith + consolidamento; dataset builder; primo fine-tuning FunctionGemma e attivazione tier T3.
+> **Stato (agg. 19/07/2026)**: F1 e F2 **completate** e verdi ai test (M0–M13). L'ordine di
+> esecuzione delle fasi successive è stato **rovesciato** rispetto alla numerazione
+> originale: si completa prima l'**autonomia locale** (l'ex-F4 più la metà interna dell'ex-F3),
+> poi le **integrazioni esterne** — per avere una piattaforma completa *al netto dei servizi
+> esterni*.
 
-KPI: % estrazioni senza correzione umana; tempo di produzione report mensile; costo token per documento (atteso in calo strutturale da F4).
+- **F1 — PoC** ✅: entità core (Cantiere, Fornitore, Fattura), workflow carica-fattura completo di ciclo di feedback, cruscotto minimale, viste DuckDB, **due modalità UI (Operatore mobile-first + Admin)** con RBAC minimale.
+- **F2** ✅: DDT, SAL, rapportini ore, computo; classificazione e instradamento documenti; collegamento voci e scostamenti; cruscotto + registro per cantiere; report mensili Excel; Interroga (text-to-SQL); CRUD manuale schema-driven; **consolidamento in due forme dato-non-codice** (viste `v_*`, tool parametrici `t_*`).
+- **F3 — Autonomia locale** (in corso, `piano-implementazione-fase3.md`, M14–M21): **Toolsmith Python** in sandbox — la terza forma di consolidamento — e attivazione del ciclo; **dataset builder → valutazione → tier T3** con escalation T3→T1; completamento delle **entità e registri interni** (materiali, mezzi, lavorazioni, scadenze, pozzetti, cronoprogramma).
+- **F4 — Integrazioni esterne**: M365/Graph (watcher SharePoint, Planner, ingest Outlook), SSO Entra ID, packaging/deploy e hardening di prodotto.
+
+KPI: % estrazioni senza correzione umana; tempo di produzione report mensile; costo token per documento (atteso in calo strutturale con la Fase 3: consolidamento + tier T3).
 
 ## 7. Decisioni chiave (ADR)
 
@@ -248,6 +256,7 @@ KPI: % estrazioni senza correzione umana; tempo di produzione report mensile; co
 4. **Bozza-first**: nessun dato entra come `validato` senza conferma umana o storicità di affidabilità del workflow.
 5. **Log-everything**: ogni tool call è un potenziale esempio di training.
 6. **Due modalità nette**: Operatore (solo uso, meccanica LLM invisibile, mobile-first "a prova di cantiere") e Admin (governo ed evoluzione del sistema). L'operatore non approva mai patch ai workflow.
+7. **Codice generato = dato, eseguito solo in sandbox**: i tool Python prodotti dal Toolsmith (§3.6) vivono in `data/tools/`, versionati e approvati come le viste; il runtime non li importa mai in-process, li esegue solo in sandbox isolata. Consolidare resta una mutazione di dati; la cornice (runtime/gateway/dal) non cambia.
 
 ## Fonti
 
