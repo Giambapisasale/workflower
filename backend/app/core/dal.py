@@ -9,16 +9,21 @@ utile solo quando i commit saranno raggruppabili; a questa scala non serve.
 import json
 import re
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from git import Actor, Repo
 from jsonschema import Draft202012Validator, FormatChecker
 
-from app.models.envelope import Envelope, now_iso
+from app.models.envelope import Envelope, Meta, now_iso
 from app.models.issue import Issue
 
 GIT_AUTHOR = Actor("Workflower", "bot@workflower.local")
+
+# Tentativi di allocazione di un id progressivo: `prossimo_id` non prenota,
+# quindi fra allocazione e create un run concorrente può prendere lo stesso id.
+TENTATIVI_ID = 5
 
 # Registry dei tipi entità: cartella, formato id, partizione per anno e le
 # righe del riepilogo che l'operatore vede (etichetta + campo + tipo).
@@ -29,24 +34,28 @@ GIT_AUTHOR = Actor("Workflower", "bot@workflower.local")
 ENTITY_TYPES: dict[str, dict[str, Any]] = {
     "cantiere": {
         "dir": "cantieri",
+        "etichetta": "Cantiere",
         "id": re.compile(r"^CNT-\d{3,}$"),
         "per_anno": False,
         "fmt": lambda anno, n: f"CNT-{n:03d}",
     },
     "fornitore": {
         "dir": "fornitori",
+        "etichetta": "Fornitore",
         "id": re.compile(r"^FRN-\d{3,}$"),
         "per_anno": False,
         "fmt": lambda anno, n: f"FRN-{n:03d}",
     },
     "computo": {
         "dir": "computi",
+        "etichetta": "Computo",
         "id": re.compile(r"^CMP-\d{3,}$"),
         "per_anno": False,
         "fmt": lambda anno, n: f"CMP-{n:03d}",
     },
     "fattura": {
         "dir": "fatture",
+        "etichetta": "Fattura",
         "id": re.compile(r"^FT-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"FT-{anno}-{n:04d}",
@@ -58,6 +67,7 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
     },
     "ddt": {
         "dir": "ddt",
+        "etichetta": "DDT",
         "id": re.compile(r"^DDT-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"DDT-{anno}-{n:04d}",
@@ -68,6 +78,7 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
     },
     "sal": {
         "dir": "sal",
+        "etichetta": "SAL",
         "id": re.compile(r"^SAL-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"SAL-{anno}-{n:04d}",
@@ -80,6 +91,7 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
     },
     "rapportino": {
         "dir": "rapportini",
+        "etichetta": "Rapportino",
         "id": re.compile(r"^RAP-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"RAP-{anno}-{n:04d}",
@@ -91,6 +103,7 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
     },
     "documento": {
         "dir": "documenti",
+        "etichetta": "Documento",
         "id": re.compile(r"^DOC-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"DOC-{anno}-{n:04d}",
@@ -203,6 +216,48 @@ class DAL:
             self._write_and_commit(envelope, path, azione="crea", tag=tag)
         return envelope
 
+    def crea_progressivo(
+        self,
+        tipo: str,
+        dati: dict[str, Any],
+        *,
+        stato: str = "bozza",
+        meta: Meta | None = None,
+        tag: str | None = None,
+    ) -> Envelope:
+        """Crea un'entità allocando l'id progressivo del tipo, con retry.
+
+        Sorgente unica dell'allocazione id: la usano sia i workflow (via
+        ``tools/salva_bozza``) sia la creazione manuale admin. ``tag`` finisce
+        nel messaggio di commit (es. ``manual:giovanna``) senza toccare il meta.
+        """
+        anno = self._anno_progressivo(tipo, dati)
+        ultimo: Exception | None = None
+        for _ in range(TENTATIVI_ID):
+            entity_id = self.prossimo_id(tipo, anno)
+            envelope = Envelope(
+                id=entity_id,
+                tipo=tipo,
+                stato=stato,  # type: ignore[arg-type]
+                dati=dati,
+                meta=meta or Meta(),
+            )
+            try:
+                return self.create(envelope, run_id=tag)
+            except AlreadyExistsError as exc:
+                # id preso da un run concorrente fra prossimo_id e create: riprova
+                ultimo = exc
+        raise DalError(f"nessun id libero per {tipo} dopo {TENTATIVI_ID} tentativi: {ultimo}")
+
+    def _anno_progressivo(self, tipo: str, dati: dict[str, Any]) -> int | None:
+        """L'anno di partizione per i tipi ``per_anno`` (dalla data, o l'anno corrente)."""
+        if not self._spec(tipo).get("per_anno"):
+            return None
+        data = str(dati.get("data") or "")
+        if len(data) >= 4 and data[:4].isdigit():
+            return int(data[:4])
+        return datetime.now(UTC).year
+
     def update(self, envelope: Envelope, run_id: str | None = None) -> Envelope:
         path = self._path(envelope.tipo, envelope.id)
         with self._write_lock:
@@ -231,6 +286,25 @@ class DAL:
             # la validazione è un'azione a sé: non eredita il run che creò la bozza
             self._write_and_commit(envelope, path, azione="valida", tag=run_id or "manual")
         return envelope
+
+    def delete(self, tipo: str, entity_id: str, tag: str = "manual") -> None:
+        """Elimina un'entità (git rm + commit). Da esporre SOLO a endpoint admin.
+
+        Primitiva pura: non conosce i riferimenti fra entità e non fa mai
+        cascade. Chi elimina deve prima accertarsi che nessuno la referenzi
+        (la guardia vive nell'API). Recuperabile comunque dalla storia git.
+        """
+        path = self._path(tipo, entity_id)
+        with self._write_lock:
+            if not path.is_file():
+                raise NotFoundError(f"{tipo} {entity_id} non trovato")
+            rel = path.relative_to(self.data_dir).as_posix()
+            self.repo.index.remove([rel], working_tree=True)
+            self.repo.index.commit(
+                f"{tipo} {entity_id}: elimina [{tag}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
 
     def crea_issue(
         self,

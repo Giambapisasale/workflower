@@ -5,6 +5,8 @@ rileggono i file JSON a ogni query — nessuna cache, dati sempre freschi.
 Le query passano dalle viste, mai dai file grezzi (ADR-1).
 """
 
+import glob as globmod
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -50,10 +52,48 @@ def connect(data_dir: Path | str) -> duckdb.DuckDBPyConnection:
     base = Path(data_dir).resolve()
     raw = (base / "config" / "views.sql").read_text(encoding="utf-8")
     sql = raw.replace("${DATA_DIR}", base.as_posix())
+    sql = _tollera_insiemi_vuoti(sql, base)
     conn = duckdb.connect(":memory:")
     for statement in _statements(sql):
         conn.execute(statement)
     return conn
+
+
+# Un ``read_json('<glob>', …)`` su un glob che non matcha alcun file solleva
+# IOException già al CREATE VIEW: basta una cartella entità svuotata (dopo un
+# delete) per far fallire l'intero catalogo — e con esso cruscotto, registro,
+# scostamenti, report e "chiedi". Quando il glob è vuoto lo si sostituisce con
+# un file sentinella ``[]``: con ``columns=`` la vista nasce con lo schema
+# giusto e zero righe. I glob non vuoti restano intatti; ``views.sql`` non
+# cambia (è dato) e la sentinella sta fuori dal glob delle entità (il DAL non
+# la vede). Nel catalogo ogni ``read_json`` prende un unico glob tra apici.
+_READ_JSON = re.compile(r"(read_json\(\s*)'([^']*)'")
+
+
+def _tollera_insiemi_vuoti(sql: str, base: Path) -> str:
+    sentinella = _sentinella_vuota(base)
+
+    def sostituisci(m: re.Match[str]) -> str:
+        percorso = m.group(2)
+        if "*" in percorso and not globmod.glob(percorso):
+            return f"{m.group(1)}'{sentinella}'"
+        return m.group(0)
+
+    return _READ_JSON.sub(sostituisci, sql)
+
+
+def _sentinella_vuota(base: Path) -> str:
+    """Percorso del file ``[]`` per le viste vuote (creato se manca).
+
+    File d'infrastruttura del layer query, non stato applicativo: sempre
+    ``[]`` e rigenerabile, vive in ``config/`` come ``views.sql``/``utenti.json``.
+    Il seed lo crea e lo committa; qui lo si ripristina per i repo più vecchi.
+    """
+    percorso = base / "config" / "vuoto.json"
+    if not percorso.is_file():
+        percorso.parent.mkdir(parents=True, exist_ok=True)
+        percorso.write_text("[]", encoding="utf-8")
+    return percorso.as_posix()
 
 
 def _statements(sql: str) -> list[str]:

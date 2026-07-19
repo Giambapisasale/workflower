@@ -212,6 +212,37 @@ export type EsitoCollega = {
   dettaglio: { riga: number; voce_id: string | null; punteggio: number }[];
 };
 
+/** Schema JSON (sottoinsieme che ci serve per generare i form). */
+export type JsonSchema = {
+  type?: string | string[];
+  title?: string;
+  description?: string;
+  format?: string;
+  pattern?: string;
+  enum?: unknown[];
+  minimum?: number;
+  properties?: Record<string, JsonSchema>;
+  required?: string[];
+  items?: JsonSchema;
+};
+
+/** Un tipo entità gestibile a mano, con il suo schema per il form generico. */
+export type MetaTipo = {
+  tipo: string;
+  etichetta: string;
+  is_master: boolean;
+  per_anno: boolean;
+  schema: JsonSchema;
+  riferimenti: Record<string, string>; // campo → tipo referenziato
+};
+
+export type VoceEntita = {
+  id: string;
+  stato: string;
+  titolo: string | null;
+  dati: Record<string, unknown>;
+};
+
 export const admin = {
   cruscotto: () => richiesta<Cruscotto>("/dashboard/costs"),
 
@@ -289,6 +320,26 @@ export const admin = {
   skillsTools: () => richiesta<SkillsTools>("/tools"),
 
   scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
+
+  // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
+  entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),
+
+  entitiesLista: (tipo: string) =>
+    richiesta<{ voci: VoceEntita[] }>(`/entities/${tipo}`).then((r) => r.voci),
+
+  entitiesGet: (tipo: string, id: string) => richiesta<Envelope>(`/entities/${tipo}/${id}`),
+
+  entitiesCrea: (tipo: string, dati: Record<string, unknown>) =>
+    richiesta<{ id: string; stato: string }>(`/entities/${tipo}`, corpo({ dati })),
+
+  entitiesAggiorna: (tipo: string, id: string, dati: Record<string, unknown>) =>
+    richiesta<{ id: string; stato: string }>(
+      `/entities/${tipo}/${id}`,
+      metodoJson("PUT", { dati }),
+    ),
+
+  entitiesElimina: (tipo: string, id: string) =>
+    richiesta<{ ok: boolean }>(`/entities/${tipo}/${id}`, metodoJson("DELETE")),
 };
 
 function corpo(dati: unknown): RequestInit {
@@ -296,5 +347,13 @@ function corpo(dati: unknown): RequestInit {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(dati),
+  };
+}
+
+function metodoJson(metodo: string, dati?: unknown): RequestInit {
+  return {
+    method: metodo,
+    headers: dati === undefined ? {} : { "Content-Type": "application/json" },
+    body: dati === undefined ? undefined : JSON.stringify(dati),
   };
 }

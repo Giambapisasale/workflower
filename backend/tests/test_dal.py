@@ -133,6 +133,33 @@ def test_set_validato(data_repo: Path) -> None:
     assert head_message(data_repo) == "fattura FT-2026-0100: valida [manual]"
 
 
+def test_delete(data_repo: Path) -> None:
+    dal = DAL(data_repo)
+    dal.create(fattura())
+    percorso = data_repo / "entities" / "fatture" / "2026" / "FT-2026-0100.json"
+    assert percorso.is_file()
+    before = commit_count(data_repo)
+
+    dal.delete("fattura", "FT-2026-0100", tag="manual:giovanna")
+
+    assert not percorso.exists()
+    with pytest.raises(NotFoundError):
+        dal.read("fattura", "FT-2026-0100")
+    # commit git verificato (git rm), storia intatta per il rollback
+    assert commit_count(data_repo) == before + 1
+    assert head_message(data_repo) == "fattura FT-2026-0100: elimina [manual:giovanna]"
+
+
+def test_delete_inesistente(data_repo: Path) -> None:
+    with pytest.raises(NotFoundError):
+        DAL(data_repo).delete("fattura", "FT-2026-9999")
+
+
+def test_delete_id_non_valido(data_repo: Path) -> None:
+    with pytest.raises(InvalidIdError):
+        DAL(data_repo).delete("fattura", "..\\..\\evil")
+
+
 def test_list_all(data_repo: Path) -> None:
     dal = DAL(data_repo)
     dal.create(fattura("FT-2026-0100"))

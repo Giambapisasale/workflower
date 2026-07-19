@@ -138,6 +138,37 @@ Nessun Toolsmith automatico, nessun fine-tuning reale (restano non-goal): solo l
 - **AC**: il builder produce esempi solo dai run validati; la pagina mostra tool,
   contatori e candidati; i test coprono il filtro di validazione.
 
+### M13 — Gestione manuale dei dati (CRUD admin, schema-driven)
+**Perché**: finora i dati entrano **solo** da lettura documenti (upload → estrazione →
+bozza → validazione). Un gestionale di cantiere ha bisogno, lato ufficio, di
+**inserire/aggiornare/eliminare i dati a mano** (§3.9: l'admin *governa* i dati): un
+fornitore o un cantiere nuovo, un budget corretto, una fattura arrivata su carta, un
+doppione da togliere. Le anagrafiche (cantiere/fornitore/computo) nascevano solo dal seed.
+
+- **Invariante rispettato**: `runtime.py`/`gateway.py` invariati. Il percorso di scrittura è
+  già schema-driven (`DAL.create/update` validano contro `schemas/<tipo>.schema.json` +
+  commit git), quindi bastano: **una** primitiva DAL (`delete`, `git rm` + commit), **una**
+  API admin generica, **un** form generato dallo schema. Nessun nuovo tipo entità: la CRUD si
+  estende da sé a ogni entità futura aggiunta *come dato*.
+- **Prerequisito — viste tolleranti agli insiemi vuoti**: `read_json` su un glob senza file
+  fallisce al `CREATE VIEW`; con la DELETE una cartella entità può svuotarsi e spegnere
+  l'intero cruscotto. `core/views.py` sostituisce il glob vuoto con un sentinella `[]`
+  (`config/vuoto.json`) → vista a zero righe tipizzata. `views.sql` resta dato.
+- **API `entities.py`** (admin): `GET /entities/meta` (catalogo + schema per i form),
+  `GET /entities/{tipo}` e `/{id}`, `POST` (nasce `validato` con `validato_da`, controllo
+  esistenza dei riferimenti), `PUT` (round-trip completo dei `dati`), `DELETE` (**guardia
+  referenziale: blocca se referenziato**, mai cascade; scollega il wrapper `documento`).
+- **Frontend admin**: form generato dallo schema (`CampiSchema`: testo/numero/data, picker di
+  riferimento, righe/voci ripetibili), liste per tipo (`EntitaLista`/`EntitaForm`), hub
+  **Dati**, e — punto d'ingresso — **Cruscotto** con azioni rapide (+ cantiere/fornitore/
+  fattura a mano) e “modifica”. In Revisione, correzione in-place della bozza con lo stesso
+  form (il feedback resta il canale che *insegna* all'Improver).
+- **Audit**: ogni mutazione manuale è un commit git taggato `[manual:<utente>]`.
+- **AC**: CRUD completo su tutte le entità gestibili; creazione con riferimento inesistente o
+  schema non valido → 422 amichevole; eliminazione referenziata → 409 con l'elenco; svuotare
+  un tipo **non** spegne cruscotto/registro; l'operatore resta 403 su tutti gli endpoint; lo
+  scenario "ritenuta d'acconto" (M5) e l'intera suite restano verdi.
+
 ## 3. Rischi e mitigazioni di Fase 2
 
 | Rischio | Mitigazione |

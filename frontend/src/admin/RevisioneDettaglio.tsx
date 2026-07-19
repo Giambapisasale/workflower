@@ -1,8 +1,17 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { admin } from "./api";
+import { ErroreApi } from "../shared/api";
+import { admin, type JsonSchema, type VoceEntita } from "./api";
+import CampiSchema from "./CampiSchema";
 import { euro, percento, useCarica } from "./formato";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+
+type MetaEdit = {
+  schema: JsonSchema;
+  riferimenti: Record<string, string>;
+  etichette: Record<string, string>;
+  opzioni: Record<string, VoceEntita[]>;
+};
 
 const MONETARI = new Set(["imponibile", "iva", "totale", "ritenuta_acconto"]);
 const MONETARI_RIGA = new Set(["importo", "costo_orario"]);
@@ -33,6 +42,10 @@ export default function RevisioneDettaglio() {
   const [testoNota, setTestoNota] = useState("");
   const [azione, setAzione] = useState<string | null>(null);
   const [esitoCollega, setEsitoCollega] = useState<string | null>(null);
+  const [modifica, setModifica] = useState(false);
+  const [metaEdit, setMetaEdit] = useState<MetaEdit | null>(null);
+  const [formValore, setFormValore] = useState<Record<string, unknown>>({});
+  const [erroreSalva, setErroreSalva] = useState<string | null>(null);
 
   useEffect(() => {
     let url: string | null = null;
@@ -101,6 +114,47 @@ export default function RevisioneDettaglio() {
     }
   }
 
+  async function apriModifica() {
+    if (!rev) return;
+    setAzione("apri-modifica");
+    setErroreSalva(null);
+    try {
+      const tipi = await admin.entitiesMeta();
+      const mt = tipi.find((t) => t.tipo === rev.tipo);
+      if (!mt) return;
+      const etichette = Object.fromEntries(tipi.map((t) => [t.tipo, t.etichetta]));
+      const tipiRif = [...new Set(Object.values(mt.riferimenti))];
+      const coppie = await Promise.all(
+        tipiRif.map(async (t) => [t, await admin.entitiesLista(t)] as const),
+      );
+      setMetaEdit({
+        schema: mt.schema,
+        riferimenti: mt.riferimenti,
+        etichette,
+        opzioni: Object.fromEntries(coppie),
+      });
+      setFormValore(JSON.parse(JSON.stringify(rev.entita.dati)));
+      setModifica(true);
+    } finally {
+      setAzione(null);
+    }
+  }
+
+  async function salvaModifica() {
+    if (!rev) return;
+    setAzione("salva-modifica");
+    setErroreSalva(null);
+    try {
+      await admin.entitiesAggiorna(rev.tipo, id, formValore);
+      setModifica(false);
+      ricarica();
+    } catch (e) {
+      setErroreSalva(e instanceof ErroreApi ? e.message : "Errore nel salvataggio");
+    } finally {
+      setAzione(null);
+    }
+  }
+
   return (
     <>
       <div className="mb-4 flex items-center justify-between">
@@ -115,12 +169,17 @@ export default function RevisioneDettaglio() {
         </div>
         <div className="flex gap-2">
           <Bottone onClick={() => setMostraJson((v) => !v)}>{mostraJson ? "Nascondi dati" : "Mostra dati"}</Bottone>
-          {!rev.validato && (rev.tipo === "fattura" || rev.tipo === "ddt") && (
+          {!modifica && (
+            <Bottone onClick={apriModifica} disabled={azione === "apri-modifica"}>
+              {azione === "apri-modifica" ? "Apro…" : "Modifica dati"}
+            </Bottone>
+          )}
+          {!modifica && !rev.validato && (rev.tipo === "fattura" || rev.tipo === "ddt") && (
             <Bottone onClick={collega} disabled={azione === "collega"}>
               {azione === "collega" ? "Abbino…" : "Collega al computo"}
             </Bottone>
           )}
-          {!rev.validato && (
+          {!modifica && !rev.validato && (
             <Bottone variante="primario" onClick={valida} disabled={azione === "valida"}>
               {azione === "valida" ? "Salvo…" : "Salva come validato"}
             </Bottone>
@@ -152,7 +211,35 @@ export default function RevisioneDettaglio() {
           )}
         </Card>
 
-        <Card titolo="Campi estratti">
+        <Card titolo={modifica ? "Modifica campi" : "Campi estratti"}>
+          {modifica && metaEdit ? (
+            <>
+              <p className="mb-3 text-xs text-slate-500">
+                Correggi qui i dati letti dal documento. La segnalazione “+ nota” resta il
+                canale per spiegare al sistema cosa ha sbagliato.
+              </p>
+              <CampiSchema
+                schema={metaEdit.schema}
+                valore={formValore}
+                onChange={setFormValore}
+                riferimenti={metaEdit.riferimenti}
+                opzioni={metaEdit.opzioni}
+                etichette={metaEdit.etichette}
+              />
+              {erroreSalva ? <div className="mt-3"><Errore>{erroreSalva}</Errore></div> : null}
+              <div className="mt-4 flex gap-2">
+                <Bottone
+                  variante="primario"
+                  onClick={salvaModifica}
+                  disabled={azione === "salva-modifica"}
+                >
+                  {azione === "salva-modifica" ? "Salvo…" : "Salva modifiche"}
+                </Bottone>
+                <Bottone onClick={() => setModifica(false)}>Annulla</Bottone>
+              </div>
+            </>
+          ) : (
+          <>
           <table className="w-full text-sm">
             <tbody>
               {scalari.map(([campo, valore]) => (
@@ -216,6 +303,8 @@ export default function RevisioneDettaglio() {
             <pre className="mt-4 max-h-72 overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">
               {JSON.stringify(rev.entita.dati, null, 2)}
             </pre>
+          )}
+          </>
           )}
         </Card>
       </div>

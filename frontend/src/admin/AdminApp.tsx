@@ -11,6 +11,9 @@ import {
 import AdminLogin from "./AdminLogin";
 import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
+import Dati from "./Dati";
+import EntitaForm from "./EntitaForm";
+import EntitaLista from "./EntitaLista";
 import Interroga from "./Interroga";
 import Log from "./Log";
 import Revisione from "./Revisione";
@@ -23,6 +26,7 @@ import Workflows from "./Workflows";
 
 const VOCI = [
   { a: "/admin", etichetta: "Cruscotto", fine: true },
+  { a: "/admin/dati", etichetta: "Dati", fine: false },
   { a: "/admin/scostamenti", etichetta: "Scostamenti", fine: false },
   { a: "/admin/revisione", etichetta: "Revisione", fine: false },
   { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
@@ -94,6 +98,10 @@ export default function AdminApp() {
       <main className="mx-auto max-w-6xl p-6">
         <Routes>
           <Route index element={<Cruscotto />} />
+          <Route path="dati" element={<Dati />} />
+          <Route path="dati/:tipo" element={<EntitaLista />} />
+          <Route path="dati/:tipo/nuovo" element={<EntitaForm />} />
+          <Route path="dati/:tipo/:id" element={<EntitaForm />} />
           <Route path="cantiere/:id" element={<Cantiere />} />
           <Route path="scostamenti" element={<Scostamenti />} />
           <Route path="revisione" element={<Revisione />} />

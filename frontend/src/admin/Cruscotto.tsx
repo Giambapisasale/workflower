@@ -12,6 +12,14 @@ export default function Cruscotto() {
 
   return (
     <>
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <h1 className="mr-auto text-lg font-bold">Cruscotto</h1>
+        <Link to="/admin/dati/cantiere/nuovo"><Bottone>+ Cantiere</Bottone></Link>
+        <Link to="/admin/dati/fornitore/nuovo"><Bottone>+ Fornitore</Bottone></Link>
+        <Link to="/admin/dati/fattura/nuovo"><Bottone>+ Fattura a mano</Bottone></Link>
+        <Link to="/admin/dati"><Bottone variante="primario">Gestione dati →</Bottone></Link>
+      </div>
+
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <Kpi etichetta="Fatture" valore={t.n_fatture} nota={<Link className="text-sky-700 hover:underline" to="/admin/revisione">{t.da_validare} da validare →</Link>} />
         <Kpi etichetta="Totale documenti" valore={euro(t.totale)} nota={`imponibile ${euro(t.imponibile)}`} />
@@ -38,6 +46,7 @@ export default function Cruscotto() {
               <th className="pb-2 text-right">Speso</th>
               <th className="pb-2 text-right">Budget</th>
               <th className="pb-2 pl-6">Consumo</th>
+              <th className="pb-2 text-right">Gestisci</th>
             </tr>
           </thead>
           <tbody>
@@ -62,6 +71,11 @@ export default function Cruscotto() {
                     <span className="text-xs text-slate-500">{percento(c.quota_budget)}</span>
                   </div>
                 </td>
+                <td className="py-2 text-right">
+                  <Link className="text-xs text-sky-700 hover:underline" to={`/admin/dati/cantiere/${c.cantiere_id}`}>
+                    modifica
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -75,6 +89,7 @@ export default function Cruscotto() {
               <th className="pb-2">Fornitore</th>
               <th className="pb-2 text-right">Fatture</th>
               <th className="pb-2 text-right">Speso</th>
+              <th className="pb-2 text-right">Gestisci</th>
             </tr>
           </thead>
           <tbody>
@@ -83,6 +98,13 @@ export default function Cruscotto() {
                 <td className="py-2 text-slate-700">{f.fornitore ?? f.fornitore_id}</td>
                 <td className="py-2 text-right tabular-nums">{f.n_fatture}</td>
                 <td className="py-2 text-right tabular-nums">{euro(f.speso)}</td>
+                <td className="py-2 text-right">
+                  {f.fornitore_id ? (
+                    <Link className="text-xs text-sky-700 hover:underline" to={`/admin/dati/fornitore/${f.fornitore_id}`}>
+                      modifica
+                    </Link>
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>

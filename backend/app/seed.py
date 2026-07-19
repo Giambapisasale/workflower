@@ -67,6 +67,10 @@ def init_data_repo(data_dir: Path) -> None:
     for schema in sorted((ASSETS / "schemas").glob("*.schema.json")):
         shutil.copy(schema, data_dir / "schemas" / schema.name)
     shutil.copy(ASSETS / "config" / "views.sql", data_dir / "config" / "views.sql")
+    # Sentinella per le viste su insiemi vuoti (vedi core/views.py): con un
+    # delete una cartella entità può restare senza file e ``read_json`` sul
+    # glob vuoto fallirebbe; questo ``[]`` le dà zero righe tipizzate.
+    (data_dir / "config" / "vuoto.json").write_text("[]", encoding="utf-8")
     (data_dir / "config" / "utenti.json").write_text(
         json.dumps(_utenti_config(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
