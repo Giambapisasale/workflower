@@ -62,11 +62,11 @@ def test_upload_fattura_e2e(client: TestClient, dati_rw: Path, fixtures_dir: Pat
     assert vista["semaforo"] == "giallo"
     assert vista["riepilogo"] == {
         "tipo": "Fattura",
-        "ditta": "Calcestruzzi Etna S.p.A.",
-        "importo": 10162.60,
-        "cantiere": "Residenza Le Palme",
-        "numero": "112/2026",
-        "data": "2026-07-05",
+        "righe": [
+            {"etichetta": "Ditta", "valore": "Calcestruzzi Etna S.p.A.", "tipo": "testo"},
+            {"etichetta": "Importo", "valore": 10162.60, "tipo": "euro"},
+            {"etichetta": "Cantiere", "valore": "Residenza Le Palme", "tipo": "testo"},
+        ],
     }
 
     # dietro le quinte: bozza vera nel repo dati, collegata al documento

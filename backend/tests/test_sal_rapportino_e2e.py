@@ -140,3 +140,31 @@ def test_upload_sal_e_rapportino_instradati(
         doc = dal.read("documento", risposta.json()["doc_id"])
         assert doc.dati["workflow"] == workflow
         assert doc.dati["entity_tipo"] == entity_tipo
+
+
+def test_riepilogo_operatore_sal_non_solo_cantiere(
+    client: TestClient, fixtures_docs_dir: Path
+) -> None:
+    """Sulla schermata dell'operatore il SAL mostra avanzamento e importi, non
+    solo il cantiere: le righe sono guidate dai dati (ENTITY_TYPES), non cablate.
+    """
+    intestazioni = accedi(client, "marco")  # operatore del cantiere CNT-003
+    nome = PER_TIPO["sal"]["file"]
+    risposta = client.post(
+        "/api/documents",
+        headers=intestazioni,
+        files={"file": (nome, (fixtures_docs_dir / nome).read_bytes(), "application/pdf")},
+    )
+    assert risposta.status_code == 200
+    vista = client.get(
+        f"/api/documents/{risposta.json()['doc_id']}", headers=intestazioni
+    ).json()
+    assert vista["riepilogo"] == {
+        "tipo": "SAL",
+        "righe": [
+            {"etichetta": "Avanzamento", "valore": 37.5, "tipo": "percento"},
+            {"etichetta": "Lavori fatti finora", "valore": 742500.0, "tipo": "euro"},
+            {"etichetta": "Importo del contratto", "valore": 1980000.0, "tipo": "euro"},
+            {"etichetta": "Cantiere", "valore": "Capannone logistico Etna Sud", "tipo": "testo"},
+        ],
+    }

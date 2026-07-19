@@ -44,10 +44,7 @@ export const TESTI = {
   nonRiesco: "Non riesco a riceverlo adesso. Riprova tra qualche minuto.",
   riprova: "Riprova",
 
-  // etichette riepilogo
-  ditta: "Ditta",
-  importo: "Importo",
-  cantiere: "Cantiere",
+  // (le etichette del riepilogo arrivano dal backend, una per tipo di entità)
 
   // documenti
   titoloDocumenti: "I miei documenti",
@@ -89,4 +86,18 @@ export function quandoLeggibile(iso: string | null): string {
 export function euro(importo: number | null): string {
   if (importo === null || importo === undefined) return "—";
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(importo);
+}
+
+/** 37.5 → "37,5%" (il valore è già una percentuale, non una frazione). */
+export function percentuale(valore: number): string {
+  return `${new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(valore)}%`;
+}
+
+/** "2026-06-30" → "30/06/2026", senza spostamenti di fuso orario. */
+export function dataBreve(iso: string | null): string {
+  if (!iso) return "";
+  const pezzi = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (pezzi) return `${pezzi[3]}/${pezzi[2]}/${pezzi[1]}`;
+  const quando = new Date(iso);
+  return Number.isNaN(quando.getTime()) ? iso : quando.toLocaleDateString("it-IT");
 }

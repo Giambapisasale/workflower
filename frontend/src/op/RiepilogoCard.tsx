@@ -1,22 +1,33 @@
 /** Pezzi condivisi tra Carica e Dettaglio: le tre righe e il 👍/👎. */
 
 import { useState } from "react";
-import { api, type DocumentoVista, type Riepilogo } from "../shared/api";
-import { euro, TESTI } from "./testi";
+import { api, type DocumentoVista, type Riepilogo, type RigaRiepilogo } from "../shared/api";
+import { dataBreve, euro, percentuale, TESTI } from "./testi";
 
+/** Le righe arrivano già scelte dal backend (una per entità): qui le mostriamo
+ * e basta. Così SAL, rapportino e ogni entità futura parlano da sé. */
 export function RigheRiepilogo({ riepilogo }: { riepilogo: Riepilogo }) {
   return (
     <div className="my-3 space-y-1">
-      {/* SAL e rapportini non hanno una ditta né un importo: mostriamo la riga solo se c'è */}
-      {riepilogo.ditta !== null ? (
-        <Riga etichetta={TESTI.ditta} valore={riepilogo.ditta} />
-      ) : null}
-      {riepilogo.importo !== null ? (
-        <Riga etichetta={TESTI.importo} valore={euro(riepilogo.importo)} />
-      ) : null}
-      <Riga etichetta={TESTI.cantiere} valore={riepilogo.cantiere ?? "—"} />
+      {riepilogo.righe.map((riga, i) => (
+        <Riga key={i} etichetta={riga.etichetta} valore={mostra(riga)} />
+      ))}
     </div>
   );
+}
+
+/** L'etichetta arriva dal backend; qui diamo forma al valore secondo il tipo. */
+function mostra(riga: RigaRiepilogo): string {
+  switch (riga.tipo) {
+    case "euro":
+      return euro(Number(riga.valore));
+    case "percento":
+      return percentuale(Number(riga.valore));
+    case "data":
+      return dataBreve(String(riga.valore));
+    default:
+      return String(riga.valore);
+  }
 }
 
 function Riga({ etichetta, valore }: { etichetta: string; valore: string }) {

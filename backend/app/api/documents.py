@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from app.api.deps import get_dal, get_runtime, utente_corrente
 from app.core.auth import Utente
 from app.core.classificatore import Classificatore
-from app.core.dal import DAL, DalError, tipo_da_id
+from app.core.dal import DAL, ENTITY_TYPES, DalError, tipo_da_id
 from app.core.runtime import WorkflowRuntime
 from app.core.tools import salva_bozza
 from app.core.tracer import appendi_feedback_operatore
@@ -317,17 +317,38 @@ def _titolo(dal: DAL, doc: Envelope, entita: Envelope | None) -> str:
 
 
 def _riepilogo(dal: DAL, entita: Envelope | None) -> dict[str, Any] | None:
-    """Le tre righe del mockup: ditta, importo, cantiere (più numero e data)."""
+    """Riepilogo guidato dai dati: le righe da mostrare (etichetta, campo, tipo)
+    sono dichiarate per entità in ``ENTITY_TYPES['riepilogo']``. Aggiungere
+    un'entità non tocca questa funzione: qui si risolvono solo i rimandi
+    (fornitore, cantiere) e si saltano le righe senza un valore."""
     if entita is None:
         return None
+    spec = ENTITY_TYPES.get(entita.tipo, {})
+    righe = [_riga_riepilogo(dal, entita.dati, r) for r in spec.get("riepilogo", [])]
     return {
         "tipo": ETICHETTE_TIPO.get(entita.tipo, "Documento"),
-        "ditta": _nome_fornitore(dal, entita.dati.get("fornitore_id")),
-        "importo": entita.dati.get("totale"),
-        "cantiere": nome_cantiere(dal, entita.dati.get("cantiere_id")),
-        "numero": entita.dati.get("numero"),
-        "data": entita.dati.get("data"),
+        "righe": [r for r in righe if r is not None],
     }
+
+
+def _riga_riepilogo(
+    dal: DAL, dati: dict[str, Any], regola: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Una riga del riepilogo: risolve i rimandi in un nome e la UI formatta
+    il resto. Ritorna ``None`` (riga omessa) se il campo non ha un valore."""
+    tipo = regola["tipo"]
+    grezzo = dati.get(regola["campo"])
+    if tipo == "fornitore":
+        valore, tipo = _nome_fornitore(dal, grezzo), "testo"
+    elif tipo == "cantiere":
+        valore, tipo = nome_cantiere(dal, grezzo), "testo"
+    elif tipo == "conteggio":
+        valore, tipo = (len(grezzo) if isinstance(grezzo, list) else None), "testo"
+    else:
+        valore = grezzo
+    if valore is None or valore == "":
+        return None
+    return {"etichetta": regola["etichetta"], "valore": valore, "tipo": tipo}
 
 
 def _nome_fornitore(dal: DAL, fornitore_id: Any) -> str | None:

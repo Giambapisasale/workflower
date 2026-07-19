@@ -16,13 +16,17 @@ export type Utente = {
 
 export type Sessione = { token: string; utente: Utente };
 
+/** Una riga del riepilogo: l'etichetta e il valore arrivano dal backend, il
+ * tipo dice alla UI come mostrarlo (importo, percentuale, data o testo). */
+export type RigaRiepilogo = {
+  etichetta: string;
+  valore: string | number;
+  tipo: "testo" | "euro" | "percento" | "data";
+};
+
 export type Riepilogo = {
   tipo: string;
-  ditta: string | null;
-  importo: number | null;
-  cantiere: string | null;
-  numero: string | null;
-  data: string | null;
+  righe: RigaRiepilogo[];
 };
 
 export type Semaforo = "verde" | "giallo" | "rosso";

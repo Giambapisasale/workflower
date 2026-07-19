@@ -20,8 +20,12 @@ from app.models.issue import Issue
 
 GIT_AUTHOR = Actor("Workflower", "bot@workflower.local")
 
-# Registry dei tipi entità: cartella, formato id, partizione per anno.
-# Nuova entità = una riga qui + schema in data/schemas/<tipo>.schema.json.
+# Registry dei tipi entità: cartella, formato id, partizione per anno e le
+# righe del riepilogo che l'operatore vede (etichetta + campo + tipo).
+# Nuova entità = una riga qui + schema in data/schemas/<tipo>.schema.json:
+# così il riepilogo si mostra da sé, senza toccare l'API né la UI.
+# Tipi di riga: "testo"/"euro"/"percento"/"data" (la UI li formatta),
+# "fornitore"/"cantiere" (rimando risolto nel nome) e "conteggio" (n. righe).
 ENTITY_TYPES: dict[str, dict[str, Any]] = {
     "cantiere": {
         "dir": "cantieri",
@@ -46,24 +50,44 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "id": re.compile(r"^FT-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"FT-{anno}-{n:04d}",
+        "riepilogo": [
+            {"etichetta": "Ditta", "campo": "fornitore_id", "tipo": "fornitore"},
+            {"etichetta": "Importo", "campo": "totale", "tipo": "euro"},
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
     },
     "ddt": {
         "dir": "ddt",
         "id": re.compile(r"^DDT-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"DDT-{anno}-{n:04d}",
+        "riepilogo": [
+            {"etichetta": "Ditta", "campo": "fornitore_id", "tipo": "fornitore"},
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
     },
     "sal": {
         "dir": "sal",
         "id": re.compile(r"^SAL-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"SAL-{anno}-{n:04d}",
+        "riepilogo": [
+            {"etichetta": "Avanzamento", "campo": "percentuale_avanzamento", "tipo": "percento"},
+            {"etichetta": "Lavori fatti finora", "campo": "importo_progressivo", "tipo": "euro"},
+            {"etichetta": "Importo del contratto", "campo": "importo_lavori", "tipo": "euro"},
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
     },
     "rapportino": {
         "dir": "rapportini",
         "id": re.compile(r"^RAP-\d{4}-\d{4,}$"),
         "per_anno": True,
         "fmt": lambda anno, n: f"RAP-{anno}-{n:04d}",
+        "riepilogo": [
+            {"etichetta": "Giorno", "campo": "data", "tipo": "data"},
+            {"etichetta": "Persone in cantiere", "campo": "righe", "tipo": "conteggio"},
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
     },
     "documento": {
         "dir": "documenti",
