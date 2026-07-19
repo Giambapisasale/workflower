@@ -56,26 +56,59 @@ class Improver:
         """Genera la patch (T1) e la misura sul golden set (replay + giudizio T2)."""
         contesto = self._contesto(run_id, issue_id, feedback)
         manifest_wf = self._manifest_workflow(workflow)
-        skill_file, skill_testo = self._skill_estrazione(workflow, manifest_wf)
+        _skill_file, skill_testo = self._skill_estrazione(workflow, manifest_wf)
         proposta = self._proponi_llm(workflow, manifest_wf, skill_testo, contesto)
-        skill_nuova = proposta["skill_nuova"]
+        return self.proponi_patch(
+            workflow=workflow,
+            skill_nuova=proposta["skill_nuova"],
+            analisi=str(proposta.get("analisi", "")),
+            motivazione=str(proposta.get("motivazione", "")),
+            origine={
+                "run_id": contesto["run_id"],
+                "issue_id": issue_id,
+                "doc": contesto["doc"],
+            },
+        )
+
+    def skill_estrazione(self, workflow: str) -> tuple[str, str]:
+        """Il file (relativo) e il testo della skill di estrazione di un workflow.
+
+        Punto di riuso per il Toolsmith (M17): parte dalla skill attuale per
+        proporne una che impari a chiamare il tool consolidato.
+        """
+        return self._skill_estrazione(workflow, self._manifest_workflow(workflow))
+
+    def proponi_patch(
+        self,
+        *,
+        workflow: str,
+        skill_nuova: str,
+        analisi: str,
+        motivazione: str,
+        origine: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Misura una skill già scritta sul golden set e ne salva la patch.
+
+        È "la macchina dell'Improver" esposta: replay in sandbox sui casi
+        validati + persistenza della patch. La usa sia l'Improver (dopo aver
+        generato la skill con T1) sia il Toolsmith (M17), che genera la skill per
+        insegnare a chiamare il tool. L'approvazione resta quella di sempre.
+        """
+        manifest_wf = self._manifest_workflow(workflow)
+        skill_file, skill_testo = self._skill_estrazione(workflow, manifest_wf)
         casi = self._replay(workflow, skill_file, skill_nuova)
         patch = {
             "workflow": workflow,
             "da_versione": str(manifest_wf.get("version", "1.0")),
             "a_versione": self._bump(str(manifest_wf.get("version", "1.0"))),
             "stato": "proposta",
-            "analisi": str(proposta.get("analisi", "")),
-            "motivazione": str(proposta.get("motivazione", "")),
+            "analisi": analisi,
+            "motivazione": motivazione,
             "file_skill": skill_file,
             "skill_nuova": skill_nuova,
             "diff_skill": self._diff(skill_file, skill_testo, skill_nuova),
             "diff_manifest": None,
-            "origine": {
-                "run_id": contesto["run_id"],
-                "issue_id": issue_id,
-                "doc": contesto["doc"],
-            },
+            "origine": origine,
             "replay": {
                 "totale": len(casi),
                 "ok": sum(1 for c in casi if c["uguale"]),

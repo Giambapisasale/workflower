@@ -72,6 +72,20 @@ class Toolset:
         """Schemi function-calling dei tool richiesti (per la chiamata LLM)."""
         return [self._schema(nome) for nome in nomi]
 
+    def nomi_consolidati(self) -> list[str]:
+        """I tool Python consolidati e invocabili (M15), da offrire agli step (M17).
+
+        Sono sicuri per costruzione — approvati dall'umano ed eseguiti in sandbox
+        — perciò il runtime li mette a disposizione degli step di estrazione oltre
+        ai tool nativi dichiarati: è la skill (patchata dal Toolsmith) a decidere
+        se e quando chiamarli, con l'LLM come fallback.
+        """
+        return [
+            nome
+            for nome in self._registro
+            if self._origine.get(nome) == "pytool"
+        ]
+
     def elenco(self) -> list[dict[str, str]]:
         """Nome, descrizione, stato di ciclo e origine di ogni tool (pagina Skills & Tools).
 

@@ -12,9 +12,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, get_toolsmith, richiedi_admin
+from app.api.deps import get_dal, get_improver, get_toolsmith, richiedi_admin
 from app.core.auth import Utente
-from app.core.dal import DAL, NotFoundError
+from app.core.dal import DAL, CatalogoNonValido, NotFoundError
+from app.core.improver import Improver
 from app.core.toolsmith import Toolsmith, ToolsmithError
 
 router = APIRouter(prefix="/toolsmith", tags=["toolsmith"])
@@ -70,3 +71,54 @@ def dettaglio_proposta(
         return dal.leggi_proposta(proposta_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail="proposta non trovata") from exc
+
+
+def _proposta_da_decidere(dal: DAL, proposta_id: str) -> dict[str, Any]:
+    try:
+        proposta = dal.leggi_proposta(proposta_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail="proposta non trovata") from exc
+    if proposta.get("stato") != "proposta":
+        raise HTTPException(status_code=409, detail=f"proposta già {proposta.get('stato')}")
+    return proposta
+
+
+@router.post("/proposte/{proposta_id}/approve")
+def approva_proposta(
+    proposta_id: str,
+    admin: Utente = Depends(richiedi_admin),
+    toolsmith: Toolsmith = Depends(get_toolsmith),
+    improver: Improver = Depends(get_improver),
+) -> dict[str, Any]:
+    """Approva: registra il tool (M15) e propone la patch di skill (replay golden)."""
+    proposta = _proposta_da_decidere(toolsmith.dal, proposta_id)
+    try:
+        esito = toolsmith.approva(proposta, admin.username, improver)
+    except CatalogoNonValido as exc:
+        raise HTTPException(status_code=409, detail=f"tool non registrabile: {exc}") from exc
+    except ToolsmithError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    patch = esito["patch"]
+    return {
+        "proposta": esito["proposta"]["id"],
+        "stato": esito["proposta"]["stato"],
+        "pytool": esito["pytool"]["nome"],
+        "patch_skill": {
+            "id": patch["id"],
+            "replay": patch["replay"],
+            "diff_skill": patch["diff_skill"],
+        }
+        if patch
+        else None,
+    }
+
+
+@router.post("/proposte/{proposta_id}/reject")
+def rifiuta_proposta(
+    proposta_id: str,
+    admin: Utente = Depends(richiedi_admin),
+    toolsmith: Toolsmith = Depends(get_toolsmith),
+) -> dict[str, str]:
+    proposta = _proposta_da_decidere(toolsmith.dal, proposta_id)
+    aggiornata = toolsmith.rifiuta(proposta, admin.username)
+    return {"id": aggiornata["id"], "stato": aggiornata["stato"]}

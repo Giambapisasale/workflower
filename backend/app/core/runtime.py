@@ -189,7 +189,12 @@ class WorkflowRuntime:
         )
         contratto = schema_contratto(schema_entita)
         validatore = Draft202012Validator(contratto, format_checker=FormatChecker())
+        # Ai tool nativi dichiarati dallo step si aggiungono i tool Python
+        # consolidati (M15/M17): la skill impara a chiamarli, l'LLM resta il
+        # fallback. Un tool consolidato che erra torna come errore al modello
+        # (sotto), che completa comunque lo step: mai un single-point-of-failure.
         nomi_tool = list(step.get("tools") or [])
+        nomi_tool += [n for n in self.toolset.nomi_consolidati() if n not in nomi_tool]
         schemi_tool = self.toolset.schemi(nomi_tool) or None
 
         messages: list[dict[str, Any]] = [

@@ -16,9 +16,12 @@ I prompt vivono in ``data/workflows/toolsmith/`` (dati, non codice).
 """
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
+
+if TYPE_CHECKING:
+    from app.core.improver import Improver
 
 from app.core.dal import DAL
 from app.core.dataset import leggi_derivazioni
@@ -141,6 +144,99 @@ class Toolsmith:
             "deciso_da": None,
         }
         return self.dal.salva_proposta(proposta)
+
+    # ------------------------------------------------------ approva/rifiuta
+
+    def approva(
+        self, proposta: dict[str, Any], deciso_da: str, improver: "Improver"
+    ) -> dict[str, Any]:
+        """Chiude il ciclo (M17): registra il tool e propone la patch di skill.
+
+        Due passi, come da §3.6 punto 4: (1) ``DAL.consolida_pytool`` attiva il
+        tool — con la rete di sicurezza che rigira i test in sandbox prima di
+        committare; (2) il Toolsmith propone una **patch di skill** che insegna a
+        chiamare il tool (con l'LLM come fallback), riusando la macchina
+        dell'Improver: passa dal replay sul golden set e da un'approvazione a
+        parte, esattamente come le altre patch.
+        """
+        if proposta.get("stato") != "proposta":
+            raise ToolsmithError(f"proposta già {proposta.get('stato')}")
+        voce = self.dal.consolida_pytool(
+            nome=proposta["nome"],
+            codice=proposta["codice"],
+            schema=proposta["schema"],
+            test=proposta["test"],
+            fingerprint=None,
+            creato_da=deciso_da,
+            ciclo="consolidata",
+        )
+        patch = self._patch_skill(proposta, improver)
+        aggiornata = self.dal.aggiorna_proposta(
+            {
+                **proposta,
+                "stato": "approvata",
+                "deciso_da": deciso_da,
+                "pytool": voce["nome"],
+                "patch_skill": patch["id"] if patch else None,
+            },
+            "approva",
+        )
+        return {"proposta": aggiornata, "pytool": voce, "patch": patch}
+
+    def rifiuta(self, proposta: dict[str, Any], deciso_da: str) -> dict[str, Any]:
+        return self.dal.aggiorna_proposta(
+            {**proposta, "stato": "rifiutata", "deciso_da": deciso_da}, "rifiuta"
+        )
+
+    def _patch_skill(
+        self, proposta: dict[str, Any], improver: "Improver"
+    ) -> dict[str, Any] | None:
+        """Genera (T1) e misura la patch di skill che insegna a chiamare il tool."""
+        workflow = (proposta.get("candidato") or {}).get("workflow")
+        if not workflow:
+            return None  # candidato senza workflow: nessuna skill da patchare
+        _file, skill_vecchia = improver.skill_estrazione(workflow)
+        generato = self._genera_patch_skill(proposta, skill_vecchia)
+        return improver.proponi_patch(
+            workflow=workflow,
+            skill_nuova=generato["skill_nuova"],
+            analisi=str(generato.get("analisi", "")),
+            motivazione=str(generato.get("motivazione", "")),
+            origine={"proposta": proposta["id"], "pytool": proposta["nome"]},
+        )
+
+    def _genera_patch_skill(
+        self, proposta: dict[str, Any], skill_vecchia: str
+    ) -> dict[str, Any]:
+        manifest = yaml.safe_load((self.wf_dir / "manifest.yaml").read_text(encoding="utf-8"))
+        skill = (self.wf_dir / manifest["skills"]["patch"]).read_text(encoding="utf-8")
+        risposta = self.gateway.complete(
+            tier=manifest.get("tier_patch", "T1"),
+            messages=[
+                {"role": "system", "content": skill},
+                {"role": "user", "content": self._prompt_patch(proposta, skill_vecchia)},
+            ],
+        )
+        dato = estrai_json(risposta.text or "")
+        if not isinstance(dato, dict) or not dato.get("skill_nuova"):
+            raise ToolsmithError("la patch di skill non contiene una nuova skill")
+        return dato
+
+    @staticmethod
+    def _prompt_patch(proposta: dict[str, Any], skill_vecchia: str) -> str:
+        candidato = proposta.get("candidato") or {}
+        return "\n".join(
+            [
+                f"Tool consolidato: {proposta['nome']}",
+                f"Campi da passargli: {', '.join(candidato.get('campi_input', []))}",
+                f"Campo di uscita da valorizzare col risultato: {candidato.get('campo_output')}",
+                "",
+                "Skill attuale del passo di estrazione:",
+                "<<<SKILL_ATTUALE",
+                skill_vecchia,
+                "SKILL_ATTUALE>>>",
+            ]
+        )
 
     # --------------------------------------------------------------- interni
 

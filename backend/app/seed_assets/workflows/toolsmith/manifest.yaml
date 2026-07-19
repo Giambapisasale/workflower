@@ -5,5 +5,7 @@
 name: toolsmith
 version: "1.0"
 tier_generazione: T1
+tier_patch: T1
 skills:
   generazione: skills/genera-tool.md
+  patch: skills/patch-skill.md
