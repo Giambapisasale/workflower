@@ -71,6 +71,12 @@ class Gateway:
     def modello(self, tier: str) -> str:
         variabile = f"LLM_{tier}_MODEL"
         modello = os.environ.get(variabile)
+        if not modello and tier == "T3":
+            # Tier T3 (modello locale fine-tuned) predisposto ma non ancora attivo:
+            # si ricade su T1. Il router sposterà i workflow su T3 quando LLM_T3_MODEL
+            # sarà configurato, senza toccare i manifest (§3.1). Escalation su bassa
+            # confidence/errore: lavoro futuro.
+            modello = os.environ.get("LLM_T1_MODEL")
         if not modello:
             raise ModelloNonConfigurato(f"{variabile} non configurata (tier {tier})")
         return modello

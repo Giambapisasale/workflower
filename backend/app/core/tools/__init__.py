@@ -34,6 +34,14 @@ class Toolset:
         """Schemi function-calling dei tool richiesti (per la chiamata LLM)."""
         return [self._schema(nome) for nome in nomi]
 
+    def elenco(self) -> list[dict[str, str]]:
+        """Nome e descrizione di ogni tool registrato (pagina Skills & Tools)."""
+        voci = []
+        for nome, (schema, _handler) in self._registro.items():
+            funzione = schema.get("function", {})
+            voci.append({"name": nome, "descrizione": funzione.get("description", "")})
+        return voci
+
     def esegui(
         self, nome: str, argomenti: dict[str, Any], consentiti: list[str] | None = None
     ) -> Any:

@@ -15,10 +15,12 @@ from pydantic import BaseModel
 from app.api.deps import get_dal, richiedi_admin
 from app.core.auth import Utente
 from app.core.collega import Collega
-from app.core.dal import DAL, DalError, tipo_da_id
+from app.core.dal import DAL, TIPI_INGRESSO, DalError, tipo_da_id
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
 from app.models.envelope import Envelope
 
+# Le bozze che passano dalla revisione sono le entità estratte dai workflow.
+TIPI_REVISIONABILI = TIPI_INGRESSO
 # Entità con righe collegabili alle voci di computo (hanno voce_computo_id).
 TIPI_COLLEGABILI = ("fattura", "ddt")
 

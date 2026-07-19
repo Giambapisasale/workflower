@@ -174,9 +174,14 @@ export type DatasetStats = {
   documenti: number;
   costo_per_documento_usd: number;
   run_per_workflow: Record<string, number>;
+  esempi_finetuning: number;
 };
 
 export type GruppoQuery = { fingerprint: string; conteggio: number; esempio: string };
+
+export type ToolRegistry = { name: string; descrizione: string; usi: number; ciclo: string };
+
+export type SkillsTools = { tools: ToolRegistry[]; candidati: GruppoQuery[] };
 
 export type ScostamentoCantiere = {
   cantiere_id: string;
@@ -280,6 +285,10 @@ export const admin = {
     richiesta<{ gruppi: GruppoQuery[] }>("/dataset/queries").then((r) => r.gruppi),
 
   scaricaToolcalls: () => richiestaBlob("/dataset/export"),
+
+  skillsTools: () => richiesta<SkillsTools>("/tools"),
+
+  scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
 };
 
 function corpo(dati: unknown): RequestInit {

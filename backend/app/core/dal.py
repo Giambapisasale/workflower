@@ -74,6 +74,11 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
 }
 
 
+# Entità prodotte dai workflow d'ingresso (estratte da un documento, poi validate).
+# Le anagrafiche (cantiere, fornitore, computo) non passano da qui.
+TIPI_INGRESSO = ("fattura", "ddt", "sal", "rapportino")
+
+
 def tipo_da_id(entity_id: str | None) -> str | None:
     """Il tipo entità dedotto dal formato dell'id (es. ``FT-…`` → ``fattura``)."""
     if not entity_id:

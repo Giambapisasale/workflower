@@ -10,13 +10,15 @@ Toolsmith automatico in v1 (non-goal §5).
 import json
 import re
 from collections import Counter
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from app.core.dal import DAL
+from app.core.dal import DAL, TIPI_INGRESSO
 from app.models.envelope import now_iso
 
 FILE_QUERY = "queries.jsonl"
+FILE_TOOLCALLS = "toolcalls.jsonl"
 
 
 def fingerprint(sql: str) -> str:
@@ -68,6 +70,57 @@ def conteggio_fingerprint(data_dir: Path | str) -> list[dict[str, Any]]:
         for fp, n in conteggi.most_common()
     ]
     return gruppi
+
+
+def _righe_toolcalls(data_dir: Path | str) -> Iterator[dict[str, Any]]:
+    percorso = Path(data_dir) / "dataset" / FILE_TOOLCALLS
+    if not percorso.is_file():
+        return
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            yield json.loads(riga)
+        except json.JSONDecodeError:
+            continue
+
+
+def conteggio_tool(data_dir: Path | str) -> dict[str, int]:
+    """Quante volte è stato invocato ogni tool (dai log delle tool call)."""
+    conteggi: Counter[str] = Counter()
+    for record in _righe_toolcalls(data_dir):
+        nome = (record.get("tool_call") or {}).get("name")
+        if nome:
+            conteggi[nome] += 1
+    return dict(conteggi)
+
+
+def run_id_validati(dal: DAL) -> set[str]:
+    """I run che hanno prodotto un'entità poi validata dall'ufficio (§3.7)."""
+    validi: set[str] = set()
+    for tipo in TIPI_INGRESSO:
+        for envelope in dal.list_all(tipo):
+            if envelope.stato == "validato" and envelope.meta.run_id:
+                validi.add(envelope.meta.run_id)
+    return validi
+
+
+def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
+    """Le tool call dei run validati, riformattate come esempi per il fine-tuning.
+
+    ADR-5 (log-everything): solo i run la cui bozza è stata validata da un umano
+    diventano esempi (``validated_by_user``), per non insegnare al modello gli errori.
+    """
+    validi = run_id_validati(dal)
+    for record in _righe_toolcalls(dal.data_dir):
+        if record.get("outcome") != "success" or record.get("run_id") not in validi:
+            continue
+        yield {
+            "workflow": record.get("workflow"),
+            "tools": record.get("tools"),
+            "messages": record.get("messages"),
+            "tool_call": record.get("tool_call"),
+        }
 
 
 def statistiche(data_dir: Path | str) -> dict[str, Any]:

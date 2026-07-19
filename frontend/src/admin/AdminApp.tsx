@@ -17,6 +17,7 @@ import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
 import Scostamenti from "./Scostamenti";
 import Segnalazioni from "./Segnalazioni";
+import SkillsTools from "./SkillsTools";
 import { Bottone } from "./ui";
 import Workflows from "./Workflows";
 
@@ -27,6 +28,7 @@ const VOCI = [
   { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
   { a: "/admin/interroga", etichetta: "Interroga", fine: false },
   { a: "/admin/workflows", etichetta: "Workflows", fine: false },
+  { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
   { a: "/admin/log", etichetta: "Log & Dataset", fine: false },
 ];
 
@@ -99,6 +101,7 @@ export default function AdminApp() {
           <Route path="segnalazioni" element={<Segnalazioni />} />
           <Route path="interroga" element={<Interroga />} />
           <Route path="workflows" element={<Workflows />} />
+          <Route path="tools" element={<SkillsTools />} />
           <Route path="log" element={<Log />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
