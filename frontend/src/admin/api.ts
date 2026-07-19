@@ -177,11 +177,30 @@ export type DatasetStats = {
   esempi_finetuning: number;
 };
 
-export type GruppoQuery = { fingerprint: string; conteggio: number; esempio: string };
+export type GruppoQuery = {
+  fingerprint: string;
+  conteggio: number;
+  esempio: string;
+  consolidato?: string | null; // nome della vista v_* se già consolidato
+};
 
 export type ToolRegistry = { name: string; descrizione: string; usi: number; ciclo: string };
 
-export type SkillsTools = { tools: ToolRegistry[]; candidati: GruppoQuery[] };
+export type VistaConsolidata = {
+  creato: string;
+  nome: string;
+  vista: string;
+  fingerprint: string;
+  corpo: string;
+  esempio: string;
+  creato_da: string;
+};
+
+export type SkillsTools = {
+  tools: ToolRegistry[];
+  candidati: GruppoQuery[];
+  viste: VistaConsolidata[];
+};
 
 export type ScostamentoCantiere = {
   cantiere_id: string;
@@ -318,6 +337,12 @@ export const admin = {
   scaricaToolcalls: () => richiestaBlob("/dataset/export"),
 
   skillsTools: () => richiesta<SkillsTools>("/tools"),
+
+  consolida: (fingerprint: string, nome: string) =>
+    richiesta<{ vista: string; corpo: string; righe: number; creato: string }>(
+      "/dataset/consolida",
+      corpo({ fingerprint, nome }),
+    ),
 
   scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
 

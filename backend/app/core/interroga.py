@@ -64,8 +64,13 @@ def estrai_sql(testo: str) -> str:
     return sql
 
 
-def applica_guardrail(sql: str) -> str:
-    """Valida la query e la ritorna con il LIMIT garantito. Non negoziabile."""
+def valida_lettura(sql: str) -> str:
+    """Valida che ``sql`` sia una singola query di sola lettura sulle viste ``v_*``.
+
+    Ritorna la query ripulita (senza ``;`` finale) o solleva ``InterrogaError``.
+    Non aggiunge il LIMIT: è il pezzo di guardrail condiviso fra l'esecuzione di
+    ``/ask`` (:func:`applica_guardrail`) e il consolidamento in vista.
+    """
     pulito = sql.strip().rstrip(";").strip()
     if not pulito or ";" in pulito:
         raise InterrogaError("è ammessa una sola query per volta")
@@ -81,6 +86,12 @@ def applica_guardrail(sql: str) -> str:
         nome = grezzo.strip('"').lower()
         if not nome.startswith("v_") and nome not in consentiti:
             raise InterrogaError(f"si interrogano solo le viste v_* (trovato: {grezzo})")
+    return pulito
+
+
+def applica_guardrail(sql: str) -> str:
+    """Valida la query e la ritorna con il LIMIT garantito. Non negoziabile."""
+    pulito = valida_lettura(sql)
     limite = re.search(r"\blimit\s+(\d+)", pulito, re.IGNORECASE)
     if limite is None:
         return f"SELECT * FROM ({pulito}) AS interroga LIMIT {MAX_RIGHE}"

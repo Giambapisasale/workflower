@@ -12,9 +12,16 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel
 
 from app.api.deps import get_dal, get_data_dir, richiedi_admin
 from app.core.auth import Utente
+from app.core.consolida import (
+    ConsolidaError,
+    consolidati_per_fingerprint,
+    leggi_consolidamenti,
+    prepara,
+)
 from app.core.dal import DAL
 from app.core.dataset import (
     conteggio_fingerprint,
@@ -23,6 +30,15 @@ from app.core.dataset import (
     statistiche,
 )
 from app.core.tools import Toolset
+
+
+def _candidati(data_dir: Path) -> list[dict[str, Any]]:
+    """I gruppi per fingerprint, ciascuno marcato con la vista se già consolidato."""
+    consolidati = consolidati_per_fingerprint(data_dir)
+    return [
+        {**gruppo, "consolidato": consolidati.get(gruppo["fingerprint"])}
+        for gruppo in conteggio_fingerprint(data_dir)
+    ]
 
 router = APIRouter(tags=["dataset"])
 
@@ -45,7 +61,52 @@ def queries(
     data_dir: Path = Depends(get_data_dir),
 ) -> dict[str, Any]:
     """Le query di ``/ask`` per fingerprint: i duplicati sono candidati a tool (§3.6)."""
-    return {"gruppi": conteggio_fingerprint(data_dir)}
+    return {"gruppi": _candidati(data_dir)}
+
+
+class ConsolidaRichiesta(BaseModel):
+    fingerprint: str
+    nome: str
+
+
+@router.post("/dataset/consolida")
+def consolida(
+    body: ConsolidaRichiesta,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, Any]:
+    """Promuove un candidato ricorrente a vista ``v_<nome>`` (§3.6, branca "vista SQL").
+
+    Non genera codice: la vista vive in ``config/views.sql`` (dato). L'umano
+    sceglie il nome; i guardrail di ``/ask`` e una compilazione reale su DuckDB
+    garantiscono che la vista sia sicura ed eseguibile prima del commit.
+    """
+    gruppo = next(
+        (g for g in conteggio_fingerprint(dal.data_dir) if g["fingerprint"] == body.fingerprint),
+        None,
+    )
+    if gruppo is None:
+        raise HTTPException(
+            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
+        )
+    try:
+        preparata = prepara(dal.data_dir, body.nome, gruppo["esempio"])
+    except ConsolidaError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    voce = dal.consolida_vista(
+        nome=body.nome,
+        vista=preparata["vista"],
+        corpo=preparata["corpo"],
+        fingerprint=body.fingerprint,
+        esempio=gruppo["esempio"],
+        creato_da=admin.username,
+    )
+    return {
+        "vista": preparata["vista"],
+        "corpo": preparata["corpo"],
+        "righe": preparata["righe"],
+        "creato": voce["creato"],
+    }
 
 
 @router.get("/dataset/export")
@@ -89,4 +150,8 @@ def elenco_tool(
         for voce in Toolset(dal).elenco()
     ]
     tools.sort(key=lambda t: t["usi"], reverse=True)
-    return {"tools": tools, "candidati": conteggio_fingerprint(dal.data_dir)}
+    return {
+        "tools": tools,
+        "candidati": _candidati(dal.data_dir),
+        "viste": leggi_consolidamenti(dal.data_dir),
+    }

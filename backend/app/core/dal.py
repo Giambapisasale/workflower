@@ -155,6 +155,36 @@ class SchemaValidationError(DalError):
         super().__init__(f"{tipo} {entity_id}: dati non conformi allo schema: {dettaglio}")
 
 
+# Regione gestita in ``config/views.sql`` per le viste consolidate da
+# ``/api/dataset/consolida``: rigenerata dal registro ``dataset/
+# consolidamenti.jsonl`` a ogni consolidazione. Fuori da questi marker il
+# catalogo resta scritto a mano (il loader di views.py ignora i commenti ``--``).
+_VISTE_INIZIO = "-- === VISTE CONSOLIDATE — generate da /api/dataset/consolida ==="
+_VISTE_FINE = "-- === FINE VISTE CONSOLIDATE ==="
+
+
+def _regione_viste(consolidamenti: list[dict[str, Any]]) -> str:
+    """La regione SQL delle viste consolidate, generata dal registro."""
+    righe = [_VISTE_INIZIO, "-- rigenerata automaticamente: non modificare a mano"]
+    for c in consolidamenti:
+        righe.append(f"-- vista consolidata {c['vista']} (creata {c.get('creato', '')})")
+        righe.append(f"CREATE OR REPLACE VIEW {c['vista']} AS")
+        righe.append(f"{c['corpo']};")
+        righe.append("")
+    righe.append(_VISTE_FINE)
+    return "\n".join(righe)
+
+
+def _inserisci_regione(base: str, regione: str) -> str:
+    """Sostituisce (o accoda, la prima volta) la regione consolidata in views.sql."""
+    if _VISTE_INIZIO in base and _VISTE_FINE in base:
+        testa = base[: base.index(_VISTE_INIZIO)].rstrip("\n")
+        coda = base[base.index(_VISTE_FINE) + len(_VISTE_FINE) :].lstrip("\n")
+        parti = [p for p in (testa, regione, coda) if p.strip()]
+        return "\n".join(parti).rstrip("\n") + "\n"
+    return base.rstrip("\n") + "\n\n" + regione + "\n"
+
+
 class DAL:
     """CRUD degli envelope entità: validazione schema, lock, git auto-commit."""
 
@@ -430,6 +460,60 @@ class DAL:
             )
         return payload
 
+    def consolida_vista(
+        self,
+        *,
+        nome: str,
+        vista: str,
+        corpo: str,
+        fingerprint: str,
+        esempio: str,
+        creato_da: str,
+    ) -> dict[str, Any]:
+        """Registra una vista consolidata e la rende parte del catalogo.
+
+        Aggiorna il registro ``dataset/consolidamenti.jsonl`` (fonte di verità) e
+        rigenera da esso la regione gestita in ``config/views.sql``, poi committa:
+        un'unica mutazione atomica sotto il lock. Idempotente sul nome vista (una
+        nuova consolidazione con lo stesso nome rimpiazza la precedente). La
+        validità della vista è garantita a monte da ``consolida.prepara``.
+        """
+        with self._write_lock:
+            ledger = self.data_dir / "dataset" / "consolidamenti.jsonl"
+            voci = [v for v in self._righe_jsonl(ledger) if v.get("vista") != vista]
+            voce = {
+                "creato": now_iso(),
+                "nome": nome,
+                "vista": vista,
+                "fingerprint": fingerprint,
+                "corpo": corpo,
+                "esempio": esempio,
+                "creato_da": creato_da,
+            }
+            voci.append(voce)
+            self._scrivi_atomico(
+                ledger, "".join(json.dumps(v, ensure_ascii=False) + "\n" for v in voci)
+            )
+
+            views_sql = self.data_dir / "config" / "views.sql"
+            aggiornato = _inserisci_regione(
+                views_sql.read_text(encoding="utf-8"), _regione_viste(voci)
+            )
+            self._scrivi_atomico(views_sql, aggiornato)
+
+            self.repo.index.add(
+                [
+                    ledger.relative_to(self.data_dir).as_posix(),
+                    views_sql.relative_to(self.data_dir).as_posix(),
+                ]
+            )
+            self.repo.index.commit(
+                f"consolida: vista {vista} [{creato_da}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
+        return voce
+
     def commit_paths(self, percorsi: list[Path | str], message: str) -> None:
         """Committa file già scritti dentro ``data/`` (trace, dataset, blob).
 
@@ -492,10 +576,28 @@ class DAL:
 
     def _committa_json(self, path: Path, payload: dict[str, Any], message: str) -> None:
         """Scrittura atomica di un JSON + commit. Chiamare solo dentro ``_write_lock``."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        testo = json.dumps(payload, ensure_ascii=False, indent=2)
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(testo + "\n", encoding="utf-8")
-        tmp.replace(path)
+        self._scrivi_atomico(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
         self.repo.index.add([path.relative_to(self.data_dir).as_posix()])
         self.repo.index.commit(message, author=GIT_AUTHOR, committer=GIT_AUTHOR)
+
+    @staticmethod
+    def _scrivi_atomico(percorso: Path, testo: str) -> None:
+        """Scrive ``testo`` in modo atomico (tmp + replace). Solo dentro il lock."""
+        percorso.parent.mkdir(parents=True, exist_ok=True)
+        tmp = percorso.with_name(percorso.name + ".tmp")
+        tmp.write_text(testo, encoding="utf-8")
+        tmp.replace(percorso)
+
+    @staticmethod
+    def _righe_jsonl(percorso: Path) -> list[dict[str, Any]]:
+        """Le righe di un file JSONL come dict (righe vuote/corrotte ignorate)."""
+        if not percorso.is_file():
+            return []
+        voci: list[dict[str, Any]] = []
+        for riga in percorso.read_text(encoding="utf-8").splitlines():
+            if riga.strip():
+                try:
+                    voci.append(json.loads(riga))
+                except json.JSONDecodeError:
+                    continue
+        return voci

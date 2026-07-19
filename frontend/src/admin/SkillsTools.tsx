@@ -1,20 +1,50 @@
 /** Skills & Tools (M12): registry dei tool, dataset di fine-tuning, candidati. */
 
+import { useState } from "react";
+import { ErroreApi } from "../shared/api";
 import { admin } from "./api";
-import { useCarica } from "./formato";
+import { dataBreve, useCarica } from "./formato";
 import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
 export default function SkillsTools() {
-  const { dati, errore, inCorso } = useCarica(() =>
+  const { dati, errore, inCorso, ricarica } = useCarica(() =>
     Promise.all([admin.skillsTools(), admin.datasetStats()]),
   );
+  const [apri, setApri] = useState<string | null>(null); // fingerprint con il form aperto
+  const [nome, setNome] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erroreForm, setErroreForm] = useState<string | null>(null);
+
   if (inCorso) return <Stato>Carico tool e dataset…</Stato>;
   if (errore || !dati) return <Errore>{errore ?? "Nessun dato"}</Errore>;
   const [reg, stats] = dati;
 
+  function apriForm(fingerprint: string) {
+    setApri(fingerprint);
+    setNome("");
+    setErroreForm(null);
+  }
+
+  async function consolida(fingerprint: string) {
+    const scelto = nome.trim();
+    if (!scelto) return;
+    setSalvando(true);
+    setErroreForm(null);
+    try {
+      await admin.consolida(fingerprint, scelto);
+      setApri(null);
+      setNome("");
+      ricarica();
+    } catch (e) {
+      setErroreForm(e instanceof ErroreApi ? e.message : "Consolidamento non riuscito");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
   return (
     <>
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
         <Kpi etichetta="Tool nativi" valore={reg.tools.length} />
         <Kpi etichetta="Tool call registrate" valore={stats.toolcalls_dataset} />
         <Kpi
@@ -23,6 +53,7 @@ export default function SkillsTools() {
           nota="dai soli run validati"
         />
         <Kpi etichetta="Candidati a tool" valore={reg.candidati.length} />
+        <Kpi etichetta="Viste consolidate" valore={reg.viste.length} nota="query promosse a v_*" />
       </div>
 
       <Card
@@ -71,9 +102,71 @@ export default function SkillsTools() {
         ) : (
           <ul className="space-y-2 text-sm">
             {reg.candidati.map((c) => (
-              <li key={c.fingerprint} className="flex items-center gap-3 border-b border-slate-50 pb-2">
-                <Badge tono={c.conteggio > 1 ? "giallo" : "grigio"}>×{c.conteggio}</Badge>
-                <code className="truncate text-xs text-slate-500">{c.esempio}</code>
+              <li key={c.fingerprint} className="border-b border-slate-50 pb-2">
+                <div className="flex items-center gap-3">
+                  <Badge tono={c.consolidato ? "verde" : c.conteggio > 1 ? "giallo" : "grigio"}>
+                    ×{c.conteggio}
+                  </Badge>
+                  <code className="flex-1 truncate text-xs text-slate-500">{c.esempio}</code>
+                  {c.consolidato ? (
+                    <Badge tono="verde">✓ {c.consolidato}</Badge>
+                  ) : apri === c.fingerprint ? (
+                    <Bottone onClick={() => setApri(null)}>Annulla</Bottone>
+                  ) : (
+                    <Bottone onClick={() => apriForm(c.fingerprint)}>Consolida</Bottone>
+                  )}
+                </div>
+                {apri === c.fingerprint && !c.consolidato ? (
+                  <div className="mt-2 pl-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-slate-400">v_</span>
+                      <input
+                        autoFocus
+                        className="w-56 rounded-lg border border-slate-300 px-2 py-1 text-sm"
+                        placeholder="spesa_per_cantiere"
+                        value={nome}
+                        onChange={(e) => setNome(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && consolida(c.fingerprint)}
+                      />
+                      <Bottone
+                        variante="primario"
+                        disabled={salvando || !nome.trim()}
+                        onClick={() => consolida(c.fingerprint)}
+                      >
+                        {salvando ? "Creo…" : "Crea vista"}
+                      </Bottone>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Diventa una vista <code>v_&lt;nome&gt;</code> permanente: niente più modello, numeri
+                      sempre uguali. Puoi poi interrogarla per nome.
+                    </p>
+                    {erroreForm ? (
+                      <div className="mt-2">
+                        <Errore>{erroreForm}</Errore>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card titolo="Viste consolidate">
+        {reg.viste.length === 0 ? (
+          <Stato>
+            Nessuna vista consolidata: premi “Consolida” su un candidato ricorrente qui sopra.
+          </Stato>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {reg.viste.map((v) => (
+              <li key={v.vista} className="flex items-center gap-3 border-b border-slate-50 pb-2">
+                <Badge tono="verde">{v.vista}</Badge>
+                <code className="flex-1 truncate text-xs text-slate-500">{v.corpo}</code>
+                <span className="whitespace-nowrap text-xs text-slate-400">
+                  {dataBreve(v.creato)} · {v.creato_da}
+                </span>
               </li>
             ))}
           </ul>
