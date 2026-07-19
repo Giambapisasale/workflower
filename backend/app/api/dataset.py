@@ -19,10 +19,14 @@ from app.core.auth import Utente
 from app.core.consolida import (
     ConsolidaError,
     consolidati_per_fingerprint,
+    corpo_vista,
     leggi_consolidamenti,
+    leggi_tool,
+    letterali,
     prepara,
+    prepara_tool,
 )
-from app.core.dal import DAL
+from app.core.dal import DAL, CatalogoNonValido
 from app.core.dataset import (
     conteggio_fingerprint,
     conteggio_tool,
@@ -33,10 +37,18 @@ from app.core.tools import Toolset
 
 
 def _candidati(data_dir: Path) -> list[dict[str, Any]]:
-    """I gruppi per fingerprint, ciascuno marcato con la vista se già consolidato."""
+    """I gruppi per fingerprint, marcati con l'artefatto se già consolidato.
+
+    Ogni gruppo porta i ``letterali`` del suo esempio: sono i valori che
+    l'ufficio può rendere parametri quando promuove la query a tool.
+    """
     consolidati = consolidati_per_fingerprint(data_dir)
     return [
-        {**gruppo, "consolidato": consolidati.get(gruppo["fingerprint"])}
+        {
+            **gruppo,
+            "consolidato": consolidati.get(gruppo["fingerprint"]),
+            "letterali": letterali(corpo_vista(gruppo["esempio"])),
+        }
         for gruppo in conteggio_fingerprint(data_dir)
     ]
 
@@ -109,6 +121,93 @@ def consolida(
     }
 
 
+class Parametro(BaseModel):
+    valore: str  # il letterale dell'esempio (es. "'Le Palme'" o "100")
+    nome: str  # il nome del parametro nella macro (es. "cantiere")
+
+
+class ConsolidaToolRichiesta(BaseModel):
+    fingerprint: str
+    nome: str
+    parametri: list[Parametro]
+
+
+@router.post("/dataset/consolida-tool")
+def consolida_tool(
+    body: ConsolidaToolRichiesta,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, Any]:
+    """Promuove un candidato parametrico a tool ``t_<nome>`` (§3.6, branca "query parametrica").
+
+    Non genera codice Python (Toolsmith automatico = non-goal §5): il tool è una
+    **macro tabellare** in ``config/macros.sql`` (dato). L'ufficio nomina i
+    parametri; i guardrail di ``/ask`` e una compilazione+chiamata reali su DuckDB
+    garantiscono che il tool sia sicuro ed eseguibile prima del commit.
+    """
+    gruppo = next(
+        (g for g in conteggio_fingerprint(dal.data_dir) if g["fingerprint"] == body.fingerprint),
+        None,
+    )
+    if gruppo is None:
+        raise HTTPException(
+            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
+        )
+    parametri = [p.model_dump() for p in body.parametri]
+    try:
+        preparata = prepara_tool(dal.data_dir, body.nome, gruppo["esempio"], parametri)
+    except ConsolidaError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    voce = dal.consolida_tool(
+        nome=body.nome,
+        macro=preparata["macro"],
+        corpo=preparata["corpo"],
+        parametri=preparata["parametri"],
+        fingerprint=body.fingerprint,
+        esempio=gruppo["esempio"],
+        creato_da=admin.username,
+    )
+    return {
+        "macro": preparata["macro"],
+        "corpo": preparata["corpo"],
+        "parametri": preparata["parametri"],
+        "righe": preparata["righe"],
+        "creato": voce["creato"],
+    }
+
+
+@router.delete("/dataset/tool/{macro}")
+def rimuovi_tool(
+    macro: str,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, str]:
+    """Rimuove un tool parametrico ``t_*``. Il candidato torna libero (ri-consolidabile)."""
+    try:
+        rimosso = dal.elimina_tool(macro=macro, eliminato_da=admin.username)
+    except CatalogoNonValido as exc:
+        raise HTTPException(status_code=409, detail=f"impossibile rimuovere: {exc}") from exc
+    if not rimosso:
+        raise HTTPException(status_code=404, detail=f"tool non trovato: {macro}")
+    return {"rimosso": macro}
+
+
+@router.delete("/dataset/vista/{vista}")
+def rimuovi_vista(
+    vista: str,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, str]:
+    """Rimuove una vista consolidata ``v_*`` (solo se nulla vi dipende)."""
+    try:
+        rimosso = dal.elimina_vista(vista=vista, eliminato_da=admin.username)
+    except CatalogoNonValido as exc:
+        raise HTTPException(status_code=409, detail=f"impossibile rimuovere: {exc}") from exc
+    if not rimosso:
+        raise HTTPException(status_code=404, detail=f"vista non trovata: {vista}")
+    return {"rimosso": vista}
+
+
 @router.get("/dataset/export")
 def export(
     _admin: Utente = Depends(richiedi_admin),
@@ -154,4 +253,5 @@ def elenco_tool(
         "tools": tools,
         "candidati": _candidati(dal.data_dir),
         "viste": leggi_consolidamenti(dal.data_dir),
+        "macro": leggi_tool(dal.data_dir),
     }

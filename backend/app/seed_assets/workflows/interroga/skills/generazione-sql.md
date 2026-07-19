@@ -15,8 +15,21 @@ sola lettura che la risponda.
   indicati nel contesto della domanda, quando presenti.
 - Preferisci aggregazioni (somme, conteggi) alle liste grezze, se la domanda
   chiede un totale.
+- Se uno degli strumenti elencati più sotto risponde esattamente alla domanda,
+  **preferiscilo** a riscrivere la query da zero: è più veloce e dà sempre lo
+  stesso risultato.
 - Rispondi SOLO con la query, dentro un blocco ```sql. Nessuna spiegazione.
 
 ## Viste disponibili
 
 {schema_viste}
+
+## Strumenti disponibili (tool)
+
+Sono query ricorrenti già "cristallizzate" in strumenti parametrici, richiamabili
+come una tabella passando gli argomenti (stringhe fra apici singoli), nell'ordine
+dei parametri:
+
+    SELECT * FROM t_nome(argomento1, argomento2)
+
+{schema_tool}

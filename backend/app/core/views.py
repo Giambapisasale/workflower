@@ -48,6 +48,8 @@ def connect(data_dir: Path | str) -> duckdb.DuckDBPyConnection:
 
     Richiede un repo dati già seminato: le viste si legano ai file JSON
     esistenti al momento della creazione (glob vuoto = errore esplicito).
+    Dopo le viste installa gli eventuali tool parametrici (macro), che le
+    referenziano.
     """
     base = Path(data_dir).resolve()
     raw = (base / "config" / "views.sql").read_text(encoding="utf-8")
@@ -56,7 +58,23 @@ def connect(data_dir: Path | str) -> duckdb.DuckDBPyConnection:
     conn = duckdb.connect(":memory:")
     for statement in _statements(sql):
         conn.execute(statement)
+    _installa_macro(conn, base)
     return conn
+
+
+def _installa_macro(conn: duckdb.DuckDBPyConnection, base: Path) -> None:
+    """Installa i tool parametrici da ``config/macros.sql`` (dato, come le viste).
+
+    Sono macro tabellari DuckDB (``CREATE MACRO … AS TABLE (SELECT …)``) nate dal
+    consolidamento di query ricorrenti parametriche (§3.6). Si caricano **dopo**
+    le viste perché le referenziano (il binding non è ritardato). File opzionale:
+    un repo senza tool resta valido e ``connect`` non cambia comportamento.
+    """
+    percorso = base / "config" / "macros.sql"
+    if not percorso.is_file():
+        return
+    for statement in _statements(percorso.read_text(encoding="utf-8")):
+        conn.execute(statement)
 
 
 # Un ``read_json('<glob>', …)`` su un glob che non matcha alcun file solleva

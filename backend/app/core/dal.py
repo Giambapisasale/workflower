@@ -16,10 +16,15 @@ from typing import Any
 from git import Actor, Repo
 from jsonschema import Draft202012Validator, FormatChecker
 
+from app.core.views import connect
 from app.models.envelope import Envelope, Meta, now_iso
 from app.models.issue import Issue
 
 GIT_AUTHOR = Actor("Workflower", "bot@workflower.local")
+
+
+class CatalogoNonValido(Exception):
+    """Un'operazione sul catalogo lo lascerebbe non compilabile: annullata."""
 
 # Tentativi di allocazione di un id progressivo: `prossimo_id` non prenota,
 # quindi fra allocazione e create un run concorrente può prendere lo stesso id.
@@ -162,6 +167,18 @@ class SchemaValidationError(DalError):
 _VISTE_INIZIO = "-- === VISTE CONSOLIDATE — generate da /api/dataset/consolida ==="
 _VISTE_FINE = "-- === FINE VISTE CONSOLIDATE ==="
 
+# Regione gemella in ``config/macros.sql`` per i tool parametrici (macro
+# tabellari) consolidati da ``/api/dataset/consolida-tool``, rigenerata dal
+# registro ``dataset/tools.jsonl``. Vive in un file a parte perché le macro
+# vanno caricate DOPO le viste (le referenziano): l'ordine dei file lo garantisce.
+_TOOL_INIZIO = "-- === TOOL PARAMETRICI (MACRO) — generati da /api/dataset/consolida-tool ==="
+_TOOL_FINE = "-- === FINE TOOL PARAMETRICI ==="
+_INTESTAZIONE_MACRO = (
+    "-- Tool parametrici (macro tabellari DuckDB) sul repo dati, in sola lettura.\n"
+    "-- Generati da /api/dataset/consolida-tool: sono DATO, non codice.\n"
+    "-- Caricati dopo le viste (le referenziano). Convenzione: niente ';' nei literal.\n"
+)
+
 
 def _regione_viste(consolidamenti: list[dict[str, Any]]) -> str:
     """La regione SQL delle viste consolidate, generata dal registro."""
@@ -175,11 +192,30 @@ def _regione_viste(consolidamenti: list[dict[str, Any]]) -> str:
     return "\n".join(righe)
 
 
-def _inserisci_regione(base: str, regione: str) -> str:
-    """Sostituisce (o accoda, la prima volta) la regione consolidata in views.sql."""
-    if _VISTE_INIZIO in base and _VISTE_FINE in base:
-        testa = base[: base.index(_VISTE_INIZIO)].rstrip("\n")
-        coda = base[base.index(_VISTE_FINE) + len(_VISTE_FINE) :].lstrip("\n")
+def _regione_tool(consolidamenti: list[dict[str, Any]]) -> str:
+    """La regione SQL dei tool parametrici (macro), generata dal registro."""
+    righe = [_TOOL_INIZIO, "-- rigenerata automaticamente: non modificare a mano"]
+    for c in consolidamenti:
+        firma = ", ".join(c.get("parametri", []))
+        righe.append(f"-- tool consolidato {c['macro']} (creato {c.get('creato', '')})")
+        righe.append(f"CREATE OR REPLACE MACRO {c['macro']}({firma}) AS TABLE (")
+        righe.append(f"{c['corpo']}")
+        righe.append(");")
+        righe.append("")
+    righe.append(_TOOL_FINE)
+    return "\n".join(righe)
+
+
+def _righe_ndjson(voci: list[dict[str, Any]]) -> str:
+    """Serializza le voci di un registro come NDJSON (una riga JSON per voce)."""
+    return "".join(json.dumps(v, ensure_ascii=False) + "\n" for v in voci)
+
+
+def _inserisci_regione(base: str, regione: str, inizio: str, fine: str) -> str:
+    """Sostituisce (o accoda, la prima volta) una regione delimitata da marker."""
+    if inizio in base and fine in base:
+        testa = base[: base.index(inizio)].rstrip("\n")
+        coda = base[base.index(fine) + len(fine) :].lstrip("\n")
         parti = [p for p in (testa, regione, coda) if p.strip()]
         return "\n".join(parti).rstrip("\n") + "\n"
     return base.rstrip("\n") + "\n\n" + regione + "\n"
@@ -497,7 +533,10 @@ class DAL:
 
             views_sql = self.data_dir / "config" / "views.sql"
             aggiornato = _inserisci_regione(
-                views_sql.read_text(encoding="utf-8"), _regione_viste(voci)
+                views_sql.read_text(encoding="utf-8"),
+                _regione_viste(voci),
+                _VISTE_INIZIO,
+                _VISTE_FINE,
             )
             self._scrivi_atomico(views_sql, aggiornato)
 
@@ -513,6 +552,153 @@ class DAL:
                 committer=GIT_AUTHOR,
             )
         return voce
+
+    def consolida_tool(
+        self,
+        *,
+        nome: str,
+        macro: str,
+        corpo: str,
+        parametri: list[str],
+        fingerprint: str,
+        esempio: str,
+        creato_da: str,
+    ) -> dict[str, Any]:
+        """Registra un tool parametrico e lo rende parte del catalogo (macro).
+
+        Gemello di :meth:`consolida_vista`, branca "query parametrica" del §3.6:
+        aggiorna il registro ``dataset/tools.jsonl`` (fonte di verità) e rigenera
+        da esso la regione gestita in ``config/macros.sql``, poi committa in
+        un'unica mutazione atomica sotto il lock. Idempotente sul nome della macro.
+        La validità è garantita a monte da ``consolida.prepara_tool``.
+        """
+        with self._write_lock:
+            ledger = self.data_dir / "dataset" / "tools.jsonl"
+            voci = [v for v in self._righe_jsonl(ledger) if v.get("macro") != macro]
+            voce = {
+                "creato": now_iso(),
+                "nome": nome,
+                "macro": macro,
+                "parametri": parametri,
+                "fingerprint": fingerprint,
+                "corpo": corpo,
+                "esempio": esempio,
+                "creato_da": creato_da,
+            }
+            voci.append(voce)
+            self._scrivi_atomico(
+                ledger, "".join(json.dumps(v, ensure_ascii=False) + "\n" for v in voci)
+            )
+
+            macros_sql = self.data_dir / "config" / "macros.sql"
+            base = (
+                macros_sql.read_text(encoding="utf-8")
+                if macros_sql.is_file()
+                else _INTESTAZIONE_MACRO
+            )
+            aggiornato = _inserisci_regione(
+                base, _regione_tool(voci), _TOOL_INIZIO, _TOOL_FINE
+            )
+            self._scrivi_atomico(macros_sql, aggiornato)
+
+            self.repo.index.add(
+                [
+                    ledger.relative_to(self.data_dir).as_posix(),
+                    macros_sql.relative_to(self.data_dir).as_posix(),
+                ]
+            )
+            self.repo.index.commit(
+                f"consolida: tool {macro} [{creato_da}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
+        return voce
+
+    def elimina_tool(self, *, macro: str, eliminato_da: str) -> bool:
+        """Rimuove un tool parametrico dal catalogo. Ritorna False se non esisteva.
+
+        Toglie la voce dal registro ``dataset/tools.jsonl`` e rigenera la regione
+        in ``config/macros.sql``; con il candidato di nuovo libero, la query può
+        essere ri-consolidata (è così che si "modifica" un tool). Reversibile via
+        git come ogni mutazione.
+        """
+        with self._write_lock:
+            ledger = self.data_dir / "dataset" / "tools.jsonl"
+            voci = self._righe_jsonl(ledger)
+            restanti = [v for v in voci if v.get("macro") != macro]
+            if len(restanti) == len(voci):
+                return False
+            macros_sql = self.data_dir / "config" / "macros.sql"
+            base = (
+                macros_sql.read_text(encoding="utf-8")
+                if macros_sql.is_file()
+                else _INTESTAZIONE_MACRO
+            )
+            self._commit_catalogo(
+                [
+                    (ledger, _righe_ndjson(restanti)),
+                    (macros_sql, _inserisci_regione(
+                        base, _regione_tool(restanti), _TOOL_INIZIO, _TOOL_FINE
+                    )),
+                ],
+                f"consolida: rimuove tool {macro} [{eliminato_da}]",
+            )
+        return True
+
+    def elimina_vista(self, *, vista: str, eliminato_da: str) -> bool:
+        """Rimuove una vista consolidata dal catalogo. Ritorna False se non esisteva.
+
+        Come :meth:`elimina_tool` ma sul registro ``consolidamenti.jsonl`` e su
+        ``config/views.sql``. La verifica del catalogo impedisce di rimuovere una
+        vista da cui un'altra vista (o un tool) dipende: in quel caso solleva.
+        """
+        with self._write_lock:
+            ledger = self.data_dir / "dataset" / "consolidamenti.jsonl"
+            voci = self._righe_jsonl(ledger)
+            restanti = [v for v in voci if v.get("vista") != vista]
+            if len(restanti) == len(voci):
+                return False
+            views_sql = self.data_dir / "config" / "views.sql"
+            self._commit_catalogo(
+                [
+                    (ledger, _righe_ndjson(restanti)),
+                    (views_sql, _inserisci_regione(
+                        views_sql.read_text(encoding="utf-8"),
+                        _regione_viste(restanti),
+                        _VISTE_INIZIO,
+                        _VISTE_FINE,
+                    )),
+                ],
+                f"consolida: rimuove vista {vista} [{eliminato_da}]",
+            )
+        return True
+
+    def _commit_catalogo(self, aggiornamenti: list[tuple[Path, str]], messaggio: str) -> None:
+        """Scrive file di catalogo (ledger + .sql), verifica ``connect()``, poi committa.
+
+        Se la modifica lascia il catalogo non compilabile (es. si rimuove una vista
+        da cui un'altra dipende) ripristina i file e solleva :class:`CatalogoNonValido`,
+        senza lasciare query/cruscotto inservibili. Solo dentro ``_write_lock``.
+        """
+        originali = [
+            (percorso, percorso.read_text(encoding="utf-8") if percorso.is_file() else None)
+            for percorso, _ in aggiornamenti
+        ]
+        for percorso, nuovo in aggiornamenti:
+            self._scrivi_atomico(percorso, nuovo)
+        try:
+            connect(self.data_dir).close()
+        except Exception as exc:
+            for percorso, originale in originali:
+                if originale is None:
+                    percorso.unlink(missing_ok=True)
+                else:
+                    self._scrivi_atomico(percorso, originale)
+            raise CatalogoNonValido(str(exc)) from exc
+        self.repo.index.add(
+            [percorso.relative_to(self.data_dir).as_posix() for percorso, _ in aggiornamenti]
+        )
+        self.repo.index.commit(messaggio, author=GIT_AUTHOR, committer=GIT_AUTHOR)
 
     def commit_paths(self, percorsi: list[Path | str], message: str) -> None:
         """Committa file già scritti dentro ``data/`` (trace, dataset, blob).

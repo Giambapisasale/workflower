@@ -84,8 +84,12 @@ def valida_lettura(sql: str) -> str:
     consentiti = {nome.lower() for nome in NOMI_CTE.findall(pulito)}  # alias delle CTE
     for grezzo in TABELLE.findall(pulito):
         nome = grezzo.strip('"').lower()
-        if not nome.startswith("v_") and nome not in consentiti:
-            raise InterrogaError(f"si interrogano solo le viste v_* (trovato: {grezzo})")
+        # viste ``v_*`` e tool parametrici ``t_*`` (macro tabellari): entrambi
+        # sono di sola lettura e vivono nel catalogo (config/views.sql, macros.sql).
+        if not nome.startswith(("v_", "t_")) and nome not in consentiti:
+            raise InterrogaError(
+                f"si interrogano solo le viste v_* e i tool t_* (trovato: {grezzo})"
+            )
     return pulito
 
 
@@ -132,6 +136,7 @@ class Interroga:
         manifest = self._manifest()
         skill = (self.wf_dir / manifest["skills"]["sql"]).read_text(encoding="utf-8")
         skill = skill.replace("{schema_viste}", self._schema_viste())
+        skill = skill.replace("{schema_tool}", self._schema_tool())
         contesto = f"Domanda: {domanda}"
         if cantieri:
             elenco = ", ".join(f"{c['id']} ({c['nome']})" for c in cantieri)
@@ -169,6 +174,30 @@ class Interroga:
             return "\n".join(righe)
         finally:
             conn.close()
+
+    def _schema_tool(self) -> str:
+        """Il catalogo dei tool parametrici per il prompt: nome e parametri.
+
+        Letto dal registro ``dataset/tools.jsonl`` (fonte di verità dei tool,
+        allineata a ``macros.sql`` dal DAL) — evita di dipendere da ``consolida``
+        e dall'introspezione DuckDB, che non elenca le macro utente.
+        """
+        ledger = self.data_dir / "dataset" / "tools.jsonl"
+        if not ledger.is_file():
+            return "(nessuno)"
+        per_macro: dict[str, list[str]] = {}
+        for riga in ledger.read_text(encoding="utf-8").splitlines():
+            if not riga.strip():
+                continue
+            try:
+                voce = json.loads(riga)
+            except json.JSONDecodeError:
+                continue
+            if voce.get("macro"):
+                per_macro[voce["macro"]] = voce.get("parametri", [])
+        if not per_macro:
+            return "(nessuno)"
+        return "\n".join(f"- {m}({', '.join(p)})" for m, p in sorted(per_macro.items()))
 
     def _esegui_sql(self, sql: str) -> list[dict[str, Any]]:
         conn = connect(self.data_dir)

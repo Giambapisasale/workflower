@@ -181,7 +181,8 @@ export type GruppoQuery = {
   fingerprint: string;
   conteggio: number;
   esempio: string;
-  consolidato?: string | null; // nome della vista v_* se già consolidato
+  consolidato?: string | null; // nome dell'artefatto (v_* o t_*) se già consolidato
+  letterali: string[]; // letterali dell'esempio, candidati a diventare parametri di un tool
 };
 
 export type ToolRegistry = { name: string; descrizione: string; usi: number; ciclo: string };
@@ -196,10 +197,22 @@ export type VistaConsolidata = {
   creato_da: string;
 };
 
+export type ToolParametrico = {
+  creato: string;
+  nome: string;
+  macro: string; // t_<nome>
+  parametri: string[];
+  fingerprint: string;
+  corpo: string;
+  esempio: string;
+  creato_da: string;
+};
+
 export type SkillsTools = {
   tools: ToolRegistry[];
   candidati: GruppoQuery[];
   viste: VistaConsolidata[];
+  macro: ToolParametrico[];
 };
 
 export type ScostamentoCantiere = {
@@ -343,6 +356,26 @@ export const admin = {
       "/dataset/consolida",
       corpo({ fingerprint, nome }),
     ),
+
+  consolidaTool: (
+    fingerprint: string,
+    nome: string,
+    parametri: { valore: string; nome: string }[],
+  ) =>
+    richiesta<{ macro: string; corpo: string; parametri: string[]; righe: number; creato: string }>(
+      "/dataset/consolida-tool",
+      corpo({ fingerprint, nome, parametri }),
+    ),
+
+  eliminaTool: (macro: string) =>
+    richiesta<{ rimosso: string }>(`/dataset/tool/${encodeURIComponent(macro)}`, {
+      method: "DELETE",
+    }),
+
+  eliminaVista: (vista: string) =>
+    richiesta<{ rimosso: string }>(`/dataset/vista/${encodeURIComponent(vista)}`, {
+      method: "DELETE",
+    }),
 
   scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
 
