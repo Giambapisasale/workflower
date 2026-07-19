@@ -7,8 +7,13 @@ eseguiti da agenti LLM**. Il codice costruisce solo la cornice stabile — stora
 runtime, UI, sicurezza — e i workflow (prompt, skill, schemi) sono **dati
 versionati in Git**, che gli agenti stessi migliorano con approvazione umana.
 
-Questa è la PoC (F1): il giro completo del workflow **carica-fattura** con due
-modalità UI (Operatore mobile-first e Admin) e il **ciclo di auto-miglioramento**.
+La PoC (F1) è il giro completo del workflow **carica-fattura** con due modalità
+UI (Operatore mobile-first e Admin) e il **ciclo di auto-miglioramento**. La
+**Fase 2** (M7–M12, vedi [`piano-implementazione-fase2.md`](piano-implementazione-fase2.md))
+la estende **senza toccare il runtime**: instradamento automatico dei documenti e
+quattro entità (fattura, **DDT**, **SAL**, **rapportino ore**), **computo** con
+confronto previsto/consuntivo, **registro** consolidato per cantiere, **report
+Excel** e raccolta del dataset per il tier locale.
 
 ## Cosa fa, in una riga
 
@@ -76,6 +81,25 @@ text-to-SQL e giudizio). Qualunque modello supportato da litellm.
 9. **Log & Dataset**: costo per documento, tool call, export `toolcalls.jsonl`,
    query ricorrenti (candidate al consolidamento in tool).
 
+### Il giro della Fase 2 (multi-entità e costi)
+
+Carica anche gli altri documenti sintetici (come operatore, o come admin senza
+vincolo di cantiere): `fixtures/ddt-edil-sud.pdf`, `fixtures/sal-capannone-etna.pdf`,
+`fixtures/rapportino-le-palme.pdf`. Il **classificatore** li riconosce e li instrada
+al workflow giusto — nessun codice nuovo, solo un manifest per tipo.
+
+10. **Cruscotto**: oltre ai costi, i KPI di DDT, SAL, ore e costo manodopera. I
+    nomi dei cantieri aprono il **registro** (fascicolo consolidato: fatture, DDT,
+    ore, avanzamento, scostamento) con **Scarica Excel**.
+11. **Scostamenti**: il confronto **computo ↔ consuntivo** per voce e per cantiere.
+    In *Revisione* di una fattura, *Collega al computo* abbina le righe alle voci
+    (deterministico) e la spesa risale nello scostamento.
+12. **Skills & Tools**: il registry dei tool con i contatori d'uso e il **dataset
+    di fine-tuning** — solo le tool call dei documenti validati diventano esempi
+    (scaricabili come `finetuning.jsonl`).
+13. **Report Excel**: dal cruscotto, *Scarica report Excel* genera un `.xlsx` con
+    i fogli Riepilogo, Fatture, DDT, Ore, SAL e Scostamento computo.
+
 ## Comandi
 
 | Comando | Cosa fa |
@@ -83,7 +107,7 @@ text-to-SQL e giudizio). Qualunque modello supportato da litellm.
 | `make setup` | Prima installazione (venv + dipendenze) |
 | `make dev` | Backend (:8000) + frontend (:5173) |
 | `make seed` | Crea il repo dati `./data` (git separato) |
-| `make fixtures` | Genera 3 PDF fattura sintetici in `./fixtures` |
+| `make fixtures` | Genera i PDF sintetici in `./fixtures` (fatture + DDT/SAL/rapportino) |
 | `make demo` | Seed + fixtures + istruzioni del giro |
 | `make test` | Test backend (pytest) |
 | `make lint` | Ruff (backend) + ESLint (frontend) |
@@ -101,9 +125,15 @@ text-to-SQL e giudizio). Qualunque modello supportato da litellm.
 - **Due modalità nette**: Operatore (uso, meccanica LLM invisibile) e Admin
   (governo ed evoluzione). L'operatore non approva mai patch (ADR-6).
 
+- **Aggiungere un'entità = aggiungere dati** (Fase 2): uno schema JSON, una riga
+  nel registry, una vista, un manifest con skill. `runtime.py`, `gateway.py`,
+  `dal.py` non cambiano. Così DDT, SAL, rapportini e computo girano sullo stesso
+  motore della fattura.
+
 Dettagli: [`analisi-progettazione.md`](analisi-progettazione.md) (architettura e
-ADR) e [`piano-implementazione.md`](piano-implementazione.md) (contratti e
-milestone). `mockup.html` è il riferimento UX.
+ADR), [`piano-implementazione.md`](piano-implementazione.md) (contratti e
+milestone v1) e [`piano-implementazione-fase2.md`](piano-implementazione-fase2.md)
+(M7–M12). `mockup.html` è il riferimento UX.
 
 ## Note
 
