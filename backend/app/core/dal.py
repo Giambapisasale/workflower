@@ -467,6 +467,46 @@ class DAL:
             for p in sorted(cartella.glob("PATCH-*.json"))
         ]
 
+    def salva_proposta(self, proposta: dict[str, Any]) -> dict[str, Any]:
+        """Registra una proposta di tool Python del Toolsmith (PROP-nnnn).
+
+        Gemella di :meth:`salva_patch`: la proposta è dato ispezionabile in
+        ``data/proposte/``, in attesa dell'approvazione umana (M17). **Non**
+        registra nulla nel registry dei tool: attivarla è un passo separato.
+        """
+        with self._write_lock:
+            cartella = self.data_dir / "proposte"
+            cartella.mkdir(parents=True, exist_ok=True)
+            proposta = {**proposta, "id": self._prossimo_id_progressivo(cartella, "PROP")}
+            pid = proposta["id"]
+            self._committa_json(
+                cartella / f"{pid}.json", proposta, f"proposta {pid}: tool [{pid}]"
+            )
+        return proposta
+
+    def aggiorna_proposta(self, proposta: dict[str, Any], azione: str) -> dict[str, Any]:
+        with self._write_lock:
+            percorso = self.data_dir / "proposte" / f"{proposta['id']}.json"
+            if not percorso.is_file():
+                raise NotFoundError(f"proposta {proposta['id']} non trovata")
+            self._committa_json(
+                percorso, proposta, f"proposta {proposta['id']}: {azione} [{proposta['id']}]"
+            )
+        return proposta
+
+    def leggi_proposta(self, proposta_id: str) -> dict[str, Any]:
+        percorso = self.data_dir / "proposte" / f"{proposta_id}.json"
+        if not percorso.is_file():
+            raise NotFoundError(f"proposta {proposta_id} non trovata")
+        return json.loads(percorso.read_text(encoding="utf-8"))
+
+    def list_proposte(self) -> list[dict[str, Any]]:
+        cartella = self.data_dir / "proposte"
+        return [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted(cartella.glob("PROP-*.json"))
+        ]
+
     def crea_golden(
         self,
         workflow: str,
