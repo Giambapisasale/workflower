@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, get_data_dir, richiedi_admin
+from app.api.deps import get_dal, get_data_dir, get_eval_t3, richiedi_admin
 from app.core.auth import Utente
 from app.core.consolida import (
     ConsolidaError,
@@ -33,6 +33,7 @@ from app.core.dataset import (
     esempi_finetuning,
     statistiche,
 )
+from app.core.eval_t3 import EvalT3
 from app.core.tools import Toolset
 
 
@@ -251,6 +252,22 @@ def finetuning(
         media_type=NDJSON,
         headers={"Content-Disposition": 'attachment; filename="finetuning.jsonl"'},
     )
+
+
+@router.get("/dataset/eval-t3")
+def eval_t3(
+    candidato: str = "T3",
+    riferimento: str = "T1",
+    _admin: Utente = Depends(richiedi_admin),
+    valutatore: EvalT3 = Depends(get_eval_t3),
+) -> dict[str, Any]:
+    """Valuta un modello candidato T3 sul set validato (M18): accuratezza vs T1.
+
+    Rigioca gli esempi già validati e misura la function-calling accuracy;
+    indica quali workflow sono "pronti per T3" e dove regredirebbero rispetto a
+    T1. Nessun training: solo misura (il modello candidato è ``LLM_<tier>_MODEL``).
+    """
+    return valutatore.valuta(candidato=candidato, riferimento=riferimento)
 
 
 @router.get("/tools")
