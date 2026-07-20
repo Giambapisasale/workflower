@@ -91,6 +91,27 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
             {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
         ],
     },
+    "pozzetto": {
+        "dir": "pozzetti",
+        "etichetta": "Pozzetto",
+        "id": re.compile(r"^POZ-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"POZ-{n:03d}",
+        "riepilogo": [
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+            {"etichetta": "Stato", "campo": "stato", "tipo": "testo"},
+        ],
+    },
+    "cronoprogramma": {
+        "dir": "cronoprogrammi",
+        "etichetta": "Cronoprogramma",
+        "id": re.compile(r"^CRO-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"CRO-{n:03d}",
+        "riepilogo": [
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
+    },
     "fattura": {
         "dir": "fatture",
         "etichetta": "Fattura",

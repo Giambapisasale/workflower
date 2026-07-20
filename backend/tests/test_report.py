@@ -14,7 +14,10 @@ XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 def test_report_ha_tutti_i_fogli(dati_rw: Path) -> None:
     wb = load_workbook(BytesIO(genera_report(dati_rw)))
-    assert wb.sheetnames == ["Riepilogo", "Fatture", "DDT", "Ore", "SAL", "Scostamento computo"]
+    assert wb.sheetnames == [
+        "Riepilogo", "Fatture", "DDT", "Ore", "SAL", "Scostamento computo",
+        "Cronoprogramma", "Pozzetti",
+    ]
 
 
 def test_report_fatture_con_totale_e_formato_euro(dati_rw: Path) -> None:

@@ -18,12 +18,14 @@ from app.models.envelope import Envelope, Meta
 from app.seed_data import (
     CANTIERI,
     COMPUTI,
+    CRONOPROGRAMMI,
     DDT,
     FATTURE,
     FORNITORI,
     LAVORAZIONI,
     MATERIALI,
     MEZZI,
+    POZZETTI,
     RAPPORTINI,
     SAL,
     SCADENZE,
@@ -40,6 +42,8 @@ SKELETON = [
     "entities/mezzi",
     "entities/lavorazioni",
     "entities/scadenze",
+    "entities/pozzetti",
+    "entities/cronoprogrammi",
     "entities/fatture/2026",
     "entities/ddt/2026",
     "entities/sal/2026",
@@ -122,6 +126,8 @@ def populate(data_dir: Path) -> None:
         ("ddt", DDT),
         ("sal", SAL),
         ("rapportino", RAPPORTINI),
+        ("pozzetto", POZZETTI),
+        ("cronoprogramma", CRONOPROGRAMMI),
     )
     for tipo, items in per_tipo:
         for item in items:

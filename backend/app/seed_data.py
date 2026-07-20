@@ -558,6 +558,75 @@ SCADENZE: list[dict[str, Any]] = [
     },
 ]
 
+# Registri automatici (M21): pozzetti (manufatti) e cronoprogramma per cantiere.
+POZZETTI: list[dict[str, Any]] = [
+    {
+        "id": "POZ-001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P1",
+            "tipo": "ispezione",
+            "ubicazione": "Ingresso lato nord",
+            "stato": "collaudato",
+            "data_installazione": "2026-03-10",
+            "note": None,
+        },
+    },
+    {
+        "id": "POZ-002",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P2",
+            "tipo": "fognario",
+            "ubicazione": "Cortile interno",
+            "stato": "installato",
+            "data_installazione": "2026-05-22",
+            "note": None,
+        },
+    },
+    {
+        "id": "POZ-003",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P3",
+            "tipo": "elettrico",
+            "ubicazione": "Confine est",
+            "stato": "previsto",
+            "data_installazione": None,
+            "note": "In attesa allaccio",
+        },
+    },
+]
+
+CRONOPROGRAMMI: list[dict[str, Any]] = [
+    {
+        "id": "CRO-001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "voci": [
+                {
+                    "lavorazione_id": "LAV-001",
+                    "descrizione": "Scavi e sbancamenti",
+                    "inizio_previsto": "2026-01-12",
+                    "fine_prevista": "2026-03-15",
+                },
+                {
+                    "lavorazione_id": "LAV-002",
+                    "descrizione": "Fondazioni e strutture",
+                    "inizio_previsto": "2026-03-16",
+                    "fine_prevista": "2026-07-10",
+                },
+                {
+                    "lavorazione_id": "LAV-003",
+                    "descrizione": "Finiture interne",
+                    "inizio_previsto": "2026-07-11",
+                    "fine_prevista": "2027-02-28",
+                },
+            ],
+        },
+    },
+]
+
 # Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
 # I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
 UTENTI: list[dict[str, Any]] = [

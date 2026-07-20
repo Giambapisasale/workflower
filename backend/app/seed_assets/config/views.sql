@@ -307,6 +307,85 @@ FROM read_json(
     }
 );
 
+CREATE OR REPLACE VIEW v_pozzetti AS
+SELECT id,
+       stato,
+       dati.cantiere_id        AS cantiere_id,
+       dati.codice             AS codice,
+       dati.tipo               AS tipo,
+       dati.ubicazione         AS ubicazione,
+       dati.stato              AS stato_manufatto,
+       dati.data_installazione AS data_installazione,
+       dati.note               AS note
+FROM read_json(
+    '${DATA_DIR}/entities/pozzetti/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            cantiere_id VARCHAR, codice VARCHAR, tipo VARCHAR, ubicazione VARCHAR,
+            stato VARCHAR, data_installazione DATE, note VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_pozzetti_riepilogo AS
+SELECT cantiere_id,
+       count(*)                                                      AS totale,
+       count(*) FILTER (WHERE stato_manufatto = 'previsto')          AS previsti,
+       count(*) FILTER (WHERE stato_manufatto = 'installato')        AS installati,
+       count(*) FILTER (WHERE stato_manufatto = 'collaudato')        AS collaudati
+FROM v_pozzetti
+GROUP BY cantiere_id;
+
+CREATE OR REPLACE VIEW v_cronoprogramma_voci AS
+SELECT cronoprogramma_id,
+       cantiere_id,
+       lavorazione_id,
+       descrizione,
+       inizio_previsto,
+       fine_prevista
+FROM (
+    SELECT id               AS cronoprogramma_id,
+           dati.cantiere_id AS cantiere_id,
+           unnest(dati.voci, recursive := true)
+    FROM read_json(
+        '${DATA_DIR}/entities/cronoprogrammi/*.json',
+        columns = {
+            id: 'VARCHAR',
+            dati: 'STRUCT(
+                cantiere_id VARCHAR,
+                voci STRUCT(
+                    lavorazione_id VARCHAR, descrizione VARCHAR,
+                    inizio_previsto DATE, fine_prevista DATE
+                )[]
+            )'
+        }
+    )
+);
+
+CREATE OR REPLACE VIEW v_cronoprogramma AS
+SELECT piano.cantiere_id                                    AS cantiere_id,
+       piano.voci_totali                                    AS voci_totali,
+       piano.voci_da_completare                             AS voci_da_completare,
+       piano.pianificato_pct                                AS pianificato_pct,
+       COALESCE(reale.reale_pct, 0)                          AS reale_pct,
+       round(COALESCE(reale.reale_pct, 0) - piano.pianificato_pct, 1) AS delta_pct
+FROM (
+    SELECT cantiere_id,
+           count(*)                                                        AS voci_totali,
+           count(*) FILTER (WHERE fine_prevista <= current_date)           AS voci_da_completare,
+           round(100.0 * count(*) FILTER (WHERE fine_prevista <= current_date) / count(*), 1)
+                                                                           AS pianificato_pct
+    FROM v_cronoprogramma_voci
+    GROUP BY cantiere_id
+) piano
+LEFT JOIN (
+    SELECT cantiere_id, arg_max(percentuale_avanzamento, data) AS reale_pct
+    FROM v_sal
+    GROUP BY cantiere_id
+) reale ON reale.cantiere_id = piano.cantiere_id;
+
 CREATE OR REPLACE VIEW v_computo AS
 SELECT id,
        stato,
