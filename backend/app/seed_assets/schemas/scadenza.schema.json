@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Scadenza",
+  "description": "Voce dello scadenzario di cantiere (adempimenti, permessi, pagamenti)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["descrizione", "data_scadenza"],
+  "properties": {
+    "descrizione": { "type": "string", "minLength": 1 },
+    "data_scadenza": { "type": "string", "format": "date", "description": "AAAA-MM-GG" },
+    "tipo": { "type": ["string", "null"], "description": "es. permesso, pagamento, adempimento" },
+    "cantiere_id": {
+      "type": ["string", "null"],
+      "pattern": "^CNT-\\d{3,}$",
+      "description": "Cantiere a cui la scadenza si riferisce"
+    },
+    "stato": {
+      "type": ["string", "null"],
+      "enum": ["aperta", "chiusa", null],
+      "description": "Stato dell'adempimento"
+    }
+  }
+}

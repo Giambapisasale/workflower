@@ -59,6 +59,38 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": False,
         "fmt": lambda anno, n: f"CMP-{n:03d}",
     },
+    "materiale": {
+        "dir": "materiali",
+        "etichetta": "Materiale",
+        "id": re.compile(r"^MAT-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"MAT-{n:03d}",
+    },
+    "mezzo": {
+        "dir": "mezzi",
+        "etichetta": "Mezzo",
+        "id": re.compile(r"^MEZ-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"MEZ-{n:03d}",
+    },
+    "lavorazione": {
+        "dir": "lavorazioni",
+        "etichetta": "Lavorazione",
+        "id": re.compile(r"^LAV-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"LAV-{n:03d}",
+    },
+    "scadenza": {
+        "dir": "scadenze",
+        "etichetta": "Scadenza",
+        "id": re.compile(r"^SCAD-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"SCAD-{n:03d}",
+        "riepilogo": [
+            {"etichetta": "Scadenza", "campo": "data_scadenza", "tipo": "data"},
+            {"etichetta": "Cantiere", "campo": "cantiere_id", "tipo": "cantiere"},
+        ],
+    },
     "fattura": {
         "dir": "fatture",
         "etichetta": "Fattura",

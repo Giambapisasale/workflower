@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mezzo",
+  "description": "Anagrafica di un mezzo o attrezzatura di cantiere",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["descrizione"],
+  "properties": {
+    "targa": { "type": ["string", "null"], "description": "Targa o matricola, se presente" },
+    "tipo": { "type": ["string", "null"], "description": "es. escavatore, autocarro, gru" },
+    "descrizione": { "type": "string", "minLength": 1 },
+    "costo_orario": { "type": ["number", "null"], "description": "Costo orario di riferimento in euro" },
+    "proprieta": {
+      "type": ["string", "null"],
+      "enum": ["proprio", "noleggio", null],
+      "description": "Mezzo di proprietà o a noleggio"
+    }
+  }
+}

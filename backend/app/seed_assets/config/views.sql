@@ -228,6 +228,85 @@ FROM (
     )
 );
 
+CREATE OR REPLACE VIEW v_materiali AS
+SELECT id,
+       stato,
+       dati.codice          AS codice,
+       dati.descrizione     AS descrizione,
+       dati.unita_misura    AS unita_misura,
+       dati.prezzo_unitario AS prezzo_unitario,
+       dati.categoria       AS categoria,
+       dati.fornitore_id    AS fornitore_id
+FROM read_json(
+    '${DATA_DIR}/entities/materiali/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR,
+            prezzo_unitario DOUBLE, categoria VARCHAR, fornitore_id VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_mezzi AS
+SELECT id,
+       stato,
+       dati.targa        AS targa,
+       dati.tipo         AS tipo,
+       dati.descrizione  AS descrizione,
+       dati.costo_orario AS costo_orario,
+       dati.proprieta    AS proprieta
+FROM read_json(
+    '${DATA_DIR}/entities/mezzi/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            targa VARCHAR, tipo VARCHAR, descrizione VARCHAR,
+            costo_orario DOUBLE, proprieta VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_lavorazioni AS
+SELECT id,
+       stato,
+       dati.codice       AS codice,
+       dati.descrizione  AS descrizione,
+       dati.unita_misura AS unita_misura,
+       dati.categoria    AS categoria
+FROM read_json(
+    '${DATA_DIR}/entities/lavorazioni/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR, categoria VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_scadenze AS
+SELECT id,
+       stato,
+       dati.descrizione   AS descrizione,
+       dati.data_scadenza AS data_scadenza,
+       dati.tipo          AS tipo,
+       dati.cantiere_id   AS cantiere_id,
+       dati.stato         AS stato_adempimento
+FROM read_json(
+    '${DATA_DIR}/entities/scadenze/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            descrizione VARCHAR, data_scadenza DATE, tipo VARCHAR,
+            cantiere_id VARCHAR, stato VARCHAR
+        )'
+    }
+);
+
 CREATE OR REPLACE VIEW v_computo AS
 SELECT id,
        stato,
