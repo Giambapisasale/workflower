@@ -208,9 +208,11 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
     n_run = n_ok = n_errore = n_llm = n_tool = 0
     costo = 0.0
     per_workflow: Counter[str] = Counter()
+    escalation_wf: Counter[str] = Counter()
     for trace in (base / "traces").glob("*/*/*.jsonl"):
         avviato = False
         outcome = workflow = None
+        escalato = False
         for riga in trace.read_text(encoding="utf-8").splitlines():
             try:
                 ev = json.loads(riga)
@@ -227,10 +229,14 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
                     costo += float(ev.get("cost_usd") or 0)
                 case "tool_call":
                     n_tool += 1
+                case "escalation":
+                    escalato = True
         if not avviato:
             continue
         n_run += 1
         per_workflow[workflow or "?"] += 1
+        if escalato:
+            escalation_wf[workflow or "?"] += 1
         if outcome == "ok":
             n_ok += 1
         elif outcome == "errore":
@@ -248,6 +254,19 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         "documenti": n_documenti,
         "costo_per_documento_usd": round(costo / n_documenti, 6) if n_documenti else 0.0,
         "run_per_workflow": dict(per_workflow),
+        "escalation": {
+            "totale": sum(escalation_wf.values()),
+            "per_workflow": {
+                wf: {
+                    "run": per_workflow[wf],
+                    "escalation": escalation_wf[wf],
+                    "percentuale": round(100 * escalation_wf[wf] / per_workflow[wf], 1)
+                    if per_workflow[wf]
+                    else 0.0,
+                }
+                for wf in escalation_wf
+            },
+        },
     }
 
 
