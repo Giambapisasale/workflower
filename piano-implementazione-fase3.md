@@ -1,5 +1,12 @@
 # Workflower — Piano di implementazione Fase 3 (M14–M21)
 
+> **Stato: completata.** Tutte le milestone M14–M21 sono implementate e verdi ai
+> test (suite pytest completa, trasporto LLM finto). Lo scenario "ritenuta
+> d'acconto" (M5) resta verde. `runtime.py`/`gateway.py` non cambiano;
+> `dal.py` cambia solo per le righe di `ENTITY_TYPES` (registry-dato). Restano
+> fuori, come da piano, le integrazioni esterne M365/Graph e l'addestramento GPU
+> reale del tier T3 (runbook `docs/finetuning-runbook.md`, non eseguito in-repo).
+
 > **Contesto**: le Fasi 1 (PoC, M0–M6) e 2 (M7–M13) sono complete e verdi ai test. La
 > piattaforma copre il giro end-to-end multi-entità (fattura, DDT, SAL, rapportino,
 > computo), classificazione e instradamento documenti, collegamento voci e scostamenti,
