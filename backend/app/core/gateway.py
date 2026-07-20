@@ -81,6 +81,15 @@ class Gateway:
             raise ModelloNonConfigurato(f"{variabile} non configurata (tier {tier})")
         return modello
 
+    def t3_attivo(self) -> bool:
+        """Vero se il tier locale T3 è cablato (``LLM_T3_MODEL`` impostato).
+
+        È l'interruttore di §3.1: finché è spento, un workflow su T3 ricade su T1
+        (comportamento invariato); acceso, il runtime instrada su T3 e — su
+        errore/bassa confidence/output fuori contratto — escala a T1.
+        """
+        return bool(os.environ.get("LLM_T3_MODEL"))
+
     def complete(
         self,
         tier: str,

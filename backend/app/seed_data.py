@@ -445,6 +445,188 @@ COMPUTI: list[dict[str, Any]] = [
     },
 ]
 
+# Anagrafiche di dominio (M20): puro dato, creabili anche dalla CRUD admin.
+MATERIALI: list[dict[str, Any]] = [
+    {
+        "id": "MAT-001",
+        "dati": {
+            "codice": "CLS-C2530",
+            "descrizione": "Calcestruzzo C25/30",
+            "unita_misura": "mc",
+            "prezzo_unitario": 105.0,
+            "categoria": "strutture",
+            "fornitore_id": "FRN-001",
+        },
+    },
+    {
+        "id": "MAT-002",
+        "dati": {
+            "codice": "FE-B450C",
+            "descrizione": "Acciaio per c.a. B450C",
+            "unita_misura": "kg",
+            "prezzo_unitario": 1.15,
+            "categoria": "strutture",
+            "fornitore_id": None,
+        },
+    },
+    {
+        "id": "MAT-003",
+        "dati": {
+            "codice": None,
+            "descrizione": "Laterizio forato 8x25x25",
+            "unita_misura": "cad",
+            "prezzo_unitario": 0.65,
+            "categoria": "murature",
+            "fornitore_id": None,
+        },
+    },
+]
+
+MEZZI: list[dict[str, Any]] = [
+    {
+        "id": "MEZ-001",
+        "dati": {
+            "targa": "EK123AB",
+            "tipo": "escavatore",
+            "descrizione": "Escavatore cingolato 20t",
+            "costo_orario": 65.0,
+            "proprieta": "proprio",
+        },
+    },
+    {
+        "id": "MEZ-002",
+        "dati": {
+            "targa": None,
+            "tipo": "gru",
+            "descrizione": "Gru a torre 40m",
+            "costo_orario": 40.0,
+            "proprieta": "noleggio",
+        },
+    },
+]
+
+LAVORAZIONI: list[dict[str, Any]] = [
+    {
+        "id": "LAV-001",
+        "dati": {
+            "codice": "SC-01",
+            "descrizione": "Scavo di sbancamento",
+            "unita_misura": "mc",
+            "categoria": "scavi",
+        },
+    },
+    {
+        "id": "LAV-002",
+        "dati": {
+            "codice": "ST-01",
+            "descrizione": "Getto di fondazioni",
+            "unita_misura": "mc",
+            "categoria": "strutture",
+        },
+    },
+    {
+        "id": "LAV-003",
+        "dati": {
+            "codice": "FN-01",
+            "descrizione": "Intonaco civile interno",
+            "unita_misura": "mq",
+            "categoria": "finiture",
+        },
+    },
+]
+
+SCADENZE: list[dict[str, Any]] = [
+    {
+        "id": "SCAD-001",
+        "dati": {
+            "descrizione": "Rinnovo permesso di occupazione suolo pubblico",
+            "data_scadenza": "2026-09-30",
+            "tipo": "permesso",
+            "cantiere_id": "CNT-001",
+            "stato": "aperta",
+        },
+    },
+    {
+        "id": "SCAD-002",
+        "dati": {
+            "descrizione": "Pagamento SAL 2 impresa strutture",
+            "data_scadenza": "2026-08-15",
+            "tipo": "pagamento",
+            "cantiere_id": "CNT-002",
+            "stato": "aperta",
+        },
+    },
+]
+
+# Registri automatici (M21): pozzetti (manufatti) e cronoprogramma per cantiere.
+POZZETTI: list[dict[str, Any]] = [
+    {
+        "id": "POZ-001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P1",
+            "tipo": "ispezione",
+            "ubicazione": "Ingresso lato nord",
+            "stato": "collaudato",
+            "data_installazione": "2026-03-10",
+            "note": None,
+        },
+    },
+    {
+        "id": "POZ-002",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P2",
+            "tipo": "fognario",
+            "ubicazione": "Cortile interno",
+            "stato": "installato",
+            "data_installazione": "2026-05-22",
+            "note": None,
+        },
+    },
+    {
+        "id": "POZ-003",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "codice": "P3",
+            "tipo": "elettrico",
+            "ubicazione": "Confine est",
+            "stato": "previsto",
+            "data_installazione": None,
+            "note": "In attesa allaccio",
+        },
+    },
+]
+
+CRONOPROGRAMMI: list[dict[str, Any]] = [
+    {
+        "id": "CRO-001",
+        "dati": {
+            "cantiere_id": "CNT-001",
+            "voci": [
+                {
+                    "lavorazione_id": "LAV-001",
+                    "descrizione": "Scavi e sbancamenti",
+                    "inizio_previsto": "2026-01-12",
+                    "fine_prevista": "2026-03-15",
+                },
+                {
+                    "lavorazione_id": "LAV-002",
+                    "descrizione": "Fondazioni e strutture",
+                    "inizio_previsto": "2026-03-16",
+                    "fine_prevista": "2026-07-10",
+                },
+                {
+                    "lavorazione_id": "LAV-003",
+                    "descrizione": "Finiture interne",
+                    "inizio_previsto": "2026-07-11",
+                    "fine_prevista": "2027-02-28",
+                },
+            ],
+        },
+    },
+]
+
 # Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
 # I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
 UTENTI: list[dict[str, Any]] = [

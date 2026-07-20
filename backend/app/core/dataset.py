@@ -19,6 +19,9 @@ from app.models.envelope import now_iso
 
 FILE_QUERY = "queries.jsonl"
 FILE_TOOLCALLS = "toolcalls.jsonl"
+# Delta fra la bozza estratta e il dato validato dall'ufficio (§3.6 / M16): la
+# base minabile da cui il Toolsmith individua i calcoli/normalizzazioni ricorrenti.
+FILE_DERIVAZIONI = "derivazioni.jsonl"
 
 
 def fingerprint(sql: str) -> str:
@@ -123,15 +126,93 @@ def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
         }
 
 
+def estratto_del_run(data_dir: Path | str, run_id: str, tipo: str) -> dict[str, Any] | None:
+    """La bozza che il run aveva estratto: gli argomenti di ``salva_bozza`` dal trace.
+
+    È il "prima" del delta estratto→validato: il dato grezzo prodotto dal modello,
+    da confrontare con ciò che l'ufficio ha poi validato. ``None`` se il run non ha
+    salvato una bozza di quel tipo (es. entità del seed, senza trace).
+    """
+    for record in _righe_toolcalls(data_dir):
+        if record.get("run_id") != run_id:
+            continue
+        chiamata = record.get("tool_call") or {}
+        if chiamata.get("name") != "salva_bozza":
+            continue
+        args = chiamata.get("args") or {}
+        if args.get("tipo") == tipo and isinstance(args.get("dati"), dict):
+            return args["dati"]
+    return None
+
+
+def registra_derivazione(
+    dal: DAL,
+    *,
+    run_id: str,
+    workflow: str | None,
+    tipo: str,
+    entity_id: str,
+    estratto: dict[str, Any] | None,
+    validato: dict[str, Any],
+    validato_da: str | None,
+) -> None:
+    """Marca nel dataset il delta estratto→validato di un'entità validata (M16).
+
+    Instrumentazione minima, **fuori da runtime.py**: la chiama la revisione al
+    momento della validazione. Registra la coppia grezzo→validato (con i campi
+    che l'ufficio ha corretto) come materia prima per il Toolsmith, che da queste
+    coppie storiche mina i calcoli deterministici ricorrenti e ne ricava i test.
+    """
+    percorso = dal.data_dir / "dataset" / FILE_DERIVAZIONI
+    percorso.parent.mkdir(parents=True, exist_ok=True)
+    corretti = (
+        sorted(k for k in validato if (estratto or {}).get(k) != validato.get(k))
+        if estratto is not None
+        else []
+    )
+    record = {
+        "ts": now_iso(),
+        "run_id": run_id,
+        "workflow": workflow,
+        "tipo": tipo,
+        "entity_id": entity_id,
+        "estratto": estratto,
+        "validato": validato,
+        "corretti": corretti,
+        "validato_da": validato_da,
+    }
+    with percorso.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    dal.commit_paths([percorso], f"dataset: derivazione {entity_id} [{run_id}]")
+
+
+def leggi_derivazioni(data_dir: Path | str) -> list[dict[str, Any]]:
+    """Le coppie estratto→validato registrate (base minabile del Toolsmith)."""
+    percorso = Path(data_dir) / "dataset" / FILE_DERIVAZIONI
+    if not percorso.is_file():
+        return []
+    voci: list[dict[str, Any]] = []
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            voci.append(json.loads(riga))
+        except json.JSONDecodeError:
+            continue
+    return voci
+
+
 def statistiche(data_dir: Path | str) -> dict[str, Any]:
     """Aggregati dai trace: run, tool call, costo LLM, costo per documento."""
     base = Path(data_dir)
     n_run = n_ok = n_errore = n_llm = n_tool = 0
     costo = 0.0
     per_workflow: Counter[str] = Counter()
+    escalation_wf: Counter[str] = Counter()
     for trace in (base / "traces").glob("*/*/*.jsonl"):
         avviato = False
         outcome = workflow = None
+        escalato = False
         for riga in trace.read_text(encoding="utf-8").splitlines():
             try:
                 ev = json.loads(riga)
@@ -148,10 +229,14 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
                     costo += float(ev.get("cost_usd") or 0)
                 case "tool_call":
                     n_tool += 1
+                case "escalation":
+                    escalato = True
         if not avviato:
             continue
         n_run += 1
         per_workflow[workflow or "?"] += 1
+        if escalato:
+            escalation_wf[workflow or "?"] += 1
         if outcome == "ok":
             n_ok += 1
         elif outcome == "errore":
@@ -169,6 +254,19 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         "documenti": n_documenti,
         "costo_per_documento_usd": round(costo / n_documenti, 6) if n_documenti else 0.0,
         "run_per_workflow": dict(per_workflow),
+        "escalation": {
+            "totale": sum(escalation_wf.values()),
+            "per_workflow": {
+                wf: {
+                    "run": per_workflow[wf],
+                    "escalation": escalation_wf[wf],
+                    "percentuale": round(100 * escalation_wf[wf] / per_workflow[wf], 1)
+                    if per_workflow[wf]
+                    else 0.0,
+                }
+                for wf in escalation_wf
+            },
+        },
     }
 
 

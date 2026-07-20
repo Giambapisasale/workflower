@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Lavorazione",
+  "description": "Voce di catalogo delle lavorazioni (attività di cantiere pianificabili)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["descrizione", "unita_misura"],
+  "properties": {
+    "codice": { "type": ["string", "null"], "description": "Codice della lavorazione" },
+    "descrizione": { "type": "string", "minLength": 1 },
+    "unita_misura": { "type": "string", "minLength": 1, "description": "es. mq, mc, ml, cad" },
+    "categoria": { "type": ["string", "null"], "description": "es. scavi, strutture, finiture" }
+  }
+}

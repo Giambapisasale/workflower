@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pozzetto",
+  "description": "Manufatto del registro di cantiere (pozzetto, chiusino) con stato",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cantiere_id", "codice"],
+  "properties": {
+    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "codice": { "type": "string", "minLength": 1, "description": "Identificativo del pozzetto" },
+    "tipo": { "type": ["string", "null"], "description": "es. ispezione, fognario, elettrico" },
+    "ubicazione": { "type": ["string", "null"], "description": "Riferimento planimetrico o via" },
+    "stato": {
+      "type": ["string", "null"],
+      "enum": ["previsto", "installato", "collaudato", null],
+      "description": "Avanzamento del manufatto"
+    },
+    "data_installazione": { "type": ["string", "null"], "format": "date" },
+    "note": { "type": ["string", "null"] }
+  }
+}

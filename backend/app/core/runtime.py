@@ -183,13 +183,50 @@ class WorkflowRuntime:
         tracer: Tracer,
         feedback: str | None = None,
     ) -> tuple[dict[str, Any], dict[str, float]]:
+        """Estrazione con escalation T3→T1 (M19).
+
+        Se il workflow è instradato su T3 e T3 è attivo, gira prima su T3; su
+        **errore**, **bassa confidence** o **output fuori contratto** rifà lo step
+        su T1 e traccia l'escalation. Il tier resta l'unica dichiarazione del
+        manifest (§3.1); a T3 spento il comportamento è invariato (si usa T1).
+        """
+        tier = manifest.get("tier", "T1")
+        if tier != "T3" or not self.gateway.t3_attivo():
+            return self._estrai_su_tier(manifest, step, wf_dir, doc, tracer, tier, feedback)
+        try:
+            dati, confidence = self._estrai_su_tier(
+                manifest, step, wf_dir, doc, tracer, "T3", feedback
+            )
+            if not self._sotto_soglia(manifest, confidence):
+                return dati, confidence
+            motivo = "bassa confidence"
+        except (EstrazioneFallita, GatewayError) as exc:
+            motivo = f"errore: {exc}"
+        tracer.escalation(step=step["id"], da="T3", a="T1", motivo=motivo)
+        return self._estrai_su_tier(manifest, step, wf_dir, doc, tracer, "T1", feedback)
+
+    def _estrai_su_tier(
+        self,
+        manifest: dict[str, Any],
+        step: dict[str, Any],
+        wf_dir: Path,
+        doc: str,
+        tracer: Tracer,
+        tier: str,
+        feedback: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, float]]:
         skill = (wf_dir / step["skill"]).read_text(encoding="utf-8")
         schema_entita = json.loads(
             (self.data_dir / step["output_schema"]).read_text(encoding="utf-8")
         )
         contratto = schema_contratto(schema_entita)
         validatore = Draft202012Validator(contratto, format_checker=FormatChecker())
+        # Ai tool nativi dichiarati dallo step si aggiungono i tool Python
+        # consolidati (M15/M17): la skill impara a chiamarli, l'LLM resta il
+        # fallback. Un tool consolidato che erra torna come errore al modello
+        # (sotto), che completa comunque lo step: mai un single-point-of-failure.
         nomi_tool = list(step.get("tools") or [])
+        nomi_tool += [n for n in self.toolset.nomi_consolidati() if n not in nomi_tool]
         schemi_tool = self.toolset.schemi(nomi_tool) or None
 
         messages: list[dict[str, Any]] = [
@@ -208,7 +245,7 @@ class WorkflowRuntime:
         riparazioni = 0
         for _ in range(MAX_GIRI_AGENTE):
             risposta = self.gateway.complete(
-                tier=manifest.get("tier", "T1"),
+                tier=tier,
                 messages=messages,
                 tools=schemi_tool,
                 tracer=tracer,

@@ -16,6 +16,7 @@ from app.api.deps import get_dal, richiedi_admin
 from app.core.auth import Utente
 from app.core.collega import Collega
 from app.core.dal import DAL, TIPI_INGRESSO, DalError, tipo_da_id
+from app.core.dataset import estratto_del_run, registra_derivazione
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
 from app.models.envelope import Envelope
 
@@ -216,6 +217,20 @@ def valida(
     aggiornata = dal.set_validato(
         tipo, entity_id, validato_da=admin.username, run_id=entita.meta.run_id
     )
+    run_id = aggiornata.meta.run_id
+    if run_id:
+        # Instrumentazione M16: marca il delta estratto→validato come base minabile
+        # per il Toolsmith. Vive qui (revisione), non in runtime.py.
+        registra_derivazione(
+            dal,
+            run_id=run_id,
+            workflow=aggiornata.meta.workflow,
+            tipo=tipo,
+            entity_id=aggiornata.id,
+            estratto=estratto_del_run(dal.data_dir, run_id, tipo),
+            validato=aggiornata.dati,
+            validato_da=admin.username,
+        )
     return {
         "stato": aggiornata.stato,
         "validato_da": admin.username,

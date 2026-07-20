@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Materiale",
+  "description": "Anagrafica di un materiale da costruzione (listino interno)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["descrizione", "unita_misura"],
+  "properties": {
+    "codice": { "type": ["string", "null"], "description": "Codice interno o di listino" },
+    "descrizione": { "type": "string", "minLength": 1 },
+    "unita_misura": { "type": "string", "minLength": 1, "description": "es. mc, kg, m2, cad" },
+    "prezzo_unitario": { "type": ["number", "null"], "description": "Prezzo di riferimento in euro" },
+    "categoria": { "type": ["string", "null"] },
+    "fornitore_id": {
+      "type": ["string", "null"],
+      "pattern": "^FRN-\\d{3,}$",
+      "description": "Fornitore abituale del materiale"
+    }
+  }
+}

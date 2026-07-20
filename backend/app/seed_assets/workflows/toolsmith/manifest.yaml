@@ -1,0 +1,11 @@
+# Meta-workflow Toolsmith (consolidamento skill→tool Python, §3.6 punti 1–2).
+# Genera una funzione Python pura + schema function-calling (T1) a partire dalle
+# coppie I/O già validate dall'ufficio; i test si ricavano dalle stesse coppie.
+# I prompt sono dati (skills/*.md), mai hard-coded nel codice.
+name: toolsmith
+version: "1.0"
+tier_generazione: T1
+tier_patch: T1
+skills:
+  generazione: skills/genera-tool.md
+  patch: skills/patch-skill.md

@@ -228,6 +228,164 @@ FROM (
     )
 );
 
+CREATE OR REPLACE VIEW v_materiali AS
+SELECT id,
+       stato,
+       dati.codice          AS codice,
+       dati.descrizione     AS descrizione,
+       dati.unita_misura    AS unita_misura,
+       dati.prezzo_unitario AS prezzo_unitario,
+       dati.categoria       AS categoria,
+       dati.fornitore_id    AS fornitore_id
+FROM read_json(
+    '${DATA_DIR}/entities/materiali/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR,
+            prezzo_unitario DOUBLE, categoria VARCHAR, fornitore_id VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_mezzi AS
+SELECT id,
+       stato,
+       dati.targa        AS targa,
+       dati.tipo         AS tipo,
+       dati.descrizione  AS descrizione,
+       dati.costo_orario AS costo_orario,
+       dati.proprieta    AS proprieta
+FROM read_json(
+    '${DATA_DIR}/entities/mezzi/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            targa VARCHAR, tipo VARCHAR, descrizione VARCHAR,
+            costo_orario DOUBLE, proprieta VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_lavorazioni AS
+SELECT id,
+       stato,
+       dati.codice       AS codice,
+       dati.descrizione  AS descrizione,
+       dati.unita_misura AS unita_misura,
+       dati.categoria    AS categoria
+FROM read_json(
+    '${DATA_DIR}/entities/lavorazioni/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            codice VARCHAR, descrizione VARCHAR, unita_misura VARCHAR, categoria VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_scadenze AS
+SELECT id,
+       stato,
+       dati.descrizione   AS descrizione,
+       dati.data_scadenza AS data_scadenza,
+       dati.tipo          AS tipo,
+       dati.cantiere_id   AS cantiere_id,
+       dati.stato         AS stato_adempimento
+FROM read_json(
+    '${DATA_DIR}/entities/scadenze/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            descrizione VARCHAR, data_scadenza DATE, tipo VARCHAR,
+            cantiere_id VARCHAR, stato VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_pozzetti AS
+SELECT id,
+       stato,
+       dati.cantiere_id        AS cantiere_id,
+       dati.codice             AS codice,
+       dati.tipo               AS tipo,
+       dati.ubicazione         AS ubicazione,
+       dati.stato              AS stato_manufatto,
+       dati.data_installazione AS data_installazione,
+       dati.note               AS note
+FROM read_json(
+    '${DATA_DIR}/entities/pozzetti/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            cantiere_id VARCHAR, codice VARCHAR, tipo VARCHAR, ubicazione VARCHAR,
+            stato VARCHAR, data_installazione DATE, note VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_pozzetti_riepilogo AS
+SELECT cantiere_id,
+       count(*)                                                      AS totale,
+       count(*) FILTER (WHERE stato_manufatto = 'previsto')          AS previsti,
+       count(*) FILTER (WHERE stato_manufatto = 'installato')        AS installati,
+       count(*) FILTER (WHERE stato_manufatto = 'collaudato')        AS collaudati
+FROM v_pozzetti
+GROUP BY cantiere_id;
+
+CREATE OR REPLACE VIEW v_cronoprogramma_voci AS
+SELECT cronoprogramma_id,
+       cantiere_id,
+       lavorazione_id,
+       descrizione,
+       inizio_previsto,
+       fine_prevista
+FROM (
+    SELECT id               AS cronoprogramma_id,
+           dati.cantiere_id AS cantiere_id,
+           unnest(dati.voci, recursive := true)
+    FROM read_json(
+        '${DATA_DIR}/entities/cronoprogrammi/*.json',
+        columns = {
+            id: 'VARCHAR',
+            dati: 'STRUCT(
+                cantiere_id VARCHAR,
+                voci STRUCT(
+                    lavorazione_id VARCHAR, descrizione VARCHAR,
+                    inizio_previsto DATE, fine_prevista DATE
+                )[]
+            )'
+        }
+    )
+);
+
+CREATE OR REPLACE VIEW v_cronoprogramma AS
+SELECT piano.cantiere_id                                    AS cantiere_id,
+       piano.voci_totali                                    AS voci_totali,
+       piano.voci_da_completare                             AS voci_da_completare,
+       piano.pianificato_pct                                AS pianificato_pct,
+       COALESCE(reale.reale_pct, 0)                          AS reale_pct,
+       round(COALESCE(reale.reale_pct, 0) - piano.pianificato_pct, 1) AS delta_pct
+FROM (
+    SELECT cantiere_id,
+           count(*)                                                        AS voci_totali,
+           count(*) FILTER (WHERE fine_prevista <= current_date)           AS voci_da_completare,
+           round(100.0 * count(*) FILTER (WHERE fine_prevista <= current_date) / count(*), 1)
+                                                                           AS pianificato_pct
+    FROM v_cronoprogramma_voci
+    GROUP BY cantiere_id
+) piano
+LEFT JOIN (
+    SELECT cantiere_id, arg_max(percentuale_avanzamento, data) AS reale_pct
+    FROM v_sal
+    GROUP BY cantiere_id
+) reale ON reale.cantiere_id = piano.cantiere_id;
+
 CREATE OR REPLACE VIEW v_computo AS
 SELECT id,
        stato,

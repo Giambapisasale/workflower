@@ -11,6 +11,7 @@ from app.api.health import router as health_router
 from app.api.issues import router as issues_router
 from app.api.reports import router as reports_router
 from app.api.review import router as review_router
+from app.api.toolsmith import router as toolsmith_router
 from app.api.workflows import router as workflows_router
 
 api_router = APIRouter()
@@ -26,3 +27,4 @@ api_router.include_router(entities_router)
 api_router.include_router(issues_router)
 api_router.include_router(workflows_router)
 api_router.include_router(dataset_router)
+api_router.include_router(toolsmith_router)

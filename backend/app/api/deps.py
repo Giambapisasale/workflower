@@ -14,10 +14,12 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
+from app.core.eval_t3 import EvalT3
 from app.core.gateway import Gateway
 from app.core.improver import Improver
 from app.core.interroga import Interroga
 from app.core.runtime import WorkflowRuntime
+from app.core.toolsmith import Toolsmith
 
 _bearer = HTTPBearer(auto_error=False)
 _dal_lock = threading.Lock()
@@ -59,6 +61,18 @@ def get_improver(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> Improver:
     return Improver(dal, gateway)
+
+
+def get_toolsmith(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> Toolsmith:
+    return Toolsmith(dal, gateway)
+
+
+def get_eval_t3(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> EvalT3:
+    return EvalT3(dal, gateway)
 
 
 def utente_corrente(

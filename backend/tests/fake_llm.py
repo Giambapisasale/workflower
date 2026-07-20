@@ -309,10 +309,25 @@ class FakeCompleter:
             return self._risposta_tool(model, "ocr_pdf", {"path": doc})
 
         campi = _leggi_fattura(self.data_dir / doc)
+        offerti = self._offerti(tools)
         if tools and "cerca_fornitore" not in gia_chiamati:
             return self._risposta_tool(model, "cerca_fornitore", {"query": campi["fornitore"]})
         if tools and "cerca_cantiere" not in gia_chiamati:
             return self._risposta_tool(model, "cerca_cantiere", {"query": campi["cantiere"]})
+
+        # M17: se la skill ha imparato a usare il tool e la fattura riporta una
+        # ritenuta (dicitura sul documento), il fake ne fa CALCOLARE l'importo al
+        # tool invece di trascriverlo. Se sul documento non c'è ritenuta, resta
+        # `null` come prima: il tool non si inventa un valore.
+        usa_tool = (
+            "calcola_ritenuta" in skill
+            and "calcola_ritenuta" in offerti
+            and campi["ritenuta"] is not None
+        )
+        if usa_tool and "calcola_ritenuta" not in gia_chiamati and campi["imponibile"] is not None:
+            return self._risposta_tool(
+                model, "calcola_ritenuta", {"imponibile": campi["imponibile"]}
+            )
 
         dati = {
             "fornitore_id": self._miglior_id(messages, "cerca_fornitore"),
@@ -322,9 +337,7 @@ class FakeCompleter:
             "imponibile": campi["imponibile"],
             "iva": campi["iva"],
             "totale": campi["totale"],
-            # il fake "segue le istruzioni": senza indicazione sulla dicitura
-            # in calce, la ritenuta non viene cercata (scenario M5)
-            "ritenuta_acconto": campi["ritenuta"] if "calce" in skill.lower() else None,
+            "ritenuta_acconto": self._ritenuta(messages, skill, campi, usa_tool),
             "righe": campi["righe"],
         }
         self.risposte_finali += 1
@@ -358,6 +371,47 @@ class FakeCompleter:
     @staticmethod
     def _offerti(tools: list[dict[str, Any]] | None) -> set[str]:
         return {t["function"]["name"] for t in (tools or []) if "function" in t}
+
+    def _ritenuta(
+        self,
+        messages: list[dict[str, Any]],
+        skill: str,
+        campi: dict[str, Any],
+        usa_tool: bool,
+    ) -> float | None:
+        """La ritenuta secondo le istruzioni della skill (M5 e M17).
+
+        - col tool: prende il risultato di ``calcola_ritenuta``; se il tool è
+          andato in errore (fallback), ricade sulla lettura dal documento;
+        - senza tool: la cerca in calce solo se la skill lo dice (scenario M5).
+        """
+        if usa_tool:
+            esito = self._risultato_tool(messages, "calcola_ritenuta")
+            if isinstance(esito, dict) and "ritenuta_acconto" in esito:
+                return esito["ritenuta_acconto"]
+            return campi["ritenuta"]  # tool in errore → fallback all'LLM (legge dal doc)
+        return campi["ritenuta"] if "calce" in skill.lower() else None
+
+    @staticmethod
+    def _risultato_tool(messages: list[dict[str, Any]], nome_tool: str) -> Any:
+        """Il risultato (parsed) dell'ultima chiamata a ``nome_tool`` nella conversazione."""
+        id_chiamata = None
+        trovato = None
+        for messaggio in messages:
+            for chiamata in messaggio.get("tool_calls") or []:
+                if chiamata["function"]["name"] == nome_tool:
+                    id_chiamata = chiamata["id"]
+            if (
+                id_chiamata
+                and messaggio.get("role") == "tool"
+                and messaggio.get("tool_call_id") == id_chiamata
+            ):
+                try:
+                    trovato = json.loads(messaggio["content"])
+                except (ValueError, TypeError):
+                    trovato = None
+                id_chiamata = None
+        return trovato
 
     @staticmethod
     def _miglior_id(messages: list[dict[str, Any]], nome_tool: str) -> str | None:

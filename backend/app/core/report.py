@@ -217,6 +217,21 @@ def genera_report(
         cantiere_id, None, None, col_data=None,
     ), totali={"previsto", "consuntivo"})
 
+    # Registri automatici (M21): si popolano dalle viste e si aggiornano a ogni documento.
+    _foglio(wb, "Cronoprogramma", _COL_CRONO, _righe(
+        data_dir,
+        "SELECT cantiere_id, voci_totali, voci_da_completare, pianificato_pct, reale_pct, "
+        "delta_pct FROM v_cronoprogramma{where} ORDER BY delta_pct",
+        cantiere_id, None, None, col_data=None,
+    ))
+
+    _foglio(wb, "Pozzetti", _COL_POZZETTI, _righe(
+        data_dir,
+        "SELECT cantiere_id, codice, tipo, ubicazione, stato_manufatto, data_installazione "
+        "FROM v_pozzetti{where} ORDER BY cantiere_id, codice",
+        cantiere_id, None, None, col_data=None,
+    ))
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -268,4 +283,15 @@ _COL_SCOST: list[Colonna] = [
     ("Descrizione", "descrizione", None), ("Categoria", "categoria", None),
     ("Previsto", "previsto", EURO), ("Consuntivo", "consuntivo", EURO),
     ("Delta", "delta", EURO), ("Consumo", "quota", PERC),
+]
+_COL_CRONO: list[Colonna] = [
+    ("Cantiere", "cantiere_id", None), ("Voci", "voci_totali", None),
+    ("Da completare", "voci_da_completare", None),
+    ("Pianificato %", "pianificato_pct", None), ("Reale %", "reale_pct", None),
+    ("Delta %", "delta_pct", None),
+]
+_COL_POZZETTI: list[Colonna] = [
+    ("Cantiere", "cantiere_id", None), ("Codice", "codice", None), ("Tipo", "tipo", None),
+    ("Ubicazione", "ubicazione", None), ("Stato", "stato_manufatto", None),
+    ("Installazione", "data_installazione", None),
 ]

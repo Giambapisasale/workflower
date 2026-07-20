@@ -57,6 +57,18 @@ LIMIT 8
 """
 
 
+SQL_CRONOPROGRAMMA = """
+SELECT cr.cantiere_id      AS cantiere_id,
+       c.nome              AS cantiere,
+       cr.pianificato_pct  AS pianificato_pct,
+       cr.reale_pct        AS reale_pct,
+       cr.delta_pct        AS delta_pct
+FROM v_cronoprogramma cr
+LEFT JOIN v_cantieri c ON c.id = cr.cantiere_id
+ORDER BY cr.delta_pct
+"""
+
+
 @router.get("/dashboard/costs")
 def costi(
     _admin: Utente = Depends(richiedi_admin),
@@ -75,6 +87,8 @@ def costi(
         "attivita": query(data_dir, SQL_ATTIVITA)[0],
         "per_cantiere": per_cantiere,
         "per_fornitore": query(data_dir, SQL_PER_FORNITORE),
+        # Registri automatici (M21): pianificato vs consuntivo per cantiere.
+        "cronoprogramma": query(data_dir, SQL_CRONOPROGRAMMA),
     }
 
 

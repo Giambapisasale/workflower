@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, get_data_dir, richiedi_admin
+from app.api.deps import get_dal, get_data_dir, get_eval_t3, richiedi_admin
 from app.core.auth import Utente
 from app.core.consolida import (
     ConsolidaError,
@@ -33,6 +33,7 @@ from app.core.dataset import (
     esempi_finetuning,
     statistiche,
 )
+from app.core.eval_t3 import EvalT3
 from app.core.tools import Toolset
 
 
@@ -192,6 +193,22 @@ def rimuovi_tool(
     return {"rimosso": macro}
 
 
+@router.delete("/dataset/pytool/{nome}")
+def rimuovi_pytool(
+    nome: str,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, str]:
+    """Rimuove un tool Python consolidato (M15): sorgente + riga di ledger.
+
+    I tool Python sono indipendenti: la rimozione non può rompere il catalogo.
+    Con il tool tolto, il candidato torna libero e può essere ri-consolidato.
+    """
+    if not dal.elimina_pytool(nome=nome, eliminato_da=admin.username):
+        raise HTTPException(status_code=404, detail=f"tool non trovato: {nome}")
+    return {"rimosso": nome}
+
+
 @router.delete("/dataset/vista/{vista}")
 def rimuovi_vista(
     vista: str,
@@ -237,6 +254,22 @@ def finetuning(
     )
 
 
+@router.get("/dataset/eval-t3")
+def eval_t3(
+    candidato: str = "T3",
+    riferimento: str = "T1",
+    _admin: Utente = Depends(richiedi_admin),
+    valutatore: EvalT3 = Depends(get_eval_t3),
+) -> dict[str, Any]:
+    """Valuta un modello candidato T3 sul set validato (M18): accuratezza vs T1.
+
+    Rigioca gli esempi già validati e misura la function-calling accuracy;
+    indica quali workflow sono "pronti per T3" e dove regredirebbero rispetto a
+    T1. Nessun training: solo misura (il modello candidato è ``LLM_<tier>_MODEL``).
+    """
+    return valutatore.valuta(candidato=candidato, riferimento=riferimento)
+
+
 @router.get("/tools")
 def elenco_tool(
     _admin: Utente = Depends(richiedi_admin),
@@ -244,8 +277,10 @@ def elenco_tool(
 ) -> dict[str, Any]:
     """Registry dei tool nativi con i contatori d'uso + i candidati al consolidamento."""
     usi = conteggio_tool(dal.data_dir)
+    # ``elenco()`` porta già ciclo e origine (nativa | pytool): non li sovrascriviamo,
+    # così i tool Python consolidati compaiono col loro stato di ciclo reale (M15).
     tools = [
-        {**voce, "usi": usi.get(voce["name"], 0), "ciclo": "consolidata"}
+        {**voce, "usi": usi.get(voce["name"], 0)}
         for voce in Toolset(dal).elenco()
     ]
     tools.sort(key=lambda t: t["usi"], reverse=True)

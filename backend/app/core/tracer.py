@@ -215,6 +215,14 @@ class Tracer:
     def validation(self, step: str, esito: str, dettagli: Any = None) -> None:
         self.evento("validation", step=step, esito=esito, dettagli=dettagli)
 
+    def escalation(self, step: str, da: str, a: str, motivo: str) -> None:
+        """Uno step instradato su ``da`` (es. T3) è stato rifatto su ``a`` (es. T1).
+
+        L'osservabilità aggrega la "% escalation" per workflow: è il segnale che il
+        modello locale del tier ``da`` va riaddestrato (§3.1 / §3.7).
+        """
+        self.evento("escalation", step=step, da=da, a=a, motivo=motivo)
+
     def run_end(self, outcome: str, **campi: Any) -> None:
         self.evento("run_end", outcome=outcome, **campi)
 

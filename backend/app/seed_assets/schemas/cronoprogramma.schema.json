@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cronoprogramma",
+  "description": "Pianificazione delle lavorazioni di un cantiere (pianificato vs consuntivo)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cantiere_id", "voci"],
+  "properties": {
+    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "voci": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["descrizione", "inizio_previsto", "fine_prevista"],
+        "properties": {
+          "lavorazione_id": {
+            "type": ["string", "null"],
+            "pattern": "^LAV-\\d{3,}$",
+            "description": "Voce di catalogo delle lavorazioni (M20)"
+          },
+          "descrizione": { "type": "string", "minLength": 1 },
+          "inizio_previsto": { "type": "string", "format": "date" },
+          "fine_prevista": { "type": "string", "format": "date" }
+        }
+      }
+    }
+  }
+}
