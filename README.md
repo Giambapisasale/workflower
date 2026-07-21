@@ -144,6 +144,28 @@ dato esattamente come viste e tool parametrici.
 | `make test` | Test backend (pytest) |
 | `make lint` | Ruff (backend) + ESLint (frontend) |
 
+## Test
+
+I test **non richiedono una chiave LLM**: usano un trasporto finto e deterministico.
+
+```bash
+make test                                    # intera suite backend (pytest)
+# oppure, per un singolo file / test:
+cd backend && . .venv/bin/activate
+pytest tests/test_improver_e2e.py            # lo scenario "ritenuta d'acconto" (M5)
+pytest tests/test_simulazione_mese.py        # simulazione di un mese su 10 cantieri
+pytest -k ritenuta                           # per parola chiave
+```
+
+La suite copre ogni livello: unità (DAL, gateway, runtime, regole, viste, sandbox,
+classificatore), API (documenti, revisione, entità, cruscotto, registro, report,
+Toolsmith, harness T3) ed **end-to-end** (ciclo Improver, consolidamento dei tool,
+escalation T3→T1). C'è inoltre un **pacchetto di simulazione** che ricostruisce un
+mese di attività reale — 10 cantieri, 100 dipendenti (operai di varie mansioni +
+impiegati d'ufficio), rapportini/DDT/fatture/SAL/pozzetti/cronoprogrammi — e
+verifica che cruscotto, registri, scostamenti, report Excel e permessi restino
+coerenti a quella scala (`tests/simulazione.py` + `tests/test_simulazione_mese.py`).
+
 ## Architettura in breve
 
 - **Storage**: il file system è la fonte di verità (un JSON per entità, repo git
