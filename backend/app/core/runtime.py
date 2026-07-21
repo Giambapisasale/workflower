@@ -6,7 +6,6 @@ manifest, zero codice qui (non-goal §5). Contratto verso il chiamante:
 con esito ``errore`` e una issue automatica ("ci pensa l'ufficio").
 """
 
-import contextlib
 import json
 import uuid
 from pathlib import Path
@@ -18,10 +17,13 @@ from pydantic import BaseModel
 
 from app.core.dal import DAL
 from app.core.gateway import Gateway, GatewayError, RispostaLLM, estrai_json
+from app.core.logbook import ottieni_logger
 from app.core.rules import valuta_regole
 from app.core.tools import Toolset
 from app.core.tools.base import ToolError
 from app.core.tracer import Tracer
+
+_log = ottieni_logger("runtime")
 
 MAX_GIRI_AGENTE = 12  # giri LLM↔tool per step di estrazione
 MAX_RIPARAZIONI_JSON = 2  # §7: reparse con retry (max 2)
@@ -80,15 +82,36 @@ class WorkflowRuntime:
         try:
             manifest = self._manifest(workflow)
         except Exception as exc:
+            _log.error(
+                "manifest non caricabile per %s: %s",
+                workflow,
+                exc,
+                exc_info=exc,
+                extra={"run_id": run_id, "workflow": workflow, "documento": doc},
+            )
             tracer = Tracer(self.data_dir, run_id, workflow, "?")
             tracer.run_start(input_doc=doc)
             return self._fallimento(tracer, run_id, doc, f"manifest non caricabile: {exc}")
 
         tracer = Tracer(self.data_dir, run_id, manifest["name"], str(manifest["version"]))
         tracer.run_start(input_doc=doc)
+        _log.info(
+            "avvio run %s@%s su %s",
+            manifest["name"],
+            manifest["version"],
+            doc,
+            extra={"run_id": run_id, "workflow": manifest["name"], "documento": doc},
+        )
         try:
             contesto = self._esegui_steps(manifest, doc, run_id, tracer)
         except Exception as exc:  # rete, tool, output irreparabile: mai al chiamante
+            _log.error(
+                "run fallito su %s: %s",
+                doc,
+                exc,
+                exc_info=exc,
+                extra={"run_id": run_id, "workflow": manifest["name"], "documento": doc},
+            )
             return self._fallimento(tracer, run_id, doc, str(exc))
 
         entity_id = contesto["entity_id"]
@@ -96,6 +119,17 @@ class WorkflowRuntime:
         revisione = self._sotto_soglia(manifest, contesto["confidence"])
         if contesto["motivo_flag"]:
             motivo = contesto["motivo_flag"]
+            _log.warning(
+                "verifiche non superate su %s: %s",
+                doc,
+                motivo,
+                extra={
+                    "run_id": run_id,
+                    "workflow": manifest["name"],
+                    "documento": doc,
+                    "dettagli": {"entity_id": entity_id, "stato": stato},
+                },
+            )
             issue_id = self._apri_issue(
                 f"Verifiche non superate su {doc}: {motivo}", run_id, doc, entity_id
             )
@@ -120,6 +154,18 @@ class WorkflowRuntime:
 
         tracer.run_end(
             outcome="ok", entity_id=entity_id, stato=stato, richiede_revisione=revisione
+        )
+        _log.info(
+            "run ok su %s → %s%s",
+            doc,
+            entity_id,
+            " (da rivedere)" if revisione else "",
+            extra={
+                "run_id": run_id,
+                "workflow": manifest["name"],
+                "documento": doc,
+                "dettagli": {"entity_id": entity_id, "richiede_revisione": revisione},
+            },
         )
         self._commit_artefatti(tracer, run_id, doc)
         return RunResult(
@@ -202,6 +248,12 @@ class WorkflowRuntime:
             motivo = "bassa confidence"
         except (EstrazioneFallita, GatewayError) as exc:
             motivo = f"errore: {exc}"
+        _log.info(
+            "escalation T3→T1 sullo step %s: %s",
+            step["id"],
+            motivo,
+            extra={"step": step["id"], "workflow": manifest["name"], "documento": doc},
+        )
         tracer.escalation(step=step["id"], da="T3", a="T1", motivo=motivo)
         return self._estrai_su_tier(manifest, step, wf_dir, doc, tracer, "T1", feedback)
 
@@ -393,14 +445,29 @@ class WorkflowRuntime:
                 "auto", testo, run_id=run_id, doc=doc, entity_id=entity_id
             )
             return issue.id
-        except Exception:
-            return None  # anche la issue può fallire: resta comunque il trace
+        except Exception as exc:
+            # anche la issue può fallire: resta comunque il trace, ma lo registriamo
+            _log.error(
+                "impossibile aprire la issue automatica per %s: %s",
+                doc,
+                exc,
+                exc_info=exc,
+                extra={"run_id": run_id, "documento": doc},
+            )
+            return None
 
     def _commit_artefatti(self, tracer: Tracer, run_id: str, doc: str) -> None:
         percorsi = [tracer.trace_path, tracer.dataset_path, self.data_dir / doc]
         # il commit degli artefatti non deve mai far fallire il run
-        with contextlib.suppress(Exception):
+        try:
             self.dal.commit_paths(percorsi, f"trace {run_id}: registra artefatti [{run_id}]")
+        except Exception as exc:
+            _log.warning(
+                "commit degli artefatti fallito per il run %s: %s",
+                run_id,
+                exc,
+                extra={"run_id": run_id, "documento": doc},
+            )
 
     @staticmethod
     def _sotto_soglia(manifest: dict[str, Any], confidence: dict[str, float]) -> bool:

@@ -22,7 +22,10 @@ from litellm.exceptions import (
 )
 from pydantic import BaseModel
 
+from app.core.logbook import ottieni_logger
 from app.core.tracer import Tracer
+
+_log = ottieni_logger("gateway")
 
 ERRORI_TRANSITORI = (
     APIConnectionError,
@@ -125,8 +128,23 @@ class Gateway:
             except ERRORI_TRANSITORI as exc:
                 ultimo_errore = exc
                 if tentativo < self.max_retry:
+                    _log.warning(
+                        "errore transitorio su %s (tentativo %d/%d): %s",
+                        modello,
+                        tentativo + 1,
+                        self.max_retry + 1,
+                        exc,
+                        extra={"step": step, "dettagli": {"tier": tier}},
+                    )
                     time.sleep(self.attesa_retry * (2**tentativo))
         else:
+            _log.error(
+                "LLM %s non raggiungibile dopo %d tentativi: %s",
+                modello,
+                self.max_retry + 1,
+                ultimo_errore,
+                extra={"step": step, "dettagli": {"tier": tier}},
+            )
             raise GatewayError(
                 f"LLM {modello} non raggiungibile dopo {self.max_retry + 1} tentativi: "
                 f"{ultimo_errore}"

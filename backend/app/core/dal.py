@@ -17,9 +17,12 @@ from typing import Any
 from git import Actor, Repo
 from jsonschema import Draft202012Validator, FormatChecker
 
+from app.core.logbook import ottieni_logger
 from app.core.views import connect
 from app.models.envelope import Envelope, Meta, now_iso
 from app.models.issue import Issue
+
+_log = ottieni_logger("dal")
 
 GIT_AUTHOR = Actor("Workflower", "bot@workflower.local")
 
@@ -987,6 +990,7 @@ class DAL:
         self._scrivi_atomico(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
         self.repo.index.add([path.relative_to(self.data_dir).as_posix()])
         self.repo.index.commit(message, author=GIT_AUTHOR, committer=GIT_AUTHOR)
+        _log.debug("commit: %s", message)
 
     @staticmethod
     def _scrivi_atomico(percorso: Path, testo: str) -> None:

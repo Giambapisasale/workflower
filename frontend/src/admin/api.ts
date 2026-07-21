@@ -177,6 +177,41 @@ export type DatasetStats = {
   esempi_finetuning: number;
 };
 
+export type VoceLog = {
+  ts: string;
+  livello: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
+  fase: string;
+  logger: string;
+  messaggio: string;
+  run_id?: string;
+  workflow?: string;
+  step?: string;
+  documento?: string;
+  utente?: string;
+  dettagli?: unknown;
+  eccezione?: string;
+};
+
+export type ElencoLog = { voci: VoceLog[]; fasi: string[]; livelli: string[] };
+
+export type StatsLog = {
+  totale: number;
+  errori: number;
+  giorni: number;
+  per_livello: Record<string, number>;
+  per_fase: Record<string, number>;
+};
+
+export type ConfigLog = { livello: string; livelli: string[] };
+
+export type FiltroLog = {
+  livello?: string;
+  fase?: string;
+  q?: string;
+  giorni?: number;
+  limite?: number;
+};
+
 export type GruppoQuery = {
   fingerprint: string;
   conteggio: number;
@@ -378,6 +413,27 @@ export const admin = {
     }),
 
   scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
+
+  // Diagnostica (logbook): elenco filtrabile, statistiche, livello a runtime.
+  logs: (filtro: FiltroLog = {}) => {
+    const q = new URLSearchParams();
+    if (filtro.livello) q.set("livello", filtro.livello);
+    if (filtro.fase) q.set("fase", filtro.fase);
+    if (filtro.q) q.set("q", filtro.q);
+    if (filtro.giorni) q.set("giorni", String(filtro.giorni));
+    if (filtro.limite) q.set("limite", String(filtro.limite));
+    const qs = q.toString();
+    return richiesta<ElencoLog>(`/logs${qs ? `?${qs}` : ""}`);
+  },
+
+  logStats: (giorni = 7) => richiesta<StatsLog>(`/logs/stats?giorni=${giorni}`),
+
+  logConfig: () => richiesta<ConfigLog>("/logs/config"),
+
+  impostaLogLivello: (livello: string) =>
+    richiesta<ConfigLog>("/logs/config", metodoJson("PUT", { livello })),
+
+  scaricaLog: () => scaricaFile("/logs/export", "log-oggi.jsonl"),
 
   // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
   entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),
