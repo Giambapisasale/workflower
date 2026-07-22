@@ -68,6 +68,11 @@ dall'applicazione: ogni mutazione è un commit. Non modificare i file a mano:
 le scritture passano dal DAL (backend/app/core/dal.py).
 """
 
+# I log applicativi (logbook) vivono in ``logs/`` dentro la SoT ma sono
+# diagnostici, non stato: gitignorati, quindi non producono commit (e non
+# rendono "sporco" il repo dati). Il livello persistito sta in ``logs/livello``.
+GITIGNORE = "logs/\n"
+
 
 def init_data_repo(data_dir: Path) -> None:
     """Crea struttura, schemi, catalogo viste e primo commit del repo dati."""
@@ -89,6 +94,7 @@ def init_data_repo(data_dir: Path) -> None:
     shutil.copytree(ASSETS / "workflows", data_dir / "workflows", dirs_exist_ok=True)
     (data_dir / "dataset" / "toolcalls.jsonl").touch()
     (data_dir / "README.md").write_text(README, encoding="utf-8")
+    (data_dir / ".gitignore").write_text(GITIGNORE, encoding="utf-8")
     repo = Repo.init(data_dir)
     with repo.config_writer() as cfg:
         cfg.set_value("user", "name", GIT_AUTHOR.name)

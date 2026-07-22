@@ -11,6 +11,7 @@ import {
 import AdminLogin from "./AdminLogin";
 import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
+import Dataset from "./Dataset";
 import Dati from "./Dati";
 import EntitaForm from "./EntitaForm";
 import EntitaLista from "./EntitaLista";
@@ -33,7 +34,8 @@ const VOCI = [
   { a: "/admin/interroga", etichetta: "Interroga", fine: false },
   { a: "/admin/workflows", etichetta: "Workflows", fine: false },
   { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
-  { a: "/admin/log", etichetta: "Log & Dataset", fine: false },
+  { a: "/admin/dataset", etichetta: "Dataset", fine: false },
+  { a: "/admin/log", etichetta: "Log", fine: false },
 ];
 
 export default function AdminApp() {
@@ -110,6 +112,7 @@ export default function AdminApp() {
           <Route path="interroga" element={<Interroga />} />
           <Route path="workflows" element={<Workflows />} />
           <Route path="tools" element={<SkillsTools />} />
+          <Route path="dataset" element={<Dataset />} />
           <Route path="log" element={<Log />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>

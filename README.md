@@ -192,6 +192,28 @@ coerenti a quella scala (`tests/simulazione.py` + `tests/test_simulazione_mese.p
   mai un modello. L'idoneità a T3 si *misura* prima di instradare (harness offline)
   e l'escalation a T1 protegge sempre l'esito.
 
+## Log e diagnostica
+
+Ogni fase del processo scrive su un **logbook** trasversale, con gli **errori** in
+primo piano: avvio, chiamate API (ogni richiesta e ogni eccezione non gestita, con
+traceback), DAL/commit, gateway LLM (retry ed esaurimento trasporto), runtime
+(avvio run, escalation di tier, validazioni, salvataggi, fallimenti), tool, sandbox
+e Improver. È complementare al *trace* per-run (`data/traces/…`): il logbook
+raccoglie tutto in un unico flusso interrogabile.
+
+- **Dove**: `data/logs/AAAA/MM/GG.jsonl` — dentro la fonte di verità ma
+  *diagnostico*, non stato applicativo: è **gitignorato** nel repo dati, quindi non
+  produce commit e non rende "sporco" il repo.
+- **Livello configurabile**: default all'avvio da `LOG_LEVEL`
+  (`DEBUG|INFO|WARNING|ERROR|CRITICAL`); l'ufficio lo cambia **a runtime** dalla
+  pagina **Log** della console admin. La scelta è persistita in `data/logs/livello`
+  e sopravvive al riavvio.
+- **Interfaccia**: Admin → **Log**. Conteggi per livello, selettore del livello
+  attivo, filtri (livello minimo, fase, testo, periodo), traceback espandibili con
+  il `run_id` che rimanda al trace, auto-aggiornamento e scarico del file del giorno.
+- **API** (solo admin): `GET /api/logs`, `GET /api/logs/stats`,
+  `GET|PUT /api/logs/config`, `GET /api/logs/export`.
+
 Dettagli: [`analisi-progettazione.md`](analisi-progettazione.md) (architettura e
 ADR), [`piano-implementazione.md`](piano-implementazione.md) (contratti e
 milestone v1), [`piano-implementazione-fase2.md`](piano-implementazione-fase2.md)
