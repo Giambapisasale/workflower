@@ -58,6 +58,7 @@ SKELETON = [
     "dataset",
     "issues",
     "patches",
+    "diagnoses",
     "config",
 ]
 

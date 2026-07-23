@@ -8,12 +8,14 @@ background.
 
 import threading
 from pathlib import Path
+from typing import Any
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
+from app.core.diagnostico import Diagnostico
 from app.core.eval_t3 import EvalT3
 from app.core.gateway import Gateway
 from app.core.improver import Improver
@@ -29,16 +31,26 @@ def get_data_dir(request: Request) -> Path:
     return request.app.state.data_dir
 
 
-def get_dal(request: Request) -> DAL:
+def dal_da_app(app: Any) -> DAL:
+    """Il DAL condiviso dell'app (uno solo → un solo lock di scrittura).
+
+    Usato dai request handler (via :func:`get_dal`) e dai task fuori richiesta
+    (il trigger di diagnostica), così tutte le scritture passano dallo stesso
+    lock single-writer. Solleva ``DalError`` se il repo dati non è pronto.
+    """
     with _dal_lock:
-        dal = getattr(request.app.state, "dal", None)
+        dal = getattr(app.state, "dal", None)
         if dal is None:
-            try:
-                dal = DAL(request.app.state.data_dir)
-            except DalError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            request.app.state.dal = dal
+            dal = DAL(app.state.data_dir)
+            app.state.dal = dal
     return dal
+
+
+def get_dal(request: Request) -> DAL:
+    try:
+        return dal_da_app(request.app)
+    except DalError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def get_gateway(request: Request) -> Gateway:
@@ -73,6 +85,12 @@ def get_eval_t3(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> EvalT3:
     return EvalT3(dal, gateway)
+
+
+def get_diagnostico(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> Diagnostico:
+    return Diagnostico(dal, gateway)
 
 
 def utente_corrente(
