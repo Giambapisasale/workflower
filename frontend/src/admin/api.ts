@@ -388,7 +388,7 @@ export const admin = {
       (r) => r.patches,
     ),
 
-  migliora: (workflow: string, body: { run_id?: string; issue_id?: string }) =>
+  migliora: (workflow: string, body: { run_id?: string; issue_id?: string; feedback?: string }) =>
     richiesta<Patch>(`/workflows/${workflow}/improve`, corpo(body)),
 
   approva: (id: string) =>

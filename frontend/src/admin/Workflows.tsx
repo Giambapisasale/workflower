@@ -2,6 +2,7 @@ import { useState } from "react";
 import { admin, type EsitoApprovazione, type Patch } from "./api";
 import DiffView from "./DiffView";
 import { dataBreve, euro, useCarica } from "./formato";
+import MiglioraWorkflow from "./MiglioraWorkflow";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
 function PatchCard({ patch, onFatto }: { patch: Patch; onFatto: () => void }) {
@@ -95,6 +96,7 @@ function PatchCard({ patch, onFatto }: { patch: Patch; onFatto: () => void }) {
 
 export default function Workflows() {
   const [chiave, setChiave] = useState(0);
+  const [apri, setApri] = useState<string | null>(null);
   const reload = () => setChiave((k) => k + 1);
   const wf = useCarica(() => admin.workflows(), [chiave]);
   const pt = useCarica(() => admin.patches("proposta"), [chiave]);
@@ -142,6 +144,20 @@ export default function Workflows() {
                   <span><span className="font-semibold text-slate-800">{w.golden}</span> casi golden</span>
                   {w.confidence_threshold !== null ? (
                     <span className="text-slate-400">soglia confidenza {w.confidence_threshold}</span>
+                  ) : null}
+                </div>
+                <div className="mt-3 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setApri(apri === w.name ? null : w.name)}
+                    className="text-sm font-medium text-sky-700 hover:underline"
+                  >
+                    {apri === w.name ? "▾ chiudi" : "✎ Migliora con un'istruzione"}
+                  </button>
+                  {apri === w.name ? (
+                    <div className="mt-3">
+                      <MiglioraWorkflow workflow={w.name} onFatto={reload} />
+                    </div>
                   ) : null}
                 </div>
               </div>

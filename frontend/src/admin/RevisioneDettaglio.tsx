@@ -4,6 +4,7 @@ import { ErroreApi } from "../shared/api";
 import { admin, type JsonSchema, type VoceEntita } from "./api";
 import CampiSchema from "./CampiSchema";
 import { euro, percento, useCarica } from "./formato";
+import MiglioraWorkflow from "./MiglioraWorkflow";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
 type MetaEdit = {
@@ -65,6 +66,7 @@ export default function RevisioneDettaglio() {
   if (errore || !rev) return <Errore>{errore ?? "Revisione non trovata"}</Errore>;
 
   const dati = rev.entita.dati as Record<string, unknown>;
+  const workflowNome = String(rev.entita.meta?.workflow ?? "").split("@")[0];
   const righe = (Array.isArray(dati.righe) ? dati.righe : []) as Record<string, unknown>[];
   const colonneRighe = righe.length
     ? Object.keys(righe[0]).filter((k) => k !== "voce_computo_id")
@@ -308,6 +310,19 @@ export default function RevisioneDettaglio() {
           )}
         </Card>
       </div>
+
+      {workflowNome ? (
+        <Card titolo="Migliora il workflow">
+          <p className="mb-3 text-sm text-slate-600">
+            Le note “+ nota” sui campi qui sopra spiegano <em>cosa</em> non torna. Qui invece detti
+            una <strong>regola</strong> in italiano: l'Improver la trasforma in una nuova versione
+            della skill di <span className="font-mono">{workflowNome}</span> — con verifica sui casi
+            già validati — che poi approvi nei Workflows. Le note di questo documento vengono incluse
+            in automatico.
+          </p>
+          <MiglioraWorkflow workflow={workflowNome} runId={rev.run_id} />
+        </Card>
+      ) : null}
     </>
   );
 }

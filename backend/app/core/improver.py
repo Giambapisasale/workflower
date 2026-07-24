@@ -151,19 +151,22 @@ class Improver:
     ) -> dict[str, Any]:
         issue = self.dal.leggi_issue(issue_id) if issue_id else None
         run_id = run_id or (issue.run_id if issue else None)
-        if not run_id:
-            raise ImproverError("serve un run (diretto o via segnalazione) da correggere")
-        doc, entita = self._doc_e_entita(run_id, issue)
+        # Un'istruzione libera dell'admin basta da sola: si può migliorare un
+        # workflow anche senza un run "sbagliato" da cui partire (§3.5).
+        if not run_id and not feedback:
+            raise ImproverError("serve un run, una segnalazione o un'istruzione da cui partire")
+        doc, entita = self._doc_e_entita(run_id, issue) if run_id else (None, None)
         note: list[str] = []
         if feedback:
             note.append(feedback)
         if issue:
             note.append(issue.testo)
-        for ev in leggi_eventi(self.data_dir, run_id, {"field_feedback", "operator_feedback"}):
-            if ev.get("evento") == "field_feedback":
-                note.append(f"campo {ev.get('campo')}: {ev.get('nota')}")
-            elif ev.get("tipo") == "segnalazione" and ev.get("testo"):
-                note.append(str(ev["testo"]))
+        if run_id:
+            for ev in leggi_eventi(self.data_dir, run_id, {"field_feedback", "operator_feedback"}):
+                if ev.get("evento") == "field_feedback":
+                    note.append(f"campo {ev.get('campo')}: {ev.get('nota')}")
+                elif ev.get("tipo") == "segnalazione" and ev.get("testo"):
+                    note.append(str(ev["testo"]))
         return {
             "run_id": run_id,
             "doc": doc,
