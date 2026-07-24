@@ -129,6 +129,25 @@ def test_normalizzazione_tool_calls(ambiente_llm: None) -> None:
     assert risposta.tool_calls[0].arguments == {"query": "Edil Sud"}
 
 
+def test_reasoning_effort_none_con_i_tool(ambiente_llm: None) -> None:
+    """Con function tools i modelli reasoning (gpt-5.x) richiedono reasoning_effort='none'."""
+    visti: dict = {}
+
+    def completer(**kw):
+        visti.update(kw)
+        return _finale()
+
+    tools = [{"type": "function", "function": {"name": "ocr_pdf", "parameters": {}}}]
+    Gateway(completer=completer).complete("T1", MESSAGGI, tools=tools)
+    assert visti["reasoning_effort"] == "none"
+    assert visti["tool_choice"] == "auto"
+
+    # Senza tool NON si tocca il reasoning (Improver/giudizio/text-to-SQL restano SOTA).
+    visti.clear()
+    Gateway(completer=completer).complete("T1", MESSAGGI)
+    assert "reasoning_effort" not in visti
+
+
 def test_estrai_json_tollerante() -> None:
     assert estrai_json('{"a": 1}') == {"a": 1}
     assert estrai_json('```json\n{"a": 1}\n```') == {"a": 1}

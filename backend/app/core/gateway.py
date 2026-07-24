@@ -113,6 +113,12 @@ class Gateway:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+            # I modelli "reasoning" (es. OpenAI gpt-5.x) su /v1/chat/completions non
+            # ammettono function tools insieme al reasoning: va disattivato con
+            # reasoning_effort="none" (l'estrazione usa i tool). Per i modelli che
+            # ignorano il parametro è innocuo; se un tier non-reasoning lo rifiuta,
+            # si cambia modello (mai il modello nel codice — ADR-2).
+            kwargs["reasoning_effort"] = "none"
         elif response_schema and self._supporta_response_schema(modello):
             kwargs["response_format"] = {
                 "type": "json_schema",
