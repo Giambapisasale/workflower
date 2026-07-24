@@ -1,0 +1,32 @@
+# Blueprint Render (https://render.com).  New → Blueprint → punta a questo repo.
+# Nota: il disco persistente richiede un piano a pagamento (il free è effimero,
+# perderebbe il repo dati a ogni riavvio). Le chiavi con sync:false si inseriscono
+# nella dashboard dopo il primo deploy.
+services:
+  - type: web
+    name: workflower
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data/repo
+      - key: FRONTEND_DIST
+        value: /app/frontend_dist
+      - key: JWT_SECRET
+        generateValue: true
+      - key: LLM_T1_MODEL
+        value: anthropic/claude-sonnet-5
+      - key: LLM_T2_MODEL
+        value: anthropic/claude-haiku-4-5
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DIAGNOSTICA_AUTO
+        value: "0"

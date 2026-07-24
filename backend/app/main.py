@@ -4,8 +4,9 @@ import threading
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
 from app.core.gateway import Gateway
@@ -32,7 +33,35 @@ def create_app(data_dir: Path | str | None = None, gateway: Gateway | None = Non
     if os.environ.get("DIAGNOSTICA_AUTO", "").strip().lower() in ("1", "true", "on", "si"):
         _avvia_trigger_diagnostica(app)
     app.include_router(api_router, prefix="/api")
+    _monta_frontend(app)
     return app
+
+
+def _monta_frontend(app: FastAPI) -> None:
+    """Serve il frontend buildato (``FRONTEND_DIST``) come SPA, dietro le API.
+
+    In sviluppo/test la variabile è assente: FastAPI resta solo-API (il dev usa
+    il proxy di Vite). In produzione l'immagine imposta ``FRONTEND_DIST`` sulla
+    cartella ``dist``, così un singolo container serve API **e** interfaccia.
+    """
+    dist = os.environ.get("FRONTEND_DIST")
+    if not dist:
+        return
+    radice = Path(dist)
+    index = radice / "index.html"
+    if not index.is_file():
+        return
+    if (radice / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=radice / "assets"), name="assets")
+
+    @app.get("/{percorso:path}", include_in_schema=False)
+    async def spa(percorso: str):  # type: ignore[no-untyped-def]
+        if percorso.startswith("api/"):
+            raise HTTPException(status_code=404, detail="not found")
+        file = radice / percorso
+        if percorso and file.is_file() and file.resolve().is_relative_to(radice.resolve()):
+            return FileResponse(file)
+        return FileResponse(index)  # fallback SPA per le rotte client (/admin, /op…)
 
 
 def _installa_osservabilita(app: FastAPI) -> None:

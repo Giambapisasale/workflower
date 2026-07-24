@@ -1,0 +1,6 @@
+# Reverse proxy verso l'app. Con un dominio in SITE_ADDRESS, Caddy fa da sé il
+# certificato HTTPS (Let's Encrypt). Con :80 resta in HTTP (prova senza dominio).
+{$SITE_ADDRESS} {
+	encode gzip
+	reverse_proxy app:8000
+}

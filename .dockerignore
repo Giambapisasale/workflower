@@ -1,0 +1,18 @@
+# Build context snello: fuori tutto ciò che l'immagine rigenera o non serve.
+.git
+**/__pycache__/
+**/*.py[cod]
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+**/*.egg-info/
+frontend/node_modules/
+frontend/dist/
+data/
+fixtures/
+*.local
+.env
+.env.*
+.vscode/
+.idea/
+.DS_Store
