@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["cantiere_id", "data", "righe"],
   "properties": {
-    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "cantiere_id": { "type": ["string", "null"], "pattern": "^CNT-\\d{3,}$" },
     "data": { "type": "string", "format": "date", "description": "Giorno del rapportino (ISO 8601)" },
     "righe": {
       "type": "array",
@@ -32,6 +32,11 @@
           }
         }
       }
+    },
+    "riferimenti_estratti": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Dati grezzi letti dal documento per i riferimenti non risolti (chiave = nome del campo, es. cantiere_id), per creare l'anagrafica mancante in revisione."
     }
   }
 }

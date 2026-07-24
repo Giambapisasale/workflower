@@ -291,6 +291,14 @@ class FakeCompleter:
             dati["cantiere_id"] = self._miglior_id(messages, "cerca_cantiere")
         self.risposte_finali += 1
         confidence = self.confidence_override or dict.fromkeys(dati, 0.96)
+        # Riferimento non trovato (ricerca vuota → id null): registra i dati grezzi.
+        rif = {}
+        if dati.get("fornitore_id") is None and lettura.get("query_fornitore"):
+            rif["fornitore_id"] = {"ragione_sociale": lettura["query_fornitore"]}
+        if dati.get("cantiere_id") is None and lettura.get("query_cantiere"):
+            rif["cantiere_id"] = {"nome": lettura["query_cantiere"]}
+        if rif:
+            dati["riferimenti_estratti"] = rif
         testo = json.dumps({"dati": dati, "confidence": confidence}, ensure_ascii=False)
         return self._risposta_finale(model, testo)
 
@@ -345,6 +353,15 @@ class FakeCompleter:
             self.totale_errato_restanti -= 1
             dati["totale"] = round(dati["totale"] + 100, 2)
         confidence = self.confidence_override or dict.fromkeys(dati, 0.97)
+        # Riferimento non trovato in anagrafica (ricerca vuota → id null): come la
+        # skill, registra i dati grezzi letti sul documento in `riferimenti_estratti`.
+        rif = {}
+        if dati["fornitore_id"] is None:
+            rif["fornitore_id"] = {"ragione_sociale": campi["fornitore"]}
+        if dati["cantiere_id"] is None:
+            rif["cantiere_id"] = {"nome": campi["cantiere"]}
+        if rif:
+            dati["riferimenti_estratti"] = rif
         testo = json.dumps({"dati": dati, "confidence": confidence}, ensure_ascii=False)
         return self._risposta_finale(model, testo)
 

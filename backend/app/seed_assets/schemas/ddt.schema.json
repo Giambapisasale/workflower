@@ -14,8 +14,8 @@
     "righe"
   ],
   "properties": {
-    "fornitore_id": { "type": "string", "pattern": "^FRN-\\d{3,}$" },
-    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "fornitore_id": { "type": ["string", "null"], "pattern": "^FRN-\\d{3,}$" },
+    "cantiere_id": { "type": ["string", "null"], "pattern": "^CNT-\\d{3,}$" },
     "numero": {
       "type": "string",
       "minLength": 1,
@@ -53,6 +53,11 @@
           }
         }
       }
+    },
+    "riferimenti_estratti": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Dati grezzi letti dal documento per i riferimenti non risolti (chiave = nome del campo, es. fornitore_id), per creare l'anagrafica mancante in revisione."
     }
   }
 }

@@ -11,11 +11,13 @@ quantità, di solito **senza prezzi né IVA**. Non confonderlo con una fattura.
 
 1. Leggi il documento con il tool `ocr_pdf`: ti restituisce le pagine come immagini.
 2. Individua chi spedisce la merce (il mittente / fornitore): usa `cerca_fornitore`
-   con la ragione sociale o la partita IVA che leggi sull'intestazione, scegli il
-   candidato migliore e metti il suo `id` nel campo `fornitore_id`.
+   con la ragione sociale o la partita IVA che leggi sull'intestazione. Se c'è un
+   candidato affidabile (vedi «Riferimenti non risolti»), metti il suo `id` nel
+   campo `fornitore_id`; altrimenti lascialo `null` e compila `riferimenti_estratti`.
 3. Individua il cantiere di destinazione: sui DDT è indicato come "destinazione",
-   "cantiere", "luogo di consegna" o "commessa". Usa `cerca_cantiere` e metti l'`id`
-   del candidato migliore nel campo `cantiere_id`.
+   "cantiere", "luogo di consegna" o "commessa". Usa `cerca_cantiere`; se c'è un
+   candidato affidabile metti il suo `id` in `cantiere_id`, altrimenti lascialo
+   `null` e compila `riferimenti_estratti` (vedi «Riferimenti non risolti»).
 4. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
    senza testo prima o dopo.
 
@@ -32,6 +34,21 @@ quantità, di solito **senza prezzi né IVA**. Non confonderlo con una fattura.
   documento (pz, m3, kg, m…). Metti a `null` ciò che non è indicato.
 - Ogni campo assente sul documento va a `null` esplicito: mai omettere una chiave
   prevista dallo schema.
+
+## Riferimenti non risolti
+
+`cerca_fornitore` e `cerca_cantiere` restituiscono i candidati con un `punteggio`
+(0–1). Se il miglior candidato ha `punteggio` **≥ 0.75**, usa il suo `id`. Se è
+**sotto 0.75** (nessuna corrispondenza affidabile in anagrafica), NON scegliere a
+caso: lascia il campo `*_id` a `null`, dagli `confidence` bassa, e registra i dati
+letti sul documento in `riferimenti_estratti`, con chiave uguale al nome del campo:
+
+- per `fornitore_id`: `{ "ragione_sociale", "partita_iva", "indirizzo", "comune" }`
+- per `cantiere_id`: `{ "nome", "indirizzo", "comune", "committente" }`
+
+Metti solo i campi che leggi davvero sul documento; ometti gli altri. Se tutti i
+riferimenti sono risolti, ometti `riferimenti_estratti` (o mettilo a `null`).
+L'ufficio, in revisione, userà questi dati per creare l'anagrafica mancante.
 
 ## Confidenza
 

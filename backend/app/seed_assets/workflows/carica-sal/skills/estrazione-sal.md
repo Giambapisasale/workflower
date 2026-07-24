@@ -11,8 +11,9 @@ con l'importo progressivo e la percentuale di avanzamento. Non ha un fornitore.
 
 1. Leggi il documento con il tool `ocr_pdf`: ti restituisce le pagine come immagini.
 2. Individua il cantiere: è indicato come "cantiere", "commessa", "opera" o
-   "lavori". Usa `cerca_cantiere` e metti l'`id` del candidato migliore nel campo
-   `cantiere_id`.
+   "lavori". Usa `cerca_cantiere`; se c'è un candidato affidabile (vedi
+   «Riferimenti non risolti») metti il suo `id` in `cantiere_id`, altrimenti
+   lascialo `null` e compila `riferimenti_estratti`.
 3. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
    senza testo prima o dopo.
 
@@ -26,6 +27,20 @@ con l'importo progressivo e la percentuale di avanzamento. Non ha un fornitore.
   (senza il simbolo `%`).
 - Importi: numeri con il punto come separatore decimale, senza `€` e senza
   separatori delle migliaia.
+
+## Riferimenti non risolti
+
+`cerca_cantiere` restituisce i candidati con un `punteggio` (0–1). Se il miglior
+candidato ha `punteggio` **≥ 0.75**, usa il suo `id`. Se è **sotto 0.75** (nessuna
+corrispondenza affidabile in anagrafica), NON scegliere a caso: lascia `cantiere_id`
+a `null`, dagli `confidence` bassa, e registra i dati del cantiere letti sul
+documento in `riferimenti_estratti.cantiere_id`:
+
+- `{ "nome", "indirizzo", "comune", "committente" }`
+
+Metti solo i campi che leggi davvero; ometti gli altri. Se il cantiere è risolto,
+ometti `riferimenti_estratti` (o mettilo a `null`). L'ufficio, in revisione, userà
+questi dati per creare il cantiere mancante.
 
 ## Confidenza
 

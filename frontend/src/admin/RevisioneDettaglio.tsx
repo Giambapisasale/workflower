@@ -4,7 +4,9 @@ import { ErroreApi } from "../shared/api";
 import { admin, type JsonSchema, type VoceEntita } from "./api";
 import CampiSchema from "./CampiSchema";
 import { euro, percento, useCarica } from "./formato";
+import { caricaMetaForm } from "./metaForm";
 import MiglioraWorkflow from "./MiglioraWorkflow";
+import RiferimentiDaCompletare from "./RiferimentiDaCompletare";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
 type MetaEdit = {
@@ -71,7 +73,9 @@ export default function RevisioneDettaglio() {
   const colonneRighe = righe.length
     ? Object.keys(righe[0]).filter((k) => k !== "voce_computo_id")
     : [];
-  const scalari = Object.entries(dati).filter(([k]) => k !== "righe");
+  const scalari = Object.entries(dati).filter(
+    ([k]) => k !== "righe" && k !== "riferimenti_estratti",
+  );
   const noteDi = (campo: string) => rev.feedback.filter((f) => f.campo === campo);
 
   async function valida() {
@@ -121,19 +125,12 @@ export default function RevisioneDettaglio() {
     setAzione("apri-modifica");
     setErroreSalva(null);
     try {
-      const tipi = await admin.entitiesMeta();
-      const mt = tipi.find((t) => t.tipo === rev.tipo);
-      if (!mt) return;
-      const etichette = Object.fromEntries(tipi.map((t) => [t.tipo, t.etichetta]));
-      const tipiRif = [...new Set(Object.values(mt.riferimenti))];
-      const coppie = await Promise.all(
-        tipiRif.map(async (t) => [t, await admin.entitiesLista(t)] as const),
-      );
+      const meta = await caricaMetaForm(rev.tipo);
       setMetaEdit({
-        schema: mt.schema,
-        riferimenti: mt.riferimenti,
-        etichette,
-        opzioni: Object.fromEntries(coppie),
+        schema: meta.schema,
+        riferimenti: meta.riferimenti,
+        etichette: meta.etichette,
+        opzioni: meta.opzioni,
       });
       setFormValore(JSON.parse(JSON.stringify(rev.entita.dati)));
       setModifica(true);
@@ -202,6 +199,10 @@ export default function RevisioneDettaglio() {
           {" — "}
           <Link className="underline" to="/admin/segnalazioni">vai alle segnalazioni</Link>
         </div>
+      ) : null}
+
+      {!modifica && !rev.validato ? (
+        <RiferimentiDaCompletare rev={rev} onRisolto={ricarica} />
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">

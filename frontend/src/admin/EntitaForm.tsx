@@ -3,9 +3,10 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
-import { admin, type VoceEntita } from "./api";
+import { admin } from "./api";
 import CampiSchema from "./CampiSchema";
 import { useCarica } from "./formato";
+import { caricaMetaForm } from "./metaForm";
 import { Bottone, Card, Errore, Stato } from "./ui";
 
 export default function EntitaForm() {
@@ -14,19 +15,11 @@ export default function EntitaForm() {
   const navigate = useNavigate();
 
   const { dati: setup, errore, inCorso } = useCarica(async () => {
-    const tipi = await admin.entitiesMeta();
-    const metaTipo = tipi.find((t) => t.tipo === tipo);
-    if (!metaTipo) throw new ErroreApi("Tipo non gestibile", 404);
-    const etichette = Object.fromEntries(tipi.map((t) => [t.tipo, t.etichetta]));
-    const tipiRif = [...new Set(Object.values(metaTipo.riferimenti))];
-    const coppie = await Promise.all(
-      tipiRif.map(async (t) => [t, await admin.entitiesLista(t)] as const),
-    );
-    const opzioni: Record<string, VoceEntita[]> = Object.fromEntries(coppie);
+    const meta = await caricaMetaForm(tipo);
     // In creazione si parte da un oggetto vuoto: CampiSchema genera comunque
     // tutti i campi dallo schema (non dalle chiavi presenti nel valore).
     const iniziale = id ? (await admin.entitiesGet(tipo, id)).dati : {};
-    return { metaTipo, etichette, opzioni, iniziale };
+    return { ...meta, iniziale };
   }, [tipo, id]);
 
   const [valore, setValore] = useState<Record<string, unknown>>({});

@@ -13,7 +13,7 @@
     "percentuale_avanzamento"
   ],
   "properties": {
-    "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+    "cantiere_id": { "type": ["string", "null"], "pattern": "^CNT-\\d{3,}$" },
     "numero": {
       "type": "string",
       "minLength": 1,
@@ -35,6 +35,11 @@
       "minimum": 0,
       "maximum": 100,
       "description": "Percentuale di avanzamento complessiva (0-100)"
+    },
+    "riferimenti_estratti": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "Dati grezzi letti dal documento per i riferimenti non risolti (chiave = nome del campo, es. cantiere_id), per creare l'anagrafica mancante in revisione."
     }
   }
 }

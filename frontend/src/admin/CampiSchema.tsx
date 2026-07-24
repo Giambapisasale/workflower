@@ -282,6 +282,10 @@ export default function CampiSchema({
     <div className="space-y-4">
       {Object.entries(props).map(([campo, sotto]) => {
         const isArray = tipiDi(sotto).includes("array");
+        // Oggetti freeform (es. `riferimenti_estratti`) non hanno un editor: si
+        // saltano, ma il valore fa comunque round-trip (`imposta` fa spread di
+        // `...valore`), così non si perde al salvataggio.
+        if (!isArray && tipiDi(sotto).includes("object") && !riferimenti[campo]) return null;
         const etichetta = etichettaCampo(campo, riferimenti, etichette);
         if (isArray && (sotto.items?.properties ?? null)) {
           return (
