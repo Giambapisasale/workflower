@@ -1,12 +1,13 @@
 # Blueprint Render (https://render.com).  New → Blueprint → punta a questo repo.
 # Nota: il disco persistente richiede un piano a pagamento (il free è effimero,
-# perderebbe il repo dati a ogni riavvio). Le chiavi con sync:false si inseriscono
-# nella dashboard dopo il primo deploy.
+# perderebbe il repo dati a ogni riavvio). La chiave con sync:false (OPENAI_API_KEY)
+# si inserisce nella dashboard dopo il primo deploy.
 services:
   - type: web
     name: workflower
     runtime: docker
     dockerfilePath: ./Dockerfile
+    region: frankfurt
     plan: starter
     healthCheckPath: /api/health
     disk:
@@ -20,11 +21,14 @@ services:
         value: /app/frontend_dist
       - key: JWT_SECRET
         generateValue: true
+      # Provider: OpenAI. I modelli devono essere vision-capable (l'estrazione
+      # lavora sulle immagini delle pagine). Se il tuo account usa id diversi
+      # (es. openai/gpt-5.2), cambiali qui o nella dashboard.
       - key: LLM_T1_MODEL
-        value: anthropic/claude-sonnet-5
+        value: openai/gpt-4o
       - key: LLM_T2_MODEL
-        value: anthropic/claude-haiku-4-5
-      - key: ANTHROPIC_API_KEY
+        value: openai/gpt-4o-mini
+      - key: OPENAI_API_KEY
         sync: false
       - key: LOG_LEVEL
         value: INFO
