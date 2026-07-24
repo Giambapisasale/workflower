@@ -1,5 +1,5 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
-.PHONY: setup dev dev-api dev-web test seed fixtures demo lint
+.PHONY: setup dev dev-api dev-web test seed fixtures samples demo lint
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -32,9 +32,12 @@ test: ## Test backend (pytest)
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed
 
-fixtures: ## Genera i PDF sintetici in ./fixtures (3 fatture + 1 DDT)
+fixtures: ## Genera i PDF sintetici in ./fixtures (3 fatture + DDT/SAL/rapportino)
 	$(PY) -m app.fixtures
 	$(PY) -m app.fixtures_docs
+
+samples: ## Rigenera i PDF di esempio committati (backend/app/seed_assets/samples)
+	$(PY) -c "from pathlib import Path; from app.fixtures import genera; from app.fixtures_docs import genera as g2; d=Path('backend/app/seed_assets/samples'); genera(d); g2(d)"
 
 demo: ## Prepara la demo: seed (se serve) + fixtures + giro guidato
 	-$(PY) -m app.seed

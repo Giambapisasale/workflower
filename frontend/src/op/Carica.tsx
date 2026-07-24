@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, type DocumentoVista } from "../shared/api";
+import { api, type DocumentoVista, type EsempioDoc, scaricaFile } from "../shared/api";
 import { CardGrazie, PannelloVerdetto, RigheRiepilogo } from "./RiepilogoCard";
 import { useSessione } from "./sessione";
 import { TESTI } from "./testi";
@@ -30,9 +30,11 @@ export default function Carica() {
   const naviga = useNavigate();
   const cantieri = sessione.utente.cantieri;
   const [fase, setFase] = useState<Fase>({ tipo: "scegli" });
+  const [esempi, setEsempi] = useState<EsempioDoc[]>([]);
   const vivo = useRef(true);
   useEffect(() => {
     vivo.current = true;
+    api.esempi().then((e) => vivo.current && setEsempi(e)).catch(() => undefined);
     return () => {
       vivo.current = false;
     };
@@ -91,6 +93,24 @@ export default function Carica() {
           <BottoneFile icona="📁" accept="application/pdf,image/*" onFile={scelto}>
             {TESTI.scegliFile}
           </BottoneFile>
+
+          {esempi.length > 0 ? (
+            <div className="pt-4">
+              <p className="text-[17px] font-bold">{TESTI.scaricaEsempioTitolo}</p>
+              <p className="mb-3 text-neutral-600">{TESTI.scaricaEsempioSotto}</p>
+              <div className="space-y-3">
+                {esempi.map((e) => (
+                  <Bottone
+                    key={e.file}
+                    icona="⬇️"
+                    onClick={() => void scaricaFile(`/samples/${e.file}`, e.file)}
+                  >
+                    {e.titolo}
+                  </Bottone>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

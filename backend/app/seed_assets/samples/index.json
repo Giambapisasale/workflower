@@ -1,0 +1,38 @@
+[
+  {
+    "file": "fattura-calcestruzzi-etna.pdf",
+    "tipo": "fattura",
+    "titolo": "Fattura fornitore",
+    "descrizione": "Fattura di materiali (calcestruzzo), IVA 22%."
+  },
+  {
+    "file": "fattura-edil-sud.pdf",
+    "tipo": "fattura",
+    "titolo": "Fattura fornitore (IVA 10%)",
+    "descrizione": "Fattura di materiali edili."
+  },
+  {
+    "file": "fattura-studio-bianchi.pdf",
+    "tipo": "fattura",
+    "titolo": "Fattura con ritenuta d'acconto",
+    "descrizione": "Parcella con ritenuta in calce: utile per il giro di miglioramento."
+  },
+  {
+    "file": "ddt-edil-sud.pdf",
+    "tipo": "ddt",
+    "titolo": "Bolla di consegna (DDT)",
+    "descrizione": "Merce consegnata in cantiere, con quantità e unità di misura."
+  },
+  {
+    "file": "sal-capannone-etna.pdf",
+    "tipo": "sal",
+    "titolo": "Stato avanzamento lavori (SAL)",
+    "descrizione": "Avanzamento del cantiere e importo dei lavori eseguiti."
+  },
+  {
+    "file": "rapportino-le-palme.pdf",
+    "tipo": "rapportino",
+    "titolo": "Rapportino ore",
+    "descrizione": "Ore dei lavoratori in una giornata di cantiere."
+  }
+]

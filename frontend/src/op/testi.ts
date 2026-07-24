@@ -43,6 +43,8 @@ export const TESTI = {
     "Ci sto mettendo un po' più del solito. Lo trovi tra poco in “I miei documenti”.",
   nonRiesco: "Non riesco a riceverlo adesso. Riprova tra qualche minuto.",
   riprova: "Riprova",
+  scaricaEsempioTitolo: "Non hai un documento? Scarica un esempio",
+  scaricaEsempioSotto: "Scaricalo, poi caricalo qui sopra per provare.",
 
   // (le etichette del riepilogo arrivano dal backend, una per tipo di entità)
 

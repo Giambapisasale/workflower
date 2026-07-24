@@ -44,6 +44,13 @@ export type DocumentoVista = {
 
 export type EsitoUpload = { doc_id?: string; run_id?: string; messaggio?: string };
 
+export type EsempioDoc = {
+  file: string;
+  tipo: string;
+  titolo: string;
+  descrizione: string;
+};
+
 export class ErroreApi extends Error {
   stato: number | undefined;
   constructor(messaggio: string, stato?: number) {
@@ -162,5 +169,9 @@ export const api = {
       "/ask",
       corpoJson({ question: domanda, mode: "op" }),
     ).then((r) => r.risposta);
+  },
+
+  esempi(): Promise<EsempioDoc[]> {
+    return esegui<{ esempi: EsempioDoc[] }>("/samples").then((r) => r.esempi);
   },
 };

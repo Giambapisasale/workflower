@@ -13,6 +13,7 @@ from app.api.issues import router as issues_router
 from app.api.logs import router as logs_router
 from app.api.reports import router as reports_router
 from app.api.review import router as review_router
+from app.api.samples import router as samples_router
 from app.api.toolsmith import router as toolsmith_router
 from app.api.workflows import router as workflows_router
 
@@ -32,3 +33,4 @@ api_router.include_router(dataset_router)
 api_router.include_router(toolsmith_router)
 api_router.include_router(logs_router)
 api_router.include_router(diagnoses_router)
+api_router.include_router(samples_router)
