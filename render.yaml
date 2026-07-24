@@ -22,13 +22,13 @@ services:
         value: /app/frontend_dist
       - key: JWT_SECRET
         generateValue: true
-      # Provider OpenAI: modelli vision-capable (l'estrazione e la classificazione
-      # lavorano sulle immagini delle pagine). Cambiali qui se il tuo account usa
-      # id diversi (es. openai/gpt-5.2).
+      # Provider OpenAI, famiglia gpt-5.6 (vision-capable: l'estrazione e la
+      # classificazione lavorano sulle immagini delle pagine). T1 = "sol" (SOTA),
+      # T2 = "terra" (medio). Cambiali qui se il tuo account usa id diversi.
       - key: LLM_T1_MODEL
-        value: openai/gpt-4o
+        value: openai/gpt-5.6-sol
       - key: LLM_T2_MODEL
-        value: openai/gpt-4o-mini
+        value: openai/gpt-5.6-terra
       - key: OPENAI_API_KEY
         sync: false
       - key: LOG_LEVEL

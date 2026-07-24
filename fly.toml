@@ -1,9 +1,9 @@
 # Deploy su Fly.io (https://fly.io).  Comandi:
 #   fly launch --no-deploy --copy-config   # crea l'app dal questo file
 #   fly volumes create workflower_data --size 1 --region fra
-#   fly secrets set JWT_SECRET=... ANTHROPIC_API_KEY=... \
-#                   LLM_T1_MODEL=anthropic/claude-sonnet-5 \
-#                   LLM_T2_MODEL=anthropic/claude-haiku-4-5
+#   fly secrets set JWT_SECRET=... OPENAI_API_KEY=... \
+#                   LLM_T1_MODEL=openai/gpt-5.6-sol \
+#                   LLM_T2_MODEL=openai/gpt-5.6-terra
 #   fly deploy
 #   fly scale count 1   # UN solo worker/macchina: il volume dati è uno solo
 app = "workflower-demo"

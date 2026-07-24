@@ -52,7 +52,16 @@ Le query ricorrenti diventano candidate al consolidamento in una vista o in un t
 un tocco. L'**Improver** analizza trace e feedback, propone una **patch** al
 workflow (diff della skill/manifest), la **riprova sul golden set** (i run già
 validati, come test di regressione) e — solo dopo l'ok umano — pubblica una nuova
-versione, rielaborando il documento d'origine.
+versione, rielaborando il documento d'origine. L'ufficio può anche **dettare una
+regola in linguaggio naturale** (es. «individua il fornitore dalla partita IVA»)
+da **Revisione** o **Workflows**: diventa una proposta di patch, con la stessa rete
+di sicurezza del replay, da approvare.
+
+**Anagrafica mancante → creala dal documento.** Se un documento cita un fornitore
+o un cantiere non ancora a sistema, l'estrazione lascia il riferimento vuoto e in
+**revisione** compare la proposta di **creare l'anagrafica mancante** — precompilata
+coi dati letti dal documento (ragione sociale, partita IVA…) — oppure di collegarne
+una esistente. È generico: vale per ogni campo-riferimento e ogni tipo di documento.
 
 **Consolidamento in codice deterministico.** Le operazioni ripetute non restano a
 carico dell'LLM per sempre: possono diventare **viste SQL** (`v_*`), **tool
@@ -135,11 +144,13 @@ supportato da litellm.
 - **Dati** — CRUD generico su tutte le entità, guidato dagli schemi.
 - **Scostamenti** — computo ↔ consuntivo, per voce e per cantiere.
 - **Revisione** — coda delle bozze da controllare; confronto con l'originale,
-  feedback sui campi, *valida* (entra nel golden set), *collega al computo*.
+  feedback sui campi, *valida* (entra nel golden set), *collega al computo*,
+  **crea l'anagrafica mancante dal documento** e **istruzioni per migliorare il
+  workflow**.
 - **Segnalazioni** — le note degli operatori; da qui parte l'Improver.
 - **Interroga** — domanda in italiano → SQL generato → tabella.
 - **Workflows** — versioni, manifest, statistiche dei run, patch dell'Improver
-  con il replay sul golden set, *approva/rifiuta*.
+  con il replay sul golden set, *approva/rifiuta*, e **migliora con un'istruzione**.
 - **Skills & Tools** — registry dei tool con contatori d'uso, candidati al
   consolidamento (viste, tool parametrici, funzioni Python) e idoneità T3.
 - **Dataset** — costo per documento, tool call, export `toolcalls.jsonl` e
@@ -302,10 +313,23 @@ comunque lanciare a mano.
   `POST /api/diagnoses/analyze`, `POST /api/diagnoses/{id}/resolve`,
   `POST /api/diagnoses/{id}/archive`.
 
+## Deploy (versione di prova)
+
+Workflower gira come **singolo container** (il backend FastAPI serve anche il
+frontend buildato). Sono pronti tre target — **Render**, **Fly.io**, **VPS con
+Docker Compose** — tutti con lo stesso `Dockerfile`. Vincolo chiave: lo stato è un
+**repo git su disco**, quindi serve un **volume persistente** (niente serverless;
+sul piano Free di Render il filesystem è effimero e si ri-seed a ogni riavvio).
+Guida passo-passo, variabili d'ambiente e note operative (un solo worker, backup
+via `git push`, cambio dei PIN demo, costi LLM) in
+[`docs/deploy.md`](docs/deploy.md).
+
 ## Approfondimenti
 
 - [`analisi-progettazione.md`](analisi-progettazione.md) — architettura, principi e
   decisioni chiave (ADR).
+- [`docs/deploy.md`](docs/deploy.md) — mettere in piedi una versione di prova
+  (Render, Fly.io, VPS).
 - [`piano-implementazione.md`](piano-implementazione.md),
   [`piano-implementazione-fase2.md`](piano-implementazione-fase2.md),
   [`piano-implementazione-fase3.md`](piano-implementazione-fase3.md) — contratti e

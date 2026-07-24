@@ -39,9 +39,9 @@ Variabili d'ambiente (tutte le piattaforme):
 | Variabile | Obbligo | Esempio |
 |---|---|---|
 | `JWT_SECRET` | sì | stringa casuale |
-| `LLM_T1_MODEL` | sì | `anthropic/claude-sonnet-5` |
-| `LLM_T2_MODEL` | sì | `anthropic/claude-haiku-4-5` |
-| `ANTHROPIC_API_KEY` (o `OPENAI_API_KEY`/`GEMINI_API_KEY`) | sì | … |
+| `LLM_T1_MODEL` | sì | `openai/gpt-5.6-sol` |
+| `LLM_T2_MODEL` | sì | `openai/gpt-5.6-terra` |
+| `OPENAI_API_KEY` (o `ANTHROPIC_API_KEY`/`GEMINI_API_KEY`) | sì | … |
 | `DATA_DIR` | sì | `/data/repo` |
 | `FRONTEND_DIST` | sì (immagine) | `/app/frontend_dist` |
 | `LOG_LEVEL` | no | `INFO` |
@@ -75,8 +75,8 @@ sopravvivono allo sleep/redeploy — ottimo per una prova).
 1. Su Render: **New → Blueprint**, punta al repo (branch `main`): legge
    `render.yaml` e crea il servizio Docker `workflower`.
 2. Ti chiede il valore di **`OPENAI_API_KEY`** (unico segreto; `JWT_SECRET` è
-   generato in automatico). I modelli sono `openai/gpt-4o` (T1) e
-   `openai/gpt-4o-mini` (T2) — cambiali se il tuo account usa altri id.
+   generato in automatico). I modelli sono `openai/gpt-5.6-sol` (T1) e
+   `openai/gpt-5.6-terra` (T2) — cambiali se il tuo account usa altri id.
 3. **Apply** → build dell'immagine → deploy. Health check su `/api/health`.
    URL pubblico fornito da Render.
 4. **Per conservare i dati**: sali a un piano a pagamento e aggiungi un disco su
@@ -92,9 +92,9 @@ sopravvivono allo sleep/redeploy — ottimo per una prova).
 fly launch --no-deploy --copy-config           # crea l'app da fly.toml
 fly volumes create workflower_data --size 1 --region fra
 fly secrets set JWT_SECRET=$(openssl rand -hex 32) \
-                ANTHROPIC_API_KEY=... \
-                LLM_T1_MODEL=anthropic/claude-sonnet-5 \
-                LLM_T2_MODEL=anthropic/claude-haiku-4-5
+                OPENAI_API_KEY=... \
+                LLM_T1_MODEL=openai/gpt-5.6-sol \
+                LLM_T2_MODEL=openai/gpt-5.6-terra
 fly deploy
 fly scale count 1                              # una sola macchina (un volume)
 ```
@@ -116,7 +116,7 @@ Fly gestisce HTTPS in automatico sul dominio `*.fly.dev`.
 ```bash
 docker build -t workflower .
 docker run --rm -p 8000:8000 \
-  -e JWT_SECRET=dev -e LLM_T1_MODEL=... -e LLM_T2_MODEL=... -e ANTHROPIC_API_KEY=... \
+  -e JWT_SECRET=dev -e LLM_T1_MODEL=openai/gpt-5.6-sol -e LLM_T2_MODEL=openai/gpt-5.6-terra -e OPENAI_API_KEY=... \
   -v workflower-data:/data workflower
 # → http://localhost:8000
 ```
