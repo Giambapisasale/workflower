@@ -8,11 +8,19 @@
   "properties": {
     "descrizione": { "type": "string", "minLength": 1 },
     "data_scadenza": { "type": "string", "format": "date", "description": "AAAA-MM-GG" },
-    "tipo": { "type": ["string", "null"], "description": "es. permesso, pagamento, adempimento" },
+    "tipo": {
+      "type": ["string", "null"],
+      "description": "es. permesso, pagamento, adempimento, assicurazione, revisione, collaudo, bollo"
+    },
     "cantiere_id": {
       "type": ["string", "null"],
       "pattern": "^CNT-\\d{3,}$",
-      "description": "Cantiere a cui la scadenza si riferisce"
+      "description": "Cantiere a cui la scadenza si riferisce (in alternativa a un mezzo)"
+    },
+    "mezzo_id": {
+      "type": ["string", "null"],
+      "pattern": "^MEZ-\\d{3,}$",
+      "description": "Mezzo a cui la scadenza si riferisce (assicurazione, revisione, collaudo…)"
     },
     "stato": {
       "type": ["string", "null"],

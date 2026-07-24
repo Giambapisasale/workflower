@@ -88,6 +88,7 @@ def test_campi_riferimento_ancora_rilevati() -> None:
     assert _campi_riferimento(_schema("fattura")) == {
         "fornitore_id": "fornitore",
         "cantiere_id": "cantiere",
+        "mezzo_id": "mezzo",  # tag di costo sulle righe (annidato nell'array)
     }
     assert _campi_riferimento(_schema("sal")) == {"cantiere_id": "cantiere"}
     # il sidecar (oggetto senza pattern) NON è scambiato per un riferimento

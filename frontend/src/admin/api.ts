@@ -37,6 +37,19 @@ export type Attivita = {
   n_sal: number;
   ore_totali: number;
   costo_manodopera: number;
+  costo_mezzi: number;
+};
+
+export type ScadenzaImminente = {
+  id: string;
+  descrizione: string;
+  data_scadenza: string;
+  tipo: string | null;
+  cantiere_id: string | null;
+  cantiere: string | null;
+  mezzo_id: string | null;
+  mezzo: string | null;
+  giorni: number;
 };
 
 export type Cruscotto = {
@@ -44,6 +57,7 @@ export type Cruscotto = {
   attivita: Attivita;
   per_cantiere: CostoCantiere[];
   per_fornitore: CostoFornitore[];
+  scadenze: ScadenzaImminente[];
 };
 
 export type RegistroTotali = {
@@ -53,6 +67,7 @@ export type RegistroTotali = {
   quota_budget: number | null;
   ore_totali: number;
   costo_manodopera: number;
+  costo_mezzi: number | null;
   giornate: number;
   avanzamento: number | null;
   scostamento: { previsto: number; consuntivo_abbinato: number; delta: number } | null;

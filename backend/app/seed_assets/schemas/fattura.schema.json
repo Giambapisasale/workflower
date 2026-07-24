@@ -49,6 +49,16 @@
           "voce_computo_id": {
             "type": ["string", "null"],
             "description": "Riferimento alla voce di computo, se abbinata"
+          },
+          "mezzo_id": {
+            "type": ["string", "null"],
+            "pattern": "^MEZ-\\d{3,}$",
+            "description": "Mezzo a cui imputare questo costo (gasolio, noleggio, manutenzione…), se pertinente"
+          },
+          "tipo_costo": {
+            "type": ["string", "null"],
+            "enum": ["noleggio", "carburante", "manutenzione", "assicurazione", "bollo", "altro", null],
+            "description": "Natura del costo del mezzo, per la scomposizione del costo pieno (TCO)"
           }
         }
       }

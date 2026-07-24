@@ -74,7 +74,7 @@ FROM read_json(
             imponibile DOUBLE, iva DOUBLE, totale DOUBLE, ritenuta_acconto DOUBLE,
             righe STRUCT(
                 descrizione VARCHAR, quantita DOUBLE, unita_misura VARCHAR,
-                importo DOUBLE, voce_computo_id VARCHAR
+                importo DOUBLE, voce_computo_id VARCHAR, mezzo_id VARCHAR, tipo_costo VARCHAR
             )[]
         )',
         meta: 'STRUCT(workflow VARCHAR, validato_da VARCHAR)'
@@ -96,7 +96,7 @@ FROM read_json(
             numero VARCHAR, data DATE, fornitore_id VARCHAR, cantiere_id VARCHAR,
             righe STRUCT(
                 descrizione VARCHAR, quantita DOUBLE, unita_misura VARCHAR,
-                importo DOUBLE, voce_computo_id VARCHAR
+                importo DOUBLE, voce_computo_id VARCHAR, mezzo_id VARCHAR, tipo_costo VARCHAR
             )[]
         )'
     }
@@ -297,19 +297,53 @@ FROM read_json(
 CREATE OR REPLACE VIEW v_mezzi AS
 SELECT id,
        stato,
-       dati.targa        AS targa,
-       dati.tipo         AS tipo,
-       dati.descrizione  AS descrizione,
-       dati.costo_orario AS costo_orario,
-       dati.proprieta    AS proprieta
+       dati.descrizione           AS descrizione,
+       dati.tipo                  AS tipo,
+       dati.targa                 AS targa,
+       dati.matricola             AS matricola,
+       dati.anno                  AS anno,
+       dati.proprieta             AS proprieta,
+       dati.costo_orario          AS costo_orario,
+       dati.fornitore_noleggio_id AS fornitore_noleggio_id,
+       dati.canone                AS canone,
+       dati.unita_canone          AS unita_canone,
+       dati.valore_acquisto       AS valore_acquisto,
+       dati.vita_utile_anni       AS vita_utile_anni,
+       dati.costi_fissi_annui     AS costi_fissi_annui,
+       dati.ore_annue_stimate     AS ore_annue_stimate
 FROM read_json(
     '${DATA_DIR}/entities/mezzi/*.json',
     columns = {
         id: 'VARCHAR',
         stato: 'VARCHAR',
         dati: 'STRUCT(
-            targa VARCHAR, tipo VARCHAR, descrizione VARCHAR,
-            costo_orario DOUBLE, proprieta VARCHAR
+            descrizione VARCHAR, tipo VARCHAR, targa VARCHAR, matricola VARCHAR,
+            anno BIGINT, proprieta VARCHAR, costo_orario DOUBLE,
+            fornitore_noleggio_id VARCHAR, canone DOUBLE, unita_canone VARCHAR,
+            valore_acquisto DOUBLE, vita_utile_anni DOUBLE,
+            costi_fissi_annui DOUBLE, ore_annue_stimate DOUBLE
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_manutenzioni AS
+SELECT id,
+       stato,
+       dati.mezzo_id     AS mezzo_id,
+       dati.data         AS data,
+       dati.tipo         AS tipo,
+       dati.descrizione  AS descrizione,
+       dati.costo        AS costo,
+       dati.fornitore_id AS fornitore_id,
+       dati.contaore     AS contaore
+FROM read_json(
+    '${DATA_DIR}/entities/manutenzioni/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            mezzo_id VARCHAR, data DATE, tipo VARCHAR, descrizione VARCHAR,
+            costo DOUBLE, fornitore_id VARCHAR, contaore DOUBLE
         )'
     }
 );
@@ -339,6 +373,7 @@ SELECT id,
        dati.data_scadenza AS data_scadenza,
        dati.tipo          AS tipo,
        dati.cantiere_id   AS cantiere_id,
+       dati.mezzo_id      AS mezzo_id,
        dati.stato         AS stato_adempimento
 FROM read_json(
     '${DATA_DIR}/entities/scadenze/*.json',
@@ -347,7 +382,7 @@ FROM read_json(
         stato: 'VARCHAR',
         dati: 'STRUCT(
             descrizione VARCHAR, data_scadenza DATE, tipo VARCHAR,
-            cantiere_id VARCHAR, stato VARCHAR
+            cantiere_id VARCHAR, mezzo_id VARCHAR, stato VARCHAR
         )'
     }
 );
@@ -510,3 +545,42 @@ SELECT cantiere_id,
        SUM(consuntivo) - SUM(previsto) AS delta
 FROM v_scostamento_voci
 GROUP BY cantiere_id;
+
+-- Costi mezzi: le righe fattura taggate a un mezzo, per mezzo/cantiere/natura.
+-- Stesso pattern del sub-SELECT dello scostamento (righe fattura → voce di computo).
+CREATE OR REPLACE VIEW v_mezzi_costi AS
+SELECT mezzo_id,
+       cantiere_id,
+       tipo_costo,
+       SUM(importo) AS costo,
+       COUNT(*)     AS n_righe
+FROM v_fatture_righe
+WHERE mezzo_id IS NOT NULL
+GROUP BY mezzo_id, cantiere_id, tipo_costo;
+
+-- Costo pieno / TCO per mezzo: componenti derivati dall'anagrafica (ammortamento +
+-- fissi → costo orario pieno per i propri) e costi documentali (fatture taggate +
+-- manutenzioni). Non un numero unico: espone le componenti, oneste.
+CREATE OR REPLACE VIEW v_mezzi_tco AS
+SELECT m.id                                             AS mezzo_id,
+       m.descrizione                                    AS descrizione,
+       m.proprieta                                      AS proprieta,
+       m.valore_acquisto / NULLIF(m.vita_utile_anni, 0) AS ammortamento_annuo,
+       COALESCE(m.valore_acquisto / NULLIF(m.vita_utile_anni, 0), 0)
+           + COALESCE(m.costi_fissi_annui, 0)           AS costo_fisso_annuo,
+       (COALESCE(m.valore_acquisto / NULLIF(m.vita_utile_anni, 0), 0)
+           + COALESCE(m.costi_fissi_annui, 0)) / NULLIF(m.ore_annue_stimate, 0)
+                                                        AS costo_orario_pieno,
+       COALESCE(fc.costo_fatture, 0)                    AS costo_fatture,
+       COALESCE(mc.costo_manutenzioni, 0)               AS costo_manutenzioni,
+       COALESCE(fc.costo_fatture, 0) + COALESCE(mc.costo_manutenzioni, 0)
+                                                        AS costo_documentale
+FROM v_mezzi m
+LEFT JOIN (
+    SELECT mezzo_id, SUM(costo) AS costo_fatture
+    FROM v_mezzi_costi GROUP BY mezzo_id
+) fc ON fc.mezzo_id = m.id
+LEFT JOIN (
+    SELECT mezzo_id, SUM(costo) AS costo_manutenzioni
+    FROM v_manutenzioni GROUP BY mezzo_id
+) mc ON mc.mezzo_id = m.id;

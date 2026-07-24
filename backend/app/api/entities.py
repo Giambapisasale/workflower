@@ -99,11 +99,14 @@ def _referenti(dal: DAL, tipo: str, entity_id: str) -> list[str]:
         if not campi and not controlla_voci:
             continue
         for entita in dal.list_all(altro):
+            righe = entita.dati.get("righe") or []
             per_campo = any(entita.dati.get(c) == entity_id for c in campi)
+            # riferimento annidato nelle righe (es. ``mezzo_id`` su una riga fattura)
+            per_riga = any(r.get(c) == entity_id for r in righe for c in campi)
             per_voce = controlla_voci and any(
-                r.get("voce_computo_id") in voci for r in (entita.dati.get("righe") or [])
+                r.get("voce_computo_id") in voci for r in righe
             )
-            if per_campo or per_voce:
+            if per_campo or per_riga or per_voce:
                 referenti.append(entita.id)
     return referenti
 
@@ -139,6 +142,8 @@ def _titolo(tipo: str, dati: dict[str, Any]) -> str | None:
         "cantiere": "nome",
         "fornitore": "ragione_sociale",
         "dipendente": "cognome",
+        "mezzo": "descrizione",
+        "manutenzione": "descrizione",
         "computo": "descrizione",
         "fattura": "numero",
         "ddt": "numero",

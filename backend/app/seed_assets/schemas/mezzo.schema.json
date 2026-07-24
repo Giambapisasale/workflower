@@ -1,19 +1,62 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Mezzo",
-  "description": "Anagrafica di un mezzo o attrezzatura di cantiere",
+  "description": "Anagrafica di un mezzo o attrezzatura di cantiere, come asset: identità, regime (proprio/noleggio) e i dati per il costo pieno.",
   "type": "object",
   "additionalProperties": false,
   "required": ["descrizione"],
   "properties": {
-    "targa": { "type": ["string", "null"], "description": "Targa o matricola, se presente" },
-    "tipo": { "type": ["string", "null"], "description": "es. escavatore, autocarro, gru" },
     "descrizione": { "type": "string", "minLength": 1 },
-    "costo_orario": { "type": ["number", "null"], "description": "Costo orario di riferimento in euro" },
+    "tipo": { "type": ["string", "null"], "description": "es. escavatore, autocarro, gru" },
+    "targa": { "type": ["string", "null"], "description": "Targa, se circolante su strada" },
+    "matricola": { "type": ["string", "null"], "description": "Matricola o numero di telaio" },
+    "anno": { "type": ["integer", "null"], "description": "Anno di immatricolazione/acquisto" },
     "proprieta": {
       "type": ["string", "null"],
       "enum": ["proprio", "noleggio", null],
       "description": "Mezzo di proprietà o a noleggio"
+    },
+    "costo_orario": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Tariffa oraria di riferimento facoltativa (override); di norma il costo si deriva dai campi sotto"
+    },
+
+    "fornitore_noleggio_id": {
+      "type": ["string", "null"],
+      "pattern": "^FRN-\\d{3,}$",
+      "description": "Fornitore noleggiatore, per i mezzi a noleggio"
+    },
+    "canone": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Canone di noleggio in euro, riferito all'unità sotto"
+    },
+    "unita_canone": {
+      "type": ["string", "null"],
+      "enum": ["ora", "giorno", "settimana", "mese", null],
+      "description": "Unità del canone di noleggio"
+    },
+
+    "valore_acquisto": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Valore d'acquisto in euro, per l'ammortamento (mezzi propri)"
+    },
+    "vita_utile_anni": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0,
+      "description": "Anni di vita utile per l'ammortamento (mezzi propri)"
+    },
+    "costi_fissi_annui": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Costi fissi annui in euro: assicurazione, bollo, revisione, rimessaggio (mezzi propri)"
+    },
+    "ore_annue_stimate": {
+      "type": ["number", "null"],
+      "exclusiveMinimum": 0,
+      "description": "Ore di impiego stimate all'anno, per ripartire i costi fissi sul costo orario (mezzi propri)"
     }
   }
 }
