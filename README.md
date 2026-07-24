@@ -146,6 +146,8 @@ supportato da litellm.
   `finetuning.jsonl`, query ricorrenti.
 - **Log** — la diagnostica: eventi di tutte le fasi, errori in evidenza, livello
   configurabile a runtime (vedi sotto).
+- **Diagnosi** — l'analisi automatica degli errori con proposta di risoluzione
+  (vedi sotto).
 
 ## Il giro della demo (≈ 10 minuti)
 
@@ -213,9 +215,10 @@ pytest -k ritenuta                           # per parola chiave
 ```
 
 La suite copre ogni livello: unità (DAL, gateway, runtime, regole, viste, sandbox,
-classificatore, logbook), API (documenti, revisione, entità, cruscotto, registro,
-report, Toolsmith, harness T3, log) ed **end-to-end** (ciclo Improver,
-consolidamento dei tool, escalation T3→T1). C'è inoltre un **pacchetto di
+classificatore, logbook, diagnostico e lettura del proprio codice), API (documenti,
+revisione, entità, cruscotto, registro, report, Toolsmith, harness T3, log,
+diagnosi) ed **end-to-end** (ciclo Improver, consolidamento dei tool, escalation
+T3→T1). C'è inoltre un **pacchetto di
 simulazione** che ricostruisce un mese di attività reale — 10 cantieri, 100
 dipendenti, rapportini/DDT/fatture/SAL/pozzetti/cronoprogrammi — e verifica che
 cruscotto, registri, scostamenti, report Excel e permessi restino coerenti a quella
@@ -267,6 +270,37 @@ in un unico flusso interrogabile.
   il `run_id` che rimanda al trace, auto-aggiornamento e scarico del file del giorno.
 - **API** (solo admin) — `GET /api/logs`, `GET /api/logs/stats`,
   `GET|PUT /api/logs/config`, `GET /api/logs/export`.
+
+### Diagnosi automatica degli errori
+
+L'ultimo tassello: quando compaiono errori, un **trigger** avvia il **Diagnostico**,
+che ne analizza la causa e **propone una risoluzione**. Per capire *dove* sta il
+problema, il sistema **legge il proprio codice sorgente**: ogni errore porta con
+sé il **traceback**, da cui si risale ai file e alle righe esatte del package
+`app` (letti in sola lettura, confinati all'albero dell'applicazione). Poi
+classifica:
+
+- **`dato`** — la correzione sta in un *dato modificabile* (una **skill**, un
+  **tool**, uno **schema**, un **manifest**, una **config**): propone la modifica,
+  e per le skill di estrazione rimanda all'**Improver** (che riprova sul golden
+  set prima di pubblicare).
+- **`architettura`** — la correzione richiede di toccare il **codice-cornice**
+  (`backend/app/**.py`): **sola analisi** con la modifica raccomandata, mai
+  applicata in automatico.
+
+Niente si applica da solo: ogni diagnosi è una **proposta** ispezionabile in
+`data/diagnoses/` (analisi, causa radice, proposta, codice letto, traceback,
+occorrenze), in attesa di una decisione umana. Le firme d'errore già viste non
+ripartono: se ne aggiorna solo il conteggio. Il trigger automatico è **opt-in**
+(`DIAGNOSTICA_AUTO=1`, perché ogni analisi è una chiamata LLM); l'analisi si può
+comunque lanciare a mano.
+
+- **Interfaccia** — Admin → **Diagnosi**: badge di categoria, proposta in
+  evidenza, azione suggerita (con scorciatoia all'Improver), file coinvolti,
+  codice letto e traceback espandibili; *Segna risolta* / *Archivia*.
+- **API** (solo admin) — `GET /api/diagnoses`, `GET /api/diagnoses/{id}`,
+  `POST /api/diagnoses/analyze`, `POST /api/diagnoses/{id}/resolve`,
+  `POST /api/diagnoses/{id}/archive`.
 
 ## Approfondimenti
 

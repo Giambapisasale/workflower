@@ -523,6 +523,46 @@ class DAL:
             for p in sorted(cartella.glob("PATCH-*.json"))
         ]
 
+    def salva_diagnosi(self, diagnosi: dict[str, Any]) -> dict[str, Any]:
+        """Registra una diagnosi del Diagnostico (id progressivo DIAG-nnnn).
+
+        Gemella di :meth:`salva_patch`: la diagnosi è dato ispezionabile in
+        ``data/diagnoses/`` (analisi + proposta di risoluzione), in attesa di una
+        decisione umana. **Non** applica nulla: è una proposta, non un'azione.
+        """
+        with self._write_lock:
+            cartella = self.data_dir / "diagnoses"
+            cartella.mkdir(parents=True, exist_ok=True)
+            diagnosi = {**diagnosi, "id": self._prossimo_id_progressivo(cartella, "DIAG")}
+            did = diagnosi["id"]
+            self._committa_json(
+                cartella / f"{did}.json", diagnosi, f"diagnosi {did}: apre [{did}]"
+            )
+        return diagnosi
+
+    def aggiorna_diagnosi(self, diagnosi: dict[str, Any], azione: str) -> dict[str, Any]:
+        with self._write_lock:
+            percorso = self.data_dir / "diagnoses" / f"{diagnosi['id']}.json"
+            if not percorso.is_file():
+                raise NotFoundError(f"diagnosi {diagnosi['id']} non trovata")
+            self._committa_json(
+                percorso, diagnosi, f"diagnosi {diagnosi['id']}: {azione} [{diagnosi['id']}]"
+            )
+        return diagnosi
+
+    def leggi_diagnosi(self, diagnosi_id: str) -> dict[str, Any]:
+        percorso = self.data_dir / "diagnoses" / f"{diagnosi_id}.json"
+        if not percorso.is_file():
+            raise NotFoundError(f"diagnosi {diagnosi_id} non trovata")
+        return json.loads(percorso.read_text(encoding="utf-8"))
+
+    def list_diagnosi(self) -> list[dict[str, Any]]:
+        cartella = self.data_dir / "diagnoses"
+        return [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted(cartella.glob("DIAG-*.json"))
+        ]
+
     def salva_proposta(self, proposta: dict[str, Any]) -> dict[str, Any]:
         """Registra una proposta di tool Python del Toolsmith (PROP-nnnn).
 

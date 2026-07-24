@@ -1,0 +1,34 @@
+# Deploy su Fly.io (https://fly.io).  Comandi:
+#   fly launch --no-deploy --copy-config   # crea l'app dal questo file
+#   fly volumes create workflower_data --size 1 --region fra
+#   fly secrets set JWT_SECRET=... ANTHROPIC_API_KEY=... \
+#                   LLM_T1_MODEL=anthropic/claude-sonnet-5 \
+#                   LLM_T2_MODEL=anthropic/claude-haiku-4-5
+#   fly deploy
+#   fly scale count 1   # UN solo worker/macchina: il volume dati è uno solo
+app = "workflower-demo"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DATA_DIR = "/data/repo"
+  FRONTEND_DIST = "/app/frontend_dist"
+  LOG_LEVEL = "INFO"
+  DIAGNOSTICA_AUTO = "0"
+
+[[mounts]]
+  source = "workflower_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

@@ -13,11 +13,14 @@ così sopravvive ai riavvii. Nessun modello o segreto finisce nei log: le
 stringhe lunghe sono troncate come nel trace.
 """
 
+import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import traceback
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -39,6 +42,7 @@ FASI: tuple[str, ...] = (
     "interroga",
     "dataset",
     "improver",
+    "diagnostico",
     "auth",
     "seed",
 )
@@ -59,6 +63,11 @@ _lock = threading.Lock()
 # app). L'handler la legge a ogni emit, così i test che ricreano l'app puntano
 # sempre al loro repo temporaneo senza dover ricreare l'handler.
 _data_dir: Path | None = None
+
+# Osservatori di errore: callback invocati (best-effort) a ogni evento ERROR+.
+# È l'aggancio del trigger di diagnostica, iniettato dall'app: la logbook resta
+# senza dipendenze verso gateway/dal.
+_osservatori: list[Callable[[dict[str, Any]], None]] = []
 
 
 def _adesso() -> datetime:
@@ -100,12 +109,15 @@ class _JsonlHandler(logging.Handler):
             if data_dir is None:
                 return
             quando = datetime.fromtimestamp(record.created, tz=UTC)
-            riga = json.dumps(_record_a_dict(record, quando), ensure_ascii=False, default=str)
+            voce = _record_a_dict(record, quando)
+            riga = json.dumps(voce, ensure_ascii=False, default=str)
             percorso = _file_del_giorno(data_dir, quando)
             with _lock:
                 percorso.parent.mkdir(parents=True, exist_ok=True)
                 with percorso.open("a", encoding="utf-8") as file:
                     file.write(riga + "\n")
+            if record.levelno >= logging.ERROR:
+                _notifica_errore(voce)
         except Exception:  # pragma: no cover - il logger non deve mai rompere il flusso
             self.handleError(record)
 
@@ -126,7 +138,80 @@ def _record_a_dict(record: logging.LogRecord, quando: datetime) -> dict[str, Any
             voce[campo] = _tronca(valore)
     if record.exc_info:
         voce["eccezione"] = "".join(traceback.format_exception(*record.exc_info)).rstrip()
+    if record.levelno >= logging.ERROR:
+        voce["firma"] = firma(voce)
     return voce
+
+
+# Normalizzazioni per collassare errori "uguali": numeri, id di run/entità,
+# stringhe fra virgolette e percorsi diventano segnaposto stabili.
+_NORM = (
+    (re.compile(r"\S*/\S+"), "PATH"),  # percorsi (blobs/a.pdf, data/…)
+    (re.compile(r"\b[\w-]+\.[a-zA-Z]{2,5}\b"), "FILE"),  # nomi file con estensione
+    (re.compile(r"run-[0-9a-f]+"), "run-#"),
+    (re.compile(r"\b[A-Z]{2,4}-\d+\b"), "ID-#"),
+    (re.compile(r"0x[0-9a-fA-F]+"), "0x#"),
+    (re.compile(r"\d+"), "#"),
+    (re.compile(r"'[^']*'"), "'…'"),
+    (re.compile(r'"[^"]*"'), '"…"'),
+    (re.compile(r"\s+"), " "),
+)
+
+
+def _normalizza_messaggio(messaggio: str) -> str:
+    testo = messaggio
+    for pattern, sost in _NORM:
+        testo = pattern.sub(sost, testo)
+    return testo.strip().lower()
+
+
+def _tipo_e_frame(eccezione: str | None) -> tuple[str, str]:
+    """Tipo dell'eccezione e ultimo frame nel package ``app`` (file:funzione)."""
+    if not eccezione:
+        return "", ""
+    righe = [r for r in eccezione.splitlines() if r.strip()]
+    tipo = ""
+    if righe:
+        ultima = righe[-1]
+        tipo = ultima.split(":", 1)[0].strip() if ":" in ultima else ultima.strip()
+    frame = ""
+    for r in righe:
+        m = re.search(r'File "([^"]*app[^"]+)", line \d+, in (\S+)', r)
+        if m:
+            frame = f"{Path(m.group(1)).name}:{m.group(2)}"
+    return tipo, frame
+
+
+def firma(voce: dict[str, Any]) -> str:
+    """Firma stabile di un errore: stessa firma = stesso problema ricorrente."""
+    tipo, frame = _tipo_e_frame(voce.get("eccezione") if isinstance(voce, dict) else None)
+    base = "|".join(
+        [
+            str(voce.get("fase", "")),
+            tipo,
+            frame,
+            _normalizza_messaggio(str(voce.get("messaggio", ""))),
+        ]
+    )
+    return hashlib.sha1(base.encode("utf-8")).hexdigest()[:16]
+
+
+def registra_osservatore(callback: Callable[[dict[str, Any]], None]) -> None:
+    """Aggancia un callback agli eventi ERROR+ (il trigger di diagnostica)."""
+    if callback not in _osservatori:
+        _osservatori.append(callback)
+
+
+def rimuovi_osservatori() -> None:
+    _osservatori.clear()
+
+
+def _notifica_errore(voce: dict[str, Any]) -> None:
+    for callback in list(_osservatori):
+        try:
+            callback(voce)
+        except Exception:  # un osservatore non deve mai rompere il logging
+            continue
 
 
 def ottieni_logger(fase: str) -> logging.Logger:

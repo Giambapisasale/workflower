@@ -212,6 +212,42 @@ export type FiltroLog = {
   limite?: number;
 };
 
+export type AzioneSuggerita = {
+  tipo: "improver" | "modifica_dato" | "nessuna" | string;
+  workflow: string | null;
+  dettaglio: string;
+};
+
+export type SorgenteLetta = { file: string; lineno?: number; estratto: string };
+
+export type Diagnosi = {
+  id: string;
+  firma: string;
+  stato: "proposta" | "risolta" | "archiviata";
+  deciso_da: string | null;
+  fase: string | null;
+  livello: string | null;
+  messaggio: string | null;
+  run_id: string | null;
+  workflow: string | null;
+  documento: string | null;
+  n_occorrenze: number;
+  prima_occorrenza: string | null;
+  ultima_occorrenza: string | null;
+  categoria: "dato" | "architettura";
+  titolo: string;
+  analisi: string;
+  causa_radice: string;
+  proposta: string;
+  azione_suggerita: AzioneSuggerita;
+  file_coinvolti: string[];
+  confidenza: number;
+  eccezione?: string | null;
+  campione?: VoceLog[];
+  sorgenti_lette: SorgenteLetta[];
+  creato: string | null;
+};
+
 export type GruppoQuery = {
   fingerprint: string;
   conteggio: number;
@@ -434,6 +470,26 @@ export const admin = {
     richiesta<ConfigLog>("/logs/config", metodoJson("PUT", { livello })),
 
   scaricaLog: () => scaricaFile("/logs/export", "log-oggi.jsonl"),
+
+  // Diagnosi: analisi automatica degli errori con proposta di risoluzione.
+  diagnosi: (stato?: string) =>
+    richiesta<{ diagnosi: Diagnosi[] }>(`/diagnoses${stato ? `?stato=${stato}` : ""}`).then(
+      (r) => r.diagnosi,
+    ),
+
+  diagnosiDettaglio: (id: string) => richiesta<Diagnosi>(`/diagnoses/${id}`),
+
+  analizzaErrori: (giorni = 1) =>
+    richiesta<{ analizzate: number; diagnosi: Diagnosi[] }>(
+      "/diagnoses/analyze",
+      metodoJson("POST", { giorni }),
+    ),
+
+  risolviDiagnosi: (id: string) =>
+    richiesta<Diagnosi>(`/diagnoses/${id}/resolve`, metodoJson("POST")),
+
+  archiviaDiagnosi: (id: string) =>
+    richiesta<Diagnosi>(`/diagnoses/${id}/archive`, metodoJson("POST")),
 
   // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
   entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),

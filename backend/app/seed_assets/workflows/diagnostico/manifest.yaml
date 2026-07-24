@@ -1,0 +1,8 @@
+# Meta-workflow Diagnostico: all'arrivo di errori nel logbook analizza la causa
+# e propone una risoluzione. I prompt sono dati (skills/*.md), mai hard-coded.
+# Non è un workflow d'ingresso (niente blocco `ingest`) e non ha `steps`: è
+# invocato dal core/diagnostico.py, come l'Improver.
+name: diagnostico
+version: "1.0"
+tier: T1
+skill: skills/analisi-log.md

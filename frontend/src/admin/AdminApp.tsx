@@ -13,6 +13,7 @@ import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
 import Dataset from "./Dataset";
 import Dati from "./Dati";
+import Diagnosi from "./Diagnosi";
 import EntitaForm from "./EntitaForm";
 import EntitaLista from "./EntitaLista";
 import Interroga from "./Interroga";
@@ -36,6 +37,7 @@ const VOCI = [
   { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
   { a: "/admin/dataset", etichetta: "Dataset", fine: false },
   { a: "/admin/log", etichetta: "Log", fine: false },
+  { a: "/admin/diagnosi", etichetta: "Diagnosi", fine: false },
 ];
 
 export default function AdminApp() {
@@ -114,6 +116,7 @@ export default function AdminApp() {
           <Route path="tools" element={<SkillsTools />} />
           <Route path="dataset" element={<Dataset />} />
           <Route path="log" element={<Log />} />
+          <Route path="diagnosi" element={<Diagnosi />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

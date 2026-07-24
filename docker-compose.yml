@@ -1,0 +1,46 @@
+# Deploy su VPS (o macchina locale): app + Caddy come reverse proxy con HTTPS.
+# 1) copia deploy.env.example in .env e riempilo   2) docker compose up -d --build
+#
+# Caddy ottiene il certificato TLS automaticamente se SITE_ADDRESS è un dominio
+# (es. demo.miosito.it). Per una prova senza dominio lascia SITE_ADDRESS=:80
+# e usa http://IP-del-server.
+
+services:
+  app:
+    build: .
+    environment:
+      DATA_DIR: /data/repo
+      JWT_SECRET: ${JWT_SECRET:?serve un JWT_SECRET}
+      LLM_T1_MODEL: ${LLM_T1_MODEL:?serve LLM_T1_MODEL}
+      LLM_T2_MODEL: ${LLM_T2_MODEL:?serve LLM_T2_MODEL}
+      LLM_T3_MODEL: ${LLM_T3_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DIAGNOSTICA_AUTO: ${DIAGNOSTICA_AUTO:-0}
+    volumes:
+      - workflower-data:/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  workflower-data:
+  caddy-data:
+  caddy-config:
