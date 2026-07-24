@@ -9,6 +9,7 @@ export const TESTI = {
   sottoBenvenuto: "Fotografa bolle, fatture, rapportini. Al resto ci pensiamo noi.",
   bottoneCarica: "Carica un documento",
   bottoneDocumenti: "I miei documenti",
+  bottoneOre: "Le mie ore",
   bottoneChiedi: "Chiedi qualcosa",
   esci: "esci",
 
@@ -45,6 +46,27 @@ export const TESTI = {
   riprova: "Riprova",
   scaricaEsempioTitolo: "Non hai un documento? Scarica un esempio",
   scaricaEsempioSotto: "Scaricalo, poi caricalo qui sopra per provare.",
+
+  // le mie ore (consuntivo)
+  titoloOre: "Le mie ore",
+  oreQuando: "Di che giorno sono le ore?",
+  oggi: "Oggi",
+  ieri: "Ieri",
+  oreQualeCantiere: "In quale cantiere hai lavorato?",
+  oreQuante: "Quante ore hai fatto?",
+  oreUnita: (n: number) => (n === 1 ? "1 ora" : `${n.toLocaleString("it-IT")} ore`),
+  oreAvanti: "Avanti",
+  oreCosaTitolo: "Cosa hai fatto?",
+  oreCosaSotto: "Tocca le attività, oppure scrivile tu. Puoi anche saltare.",
+  oreAltro: "Altro: scrivilo tu",
+  oreSalta: "Salta",
+  oreConferma: "Va bene così?",
+  oreInvia: "Invia le ore",
+  oreInviato: "🤝 Grazie! Ho segnato le tue ore.",
+  oreInviatoSotto: "L'ufficio controlla e conferma. Non devi fare altro.",
+  oreNessunDip: "Non risulti tra i dipendenti. Parlane con l'ufficio.",
+  oreNessunCantiere: "Per quel giorno non risulti in nessun cantiere.",
+  oreErrore: "Non riesco a salvare adesso. Riprova tra poco.",
 
   // (le etichette del riepilogo arrivano dal backend, una per tipo di entità)
 

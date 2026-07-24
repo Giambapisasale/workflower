@@ -55,6 +55,13 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": False,
         "fmt": lambda anno, n: f"FRN-{n:03d}",
     },
+    "dipendente": {
+        "dir": "dipendenti",
+        "etichetta": "Dipendente",
+        "id": re.compile(r"^DIP-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"DIP-{n:03d}",
+    },
     "computo": {
         "dir": "computi",
         "etichetta": "Computo",

@@ -20,6 +20,7 @@ from app.seed_data import (
     COMPUTI,
     CRONOPROGRAMMI,
     DDT,
+    DIPENDENTI,
     FATTURE,
     FORNITORI,
     LAVORAZIONI,
@@ -37,6 +38,7 @@ ASSETS = Path(__file__).parent / "seed_assets"
 SKELETON = [
     "entities/cantieri",
     "entities/fornitori",
+    "entities/dipendenti",
     "entities/computi",
     "entities/materiali",
     "entities/mezzi",
@@ -124,6 +126,7 @@ def populate(data_dir: Path) -> None:
     per_tipo = (
         ("cantiere", CANTIERI),
         ("fornitore", FORNITORI),
+        ("dipendente", DIPENDENTI),
         ("computo", COMPUTI),
         ("materiale", MATERIALI),
         ("mezzo", MEZZI),

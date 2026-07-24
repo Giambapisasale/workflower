@@ -51,6 +51,24 @@ export type EsempioDoc = {
   descrizione: string;
 };
 
+export type AttivitaCatalogo = { id: string; descrizione: string };
+
+export type ConsuntivoContesto = {
+  dipendente: { id: string; nome: string; cognome: string } | null;
+  cantieri: Cantiere[];
+  attivita_disponibili: AttivitaCatalogo[];
+};
+
+export type AttivitaScelta = { lavorazione_id?: string | null; descrizione?: string | null };
+
+export type ConsuntivoPayload = {
+  cantiere_id: string;
+  data: string;
+  ore: number;
+  mansione?: string | null;
+  attivita?: AttivitaScelta[];
+};
+
 export class ErroreApi extends Error {
   stato: number | undefined;
   constructor(messaggio: string, stato?: number) {
@@ -173,5 +191,13 @@ export const api = {
 
   esempi(): Promise<EsempioDoc[]> {
     return esegui<{ esempi: EsempioDoc[] }>("/samples").then((r) => r.esempi);
+  },
+
+  consuntivoContesto(data: string): Promise<ConsuntivoContesto> {
+    return esegui<ConsuntivoContesto>(`/consuntivo/contesto?data=${encodeURIComponent(data)}`);
+  },
+
+  inviaConsuntivo(payload: ConsuntivoPayload): Promise<{ id: string }> {
+    return esegui<{ id: string }>("/consuntivo", corpoJson(payload));
   },
 };

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dipendente",
+  "description": "Anagrafica di un dipendente: operaio, ufficio o amministratore. Gli operai hanno una tariffa oraria e si allocano a uno o più cantieri per un periodo.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nome", "cognome", "tipo"],
+  "properties": {
+    "nome": { "type": "string", "minLength": 1 },
+    "cognome": { "type": "string", "minLength": 1 },
+    "tipo": {
+      "type": "string",
+      "enum": ["operaio", "ufficio", "amministratore"],
+      "description": "Ruolo aziendale del dipendente"
+    },
+    "tariffa_oraria": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Costo orario in euro (rilevante per gli operai; null per ufficio/amministratore)"
+    },
+    "username": {
+      "type": ["string", "null"],
+      "description": "Utente di login collegato a questo dipendente (per il consuntivo ore da interfaccia operaio); null se non ha accesso"
+    },
+    "allocazioni": {
+      "type": ["array", "null"],
+      "description": "Periodi di allocazione ai cantieri: dove e da quando a quando il dipendente lavora",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cantiere_id", "da"],
+        "properties": {
+          "cantiere_id": { "type": "string", "pattern": "^CNT-\\d{3,}$" },
+          "da": { "type": "string", "format": "date", "description": "Inizio allocazione (ISO 8601)" },
+          "a": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Fine allocazione (ISO 8601); null se ancora in corso"
+          }
+        }
+      }
+    }
+  }
+}

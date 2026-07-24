@@ -10,6 +10,7 @@ import {
 } from "../shared/api";
 import Carica from "./Carica";
 import Chiedi from "./Chiedi";
+import ConsuntivoOre from "./ConsuntivoOre";
 import Dettaglio from "./Dettaglio";
 import Documenti from "./Documenti";
 import Home from "./Home";
@@ -38,6 +39,7 @@ export default function OpApp() {
             <Routes>
               <Route index element={<Home />} />
               <Route path="carica" element={<Carica />} />
+              <Route path="ore" element={<ConsuntivoOre />} />
               <Route path="documenti" element={<Documenti />} />
               <Route path="documenti/:id" element={<Dettaglio />} />
               <Route path="chiedi" element={<Chiedi />} />

@@ -65,7 +65,11 @@ def _campi_riferimento(schema: dict[str, Any]) -> dict[str, str]:
                 for tipo, regola in ENTITY_TYPES.items():
                     if regola["id"].pattern == pattern:
                         trovati[nome] = tipo
-            if spec.get("type") == "array":
+            tipo_spec = spec.get("type")
+            e_array = tipo_spec == "array" or (
+                isinstance(tipo_spec, list) and "array" in tipo_spec
+            )
+            if e_array:
                 scan((spec.get("items") or {}).get("properties"))
 
     scan(schema.get("properties"))
@@ -134,6 +138,7 @@ def _titolo(tipo: str, dati: dict[str, Any]) -> str | None:
     campo = {
         "cantiere": "nome",
         "fornitore": "ragione_sociale",
+        "dipendente": "cognome",
         "computo": "descrizione",
         "fattura": "numero",
         "ddt": "numero",

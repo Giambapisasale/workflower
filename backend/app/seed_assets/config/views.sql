@@ -176,6 +176,43 @@ FROM read_json(
     }
 );
 
+CREATE OR REPLACE VIEW v_dipendenti AS
+SELECT id,
+       stato,
+       dati.nome           AS nome,
+       dati.cognome        AS cognome,
+       dati.tipo           AS tipo,
+       dati.tariffa_oraria AS tariffa_oraria,
+       dati.username       AS username
+FROM read_json(
+    '${DATA_DIR}/entities/dipendenti/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(
+            nome VARCHAR, cognome VARCHAR, tipo VARCHAR,
+            tariffa_oraria DOUBLE, username VARCHAR
+        )'
+    }
+);
+
+CREATE OR REPLACE VIEW v_allocazioni AS
+SELECT dipendente_id,
+       cantiere_id,
+       da,
+       a
+FROM (
+    SELECT id AS dipendente_id,
+           unnest(dati.allocazioni, recursive := true)
+    FROM read_json(
+        '${DATA_DIR}/entities/dipendenti/*.json',
+        columns = {
+            id: 'VARCHAR',
+            dati: 'STRUCT(allocazioni STRUCT(cantiere_id VARCHAR, da DATE, a DATE)[])'
+        }
+    )
+);
+
 CREATE OR REPLACE VIEW v_rapportini AS
 SELECT id,
        stato,
@@ -200,15 +237,21 @@ FROM read_json(
     }
 );
 
+-- Il costo orario arriva dal profilo del dipendente collegato (dipendente_id);
+-- in mancanza si usa il costo_orario scritto sul documento (rapportini di terzi),
+-- infine 0. Così la tariffa vive nell'anagrafica, non nel singolo rapportino.
 CREATE OR REPLACE VIEW v_rapportini_righe AS
-SELECT rapportino_id,
-       cantiere_id,
-       data,
-       nominativo,
-       mansione,
-       ore,
-       costo_orario,
-       ore * COALESCE(costo_orario, 0) AS costo
+SELECT r.rapportino_id,
+       r.cantiere_id,
+       r.data,
+       r.nominativo,
+       r.dipendente_id,
+       COALESCE(d.nome || ' ' || d.cognome, r.nominativo)   AS lavoratore,
+       r.mansione,
+       r.ore,
+       r.costo_orario,
+       COALESCE(d.tariffa_oraria, r.costo_orario, 0)        AS tariffa_applicata,
+       r.ore * COALESCE(d.tariffa_oraria, r.costo_orario, 0) AS costo
 FROM (
     SELECT id               AS rapportino_id,
            dati.cantiere_id AS cantiere_id,
@@ -221,12 +264,14 @@ FROM (
             dati: 'STRUCT(
                 data DATE, cantiere_id VARCHAR,
                 righe STRUCT(
-                    nominativo VARCHAR, mansione VARCHAR, ore DOUBLE, costo_orario DOUBLE
+                    nominativo VARCHAR, dipendente_id VARCHAR, mansione VARCHAR,
+                    ore DOUBLE, costo_orario DOUBLE
                 )[]
             )'
         }
     )
-);
+) r
+LEFT JOIN v_dipendenti d ON r.dipendente_id = d.id;
 
 CREATE OR REPLACE VIEW v_materiali AS
 SELECT id,

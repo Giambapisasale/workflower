@@ -627,6 +627,57 @@ CRONOPROGRAMMI: list[dict[str, Any]] = [
     },
 ]
 
+# Dipendenti (anagrafica): gli operai hanno tariffa oraria e allocazioni ai
+# cantieri; sono collegati agli utenti di login via ``username`` così possono
+# inserire il consuntivo ore da interfaccia operaio. Ufficio/amministratore non
+# hanno tariffa.
+DIPENDENTI: list[dict[str, Any]] = [
+    {
+        "id": "DIP-001",
+        "dati": {
+            "nome": "Salvo",
+            "cognome": "Torrisi",
+            "tipo": "operaio",
+            "tariffa_oraria": 28.0,
+            "username": "salvo",
+            "allocazioni": [{"cantiere_id": "CNT-001", "da": "2026-01-08", "a": None}],
+        },
+    },
+    {
+        "id": "DIP-002",
+        "dati": {
+            "nome": "Giuseppe",
+            "cognome": "Leotta",
+            "tipo": "operaio",
+            "tariffa_oraria": 25.0,
+            "username": "giuseppe",
+            "allocazioni": [{"cantiere_id": "CNT-002", "da": "2026-02-01", "a": None}],
+        },
+    },
+    {
+        "id": "DIP-003",
+        "dati": {
+            "nome": "Marco",
+            "cognome": "Finocchiaro",
+            "tipo": "operaio",
+            "tariffa_oraria": 30.0,
+            "username": "marco",
+            "allocazioni": [{"cantiere_id": "CNT-003", "da": "2026-03-01", "a": None}],
+        },
+    },
+    {
+        "id": "DIP-004",
+        "dati": {
+            "nome": "Giovanna",
+            "cognome": "Russo",
+            "tipo": "ufficio",
+            "tariffa_oraria": None,
+            "username": "giovanna",
+            "allocazioni": None,
+        },
+    },
+]
+
 # Utenti demo (data/config/utenti.json): i capocantiere del seed + l'ufficio.
 # I PIN sono dimostrativi e finiscono nel repo dati solo come hash PBKDF2.
 UTENTI: list[dict[str, Any]] = [

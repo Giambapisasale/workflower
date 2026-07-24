@@ -14,12 +14,16 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["nominativo", "ore"],
+        "required": ["ore"],
         "properties": {
           "nominativo": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Nome del lavoratore o della squadra"
+            "type": ["string", "null"],
+            "description": "Nome del lavoratore o della squadra; null se il lavoratore è un dipendente collegato (nome dal profilo)"
+          },
+          "dipendente_id": {
+            "type": ["string", "null"],
+            "pattern": "^DIP-\\d{3,}$",
+            "description": "Dipendente interno che ha svolto le ore; se valorizzato, la tariffa arriva dal suo profilo"
           },
           "mansione": {
             "type": ["string", "null"],
@@ -28,7 +32,26 @@
           "ore": { "type": "number", "minimum": 0, "description": "Ore lavorate nella giornata" },
           "costo_orario": {
             "type": ["number", "null"],
-            "description": "Costo orario in euro, se indicato; null altrimenti"
+            "description": "Costo orario in euro, se indicato sul documento; null se la tariffa arriva dal profilo del dipendente"
+          },
+          "attivita": {
+            "type": ["array", "null"],
+            "description": "Attività svolte nella giornata: voce del catalogo lavorazioni e/o descrizione libera",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "lavorazione_id": {
+                  "type": ["string", "null"],
+                  "pattern": "^LAV-\\d{3,}$",
+                  "description": "Voce scelta dal catalogo lavorazioni; null se attività a testo libero"
+                },
+                "descrizione": {
+                  "type": ["string", "null"],
+                  "description": "Attività descritta a parole; null se scelta dal catalogo"
+                }
+              }
+            }
           }
         }
       }

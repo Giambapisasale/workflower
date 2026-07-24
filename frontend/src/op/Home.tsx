@@ -36,6 +36,9 @@ export default function Home() {
         <BottoneLink a="/op/carica" icona="📷" variante="primario">
           {TESTI.bottoneCarica}
         </BottoneLink>
+        <BottoneLink a="/op/ore" icona="⏱️">
+          {TESTI.bottoneOre}
+        </BottoneLink>
         <BottoneLink a="/op/documenti" icona="📄">
           {TESTI.bottoneDocumenti}
         </BottoneLink>

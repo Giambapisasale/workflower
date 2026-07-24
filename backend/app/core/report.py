@@ -198,8 +198,8 @@ def genera_report(
 
     _foglio(wb, "Ore", _COL_ORE, _righe(
         data_dir,
-        "SELECT cantiere_id, data, nominativo, mansione, ore, costo_orario, costo "
-        "FROM v_rapportini_righe{where} ORDER BY data DESC, nominativo",
+        "SELECT cantiere_id, data, lavoratore, mansione, ore, tariffa_applicata, costo "
+        "FROM v_rapportini_righe{where} ORDER BY data DESC, lavoratore",
         cantiere_id, anno, mese,
     ), totali={"ore", "costo"})
 
@@ -269,9 +269,9 @@ _COL_DDT: list[Colonna] = [
     ("Causale", "causale", None), ("Righe", "n_righe", None), ("Stato", "stato", None),
 ]
 _COL_ORE: list[Colonna] = [
-    ("Cantiere", "cantiere_id", None), ("Data", "data", None), ("Nominativo", "nominativo", None),
-    ("Mansione", "mansione", None), ("Ore", "ore", None), ("Costo orario", "costo_orario", EURO),
-    ("Costo", "costo", EURO),
+    ("Cantiere", "cantiere_id", None), ("Data", "data", None), ("Lavoratore", "lavoratore", None),
+    ("Mansione", "mansione", None), ("Ore", "ore", None),
+    ("Costo orario", "tariffa_applicata", EURO), ("Costo", "costo", EURO),
 ]
 _COL_SAL: list[Colonna] = [
     ("Cantiere", "cantiere_id", None), ("Numero", "numero", None), ("Data", "data", None),
