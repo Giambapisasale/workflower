@@ -68,12 +68,23 @@ docker compose up -d --build
 
 ## B) Render (managed, veloce)
 
-1. Serve il **piano a pagamento** per il disco persistente (il free è effimero).
-2. Su Render: **New → Blueprint**, punta al repo: legge `render.yaml`
-   (servizio Docker + disco da 1 GB su `/data` + variabili).
-3. Dopo il primo deploy, in **Environment** inserisci `ANTHROPIC_API_KEY` (e
-   se vuoi cambia i modelli). `JWT_SECRET` è generato in automatico.
-4. Health check già su `/api/health`. URL pubblico fornito da Render.
+Il `render.yaml` è configurato sul **piano Free** (filesystem **effimero**: nessuna
+carta richiesta, ma a ogni avvio a freddo l'app si ri-seed e gli upload non
+sopravvivono allo sleep/redeploy — ottimo per una prova).
+
+1. Su Render: **New → Blueprint**, punta al repo (branch `main`): legge
+   `render.yaml` e crea il servizio Docker `workflower`.
+2. Ti chiede il valore di **`OPENAI_API_KEY`** (unico segreto; `JWT_SECRET` è
+   generato in automatico). I modelli sono `openai/gpt-4o` (T1) e
+   `openai/gpt-4o-mini` (T2) — cambiali se il tuo account usa altri id.
+3. **Apply** → build dell'immagine → deploy. Health check su `/api/health`.
+   URL pubblico fornito da Render.
+4. **Per conservare i dati**: sali a un piano a pagamento e aggiungi un disco su
+   `/data` (istruzioni in coda a `render.yaml`); `DATA_DIR` resta `/data/repo`.
+
+> Nota risorse: il Free ha 512 MB di RAM e va in sleep dopo ~15 min (primo
+> caricamento dopo lo sleep lento, con re-seed). Se risultasse stretto, valuta
+> Hugging Face Spaces (Docker, free, più RAM) o un piano a pagamento.
 
 ## C) Fly.io (VM leggera con volume)
 
