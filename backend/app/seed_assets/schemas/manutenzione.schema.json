@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Manutenzione",
+  "description": "Intervento di manutenzione su un mezzo: storico per calcolare costi e prevenire i fermi.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mezzo_id", "data", "tipo"],
+  "properties": {
+    "mezzo_id": { "type": "string", "pattern": "^MEZ-\\d{3,}$" },
+    "data": { "type": "string", "format": "date", "description": "Data dell'intervento (ISO 8601)" },
+    "tipo": {
+      "type": "string",
+      "enum": ["ordinaria", "straordinaria", "tagliando", "riparazione", "revisione"],
+      "description": "Natura dell'intervento"
+    },
+    "descrizione": { "type": ["string", "null"], "description": "Cosa è stato fatto" },
+    "costo": { "type": ["number", "null"], "minimum": 0, "description": "Costo dell'intervento in euro" },
+    "fornitore_id": {
+      "type": ["string", "null"],
+      "pattern": "^FRN-\\d{3,}$",
+      "description": "Officina/fornitore che ha eseguito l'intervento"
+    },
+    "contaore": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Ore/km del contaore al momento dell'intervento"
+    },
+    "note": { "type": ["string", "null"] }
+  }
+}

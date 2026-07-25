@@ -45,6 +45,11 @@ SELECT COALESCE(SUM(ore), 0)                 AS ore_totali,
 FROM v_rapportini_righe WHERE cantiere_id = ?
 """
 
+SQL_MEZZI = """
+SELECT COALESCE(SUM(costo), 0) AS costo_mezzi
+FROM v_mezzi_costi WHERE cantiere_id = ?
+"""
+
 SQL_POZZETTI = """
 SELECT id, codice, tipo, ubicazione, stato_manufatto, data_installazione
 FROM v_pozzetti WHERE cantiere_id = ? ORDER BY codice
@@ -73,6 +78,7 @@ def registro(
 
     fatture = query(data_dir, SQL_FATTURE, [cantiere_id])
     ore = query(data_dir, SQL_ORE, [cantiere_id])[0]
+    mezzi = query(data_dir, SQL_MEZZI, [cantiere_id])[0]
     sal = query(data_dir, SQL_SAL, [cantiere_id])
     scostamento = _uno(
         query(data_dir, "SELECT * FROM v_cantiere_scostamento WHERE cantiere_id = ?", [cantiere_id])
@@ -96,6 +102,7 @@ def registro(
             "quota_budget": round(speso / budget, 4) if budget else None,
             "ore_totali": ore.get("ore_totali"),
             "costo_manodopera": ore.get("costo_manodopera"),
+            "costo_mezzi": mezzi.get("costo_mezzi"),
             "giornate": ore.get("giornate"),
             "avanzamento": sal[0]["percentuale_avanzamento"] if sal else None,
             "scostamento": scostamento,

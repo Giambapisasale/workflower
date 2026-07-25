@@ -129,6 +129,18 @@ def _riepilogo(data_dir: Path, cantiere_id: str | None, anno: int | None, mese: 
             list(pf),
         )
     }
+    # I costi mezzi non hanno una data propria (aggregano le righe fattura taggate):
+    # filtro solo per cantiere, come pozzetti/cronoprogramma.
+    where_m, pm = _filtro(cantiere_id, None, None)
+    mezzi = {
+        r["cantiere_id"]: r
+        for r in query(
+            data_dir,
+            f"SELECT cantiere_id, COALESCE(SUM(costo),0) AS costo_mezzi "
+            f"FROM v_mezzi_costi{where_m} GROUP BY cantiere_id",
+            pm,
+        )
+    }
     cant_where = " WHERE id = ?" if cantiere_id else ""
     cantieri = query(
         data_dir,
@@ -143,6 +155,7 @@ def _riepilogo(data_dir: Path, cantiere_id: str | None, anno: int | None, mese: 
             "n_fatture": spese.get(c["id"], {}).get("n", 0),
             "ore": ore.get(c["id"], {}).get("ore", 0),
             "costo_manodopera": ore.get(c["id"], {}).get("costo", 0),
+            "costo_mezzi": mezzi.get(c["id"], {}).get("costo_mezzi", 0),
         }
         for c in cantieri
     ]
@@ -232,6 +245,36 @@ def genera_report(
         cantiere_id, None, None, col_data=None,
     ))
 
+    # Parco mezzi: asset e costo pieno/TCO (a livello azienda, non filtrati per cantiere).
+    _foglio(wb, "Mezzi", _COL_MEZZI, _righe(
+        data_dir,
+        "SELECT mezzo_id, descrizione, proprieta, ammortamento_annuo, costo_fisso_annuo, "
+        "costo_orario_pieno, costo_fatture, costo_manutenzioni, costo_documentale "
+        "FROM v_mezzi_tco{where} ORDER BY mezzo_id",
+        None, None, None, col_data=None,
+    ))
+
+    _foglio(wb, "Costo mezzi", _COL_COSTO_MEZZI, _righe(
+        data_dir,
+        "SELECT mezzo_id, cantiere_id, tipo_costo, costo, n_righe "
+        "FROM v_mezzi_costi{where} ORDER BY mezzo_id",
+        cantiere_id, None, None, col_data=None,
+    ), totali={"costo"})
+
+    _foglio(wb, "Manutenzioni", _COL_MANUT, _righe(
+        data_dir,
+        "SELECT mezzo_id, data, tipo, descrizione, costo, contaore "
+        "FROM v_manutenzioni{where} ORDER BY data DESC",
+        None, anno, mese, col_data="data",
+    ), totali={"costo"})
+
+    _foglio(wb, "Scadenze", _COL_SCAD, _righe(
+        data_dir,
+        "SELECT descrizione, data_scadenza, tipo, cantiere_id, mezzo_id, stato_adempimento "
+        "FROM v_scadenze{where} ORDER BY data_scadenza",
+        None, None, None, col_data=None,
+    ))
+
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -240,20 +283,25 @@ def genera_report(
 def _blocco_riepilogo(wb: Workbook, righe: list[dict[str, Any]]) -> None:
     """Scrive la tabella di riepilogo nel foglio già creato (dopo la copertina)."""
     ws = wb["Riepilogo"]
-    intestazioni = ["Cantiere", "Budget", "Speso fatture", "N. fatture", "Ore", "Costo manodopera"]
+    intestazioni = [
+        "Cantiere", "Budget", "Speso fatture", "N. fatture", "Ore",
+        "Costo manodopera", "Costo mezzi",
+    ]
     riga_intest = ws.max_row + 1
     ws.append(intestazioni)
     for cella in ws[riga_intest]:
         cella.font = FONT_INTEST
         cella.fill = FILL_INTEST
-    chiavi = ["cantiere", "budget", "speso", "n_fatture", "ore", "costo_manodopera"]
+    chiavi = ["cantiere", "budget", "speso", "n_fatture", "ore", "costo_manodopera", "costo_mezzi"]
     for r in righe:
         ws.append([r[k] for k in chiavi])
     for r in range(riga_intest + 1, ws.max_row + 1):
-        for col in (2, 3, 6):
+        for col in (2, 3, 6, 7):
             ws.cell(row=r, column=col).number_format = EURO
     ws["A1"].alignment = Alignment(horizontal="left")
-    for col, larghezza in (("A", 34), ("B", 16), ("C", 16), ("D", 12), ("E", 10), ("F", 18)):
+    for col, larghezza in (
+        ("A", 34), ("B", 16), ("C", 16), ("D", 12), ("E", 10), ("F", 18), ("G", 16),
+    ):
         ws.column_dimensions[col].width = larghezza
 
 
@@ -294,4 +342,25 @@ _COL_POZZETTI: list[Colonna] = [
     ("Cantiere", "cantiere_id", None), ("Codice", "codice", None), ("Tipo", "tipo", None),
     ("Ubicazione", "ubicazione", None), ("Stato", "stato_manufatto", None),
     ("Installazione", "data_installazione", None),
+]
+_COL_MEZZI: list[Colonna] = [
+    ("ID", "mezzo_id", None), ("Descrizione", "descrizione", None), ("Regime", "proprieta", None),
+    ("Ammortamento/anno", "ammortamento_annuo", EURO),
+    ("Costi fissi/anno", "costo_fisso_annuo", EURO),
+    ("Costo orario pieno", "costo_orario_pieno", EURO),
+    ("Costi da fatture", "costo_fatture", EURO),
+    ("Manutenzioni", "costo_manutenzioni", EURO), ("Costo documentale", "costo_documentale", EURO),
+]
+_COL_COSTO_MEZZI: list[Colonna] = [
+    ("Mezzo", "mezzo_id", None), ("Cantiere", "cantiere_id", None),
+    ("Tipo costo", "tipo_costo", None), ("Costo", "costo", EURO), ("Righe", "n_righe", None),
+]
+_COL_MANUT: list[Colonna] = [
+    ("Mezzo", "mezzo_id", None), ("Data", "data", None), ("Tipo", "tipo", None),
+    ("Descrizione", "descrizione", None), ("Costo", "costo", EURO), ("Contaore", "contaore", None),
+]
+_COL_SCAD: list[Colonna] = [
+    ("Descrizione", "descrizione", None), ("Scadenza", "data_scadenza", None),
+    ("Tipo", "tipo", None), ("Cantiere", "cantiere_id", None), ("Mezzo", "mezzo_id", None),
+    ("Stato", "stato_adempimento", None),
 ]

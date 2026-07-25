@@ -16,7 +16,7 @@ def test_report_ha_tutti_i_fogli(dati_rw: Path) -> None:
     wb = load_workbook(BytesIO(genera_report(dati_rw)))
     assert wb.sheetnames == [
         "Riepilogo", "Fatture", "DDT", "Ore", "SAL", "Scostamento computo",
-        "Cronoprogramma", "Pozzetti",
+        "Cronoprogramma", "Pozzetti", "Mezzi", "Costo mezzi", "Manutenzioni", "Scadenze",
     ]
 
 

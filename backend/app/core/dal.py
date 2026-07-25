@@ -83,6 +83,13 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": False,
         "fmt": lambda anno, n: f"MEZ-{n:03d}",
     },
+    "manutenzione": {
+        "dir": "manutenzioni",
+        "etichetta": "Manutenzione",
+        "id": re.compile(r"^MNT-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"MNT-{n:03d}",
+    },
     "lavorazione": {
         "dir": "lavorazioni",
         "etichetta": "Lavorazione",

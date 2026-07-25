@@ -65,6 +65,7 @@ def test_meta_tipi_gestibili(client: TestClient) -> None:
     assert tipi["fattura"]["riferimenti"] == {
         "fornitore_id": "fornitore",
         "cantiere_id": "cantiere",
+        "mezzo_id": "mezzo",  # tag di costo del mezzo sulle righe
     }
     assert tipi["cantiere"]["schema"]["title"] == "Cantiere"  # schema per il form
 

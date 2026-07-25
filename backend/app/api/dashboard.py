@@ -41,7 +41,28 @@ SQL_ATTIVITA = """
 SELECT (SELECT COUNT(*) FROM v_ddt)                            AS n_ddt,
        (SELECT COUNT(*) FROM v_sal)                            AS n_sal,
        (SELECT COALESCE(SUM(ore), 0) FROM v_rapportini_righe)   AS ore_totali,
-       (SELECT COALESCE(SUM(costo), 0) FROM v_rapportini_righe) AS costo_manodopera
+       (SELECT COALESCE(SUM(costo), 0) FROM v_rapportini_righe) AS costo_manodopera,
+       (SELECT COALESCE(SUM(costo), 0) FROM v_mezzi_costi)      AS costo_mezzi
+"""
+
+# Scadenzario: adempimenti aperti (cantiere o mezzo) scaduti o in scadenza entro 30
+# giorni. ``giorni`` &lt; 0 = già scaduto. current_date è la data reale alla query.
+SQL_SCADENZE = """
+SELECT s.id                                            AS id,
+       s.descrizione                                   AS descrizione,
+       s.data_scadenza                                 AS data_scadenza,
+       s.tipo                                          AS tipo,
+       s.cantiere_id                                   AS cantiere_id,
+       c.nome                                          AS cantiere,
+       s.mezzo_id                                      AS mezzo_id,
+       m.descrizione                                   AS mezzo,
+       date_diff('day', current_date, s.data_scadenza) AS giorni
+FROM v_scadenze s
+LEFT JOIN v_cantieri c ON c.id = s.cantiere_id
+LEFT JOIN v_mezzi m ON m.id = s.mezzo_id
+WHERE s.stato_adempimento = 'aperta'
+  AND s.data_scadenza <= current_date + INTERVAL 30 DAY
+ORDER BY s.data_scadenza
 """
 
 SQL_PER_FORNITORE = """
@@ -89,6 +110,8 @@ def costi(
         "per_fornitore": query(data_dir, SQL_PER_FORNITORE),
         # Registri automatici (M21): pianificato vs consuntivo per cantiere.
         "cronoprogramma": query(data_dir, SQL_CRONOPROGRAMMA),
+        # Scadenzario: adempimenti di cantiere e mezzi in scadenza o scaduti.
+        "scadenze": query(data_dir, SQL_SCADENZE),
     }
 
 

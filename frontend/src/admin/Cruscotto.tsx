@@ -27,12 +27,36 @@ export default function Cruscotto() {
         <Kpi etichetta="Ritenute d'acconto" valore={euro(t.ritenute)} />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
         <Kpi etichetta="DDT" valore={a.n_ddt} nota="documenti di trasporto" />
         <Kpi etichetta="SAL" valore={a.n_sal} nota="stati avanzamento" />
         <Kpi etichetta="Ore manodopera" valore={a.ore_totali} nota="da rapportini" />
         <Kpi etichetta="Costo manodopera" valore={euro(a.costo_manodopera)} />
+        <Kpi etichetta="Costo mezzi" valore={euro(a.costo_mezzi)} nota="noli e costi da fatture" />
       </div>
+
+      {dati.scadenze.length > 0 ? (
+        <Card titolo="Scadenze">
+          <ul className="divide-y divide-slate-50 text-sm">
+            {dati.scadenze.map((s) => (
+              <li key={s.id} className="flex items-center justify-between gap-4 py-2">
+                <div className="min-w-0">
+                  <span className="font-medium">{s.descrizione}</span>
+                  {s.mezzo ?? s.cantiere ? (
+                    <span className="ml-2 text-xs text-slate-400">{s.mezzo ?? s.cantiere}</span>
+                  ) : null}
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="tabular-nums text-slate-600">{s.data_scadenza}</div>
+                  <div className={`text-xs ${s.giorni < 0 ? "text-red-600" : "text-amber-600"}`}>
+                    {s.giorni < 0 ? `scaduta da ${-s.giorni} gg` : `tra ${s.giorni} gg`}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <Card
         titolo="Costi per cantiere"

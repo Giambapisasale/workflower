@@ -35,7 +35,7 @@ export default function Cantiere() {
         <b className="text-slate-700">{String(c.capocantiere ?? "—")}</b>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
         <Kpi
           etichetta="Speso (fatture)"
           valore={euro(t.speso_fatture)}
@@ -46,6 +46,7 @@ export default function Cantiere() {
           valore={t.ore_totali ?? 0}
           nota={`${euro(t.costo_manodopera)} · ${t.giornate} giornate`}
         />
+        <Kpi etichetta="Costo mezzi / noli" valore={euro(t.costo_mezzi ?? 0)} />
         <Kpi etichetta="Avanzamento (SAL)" valore={t.avanzamento !== null ? `${t.avanzamento}%` : "—"} />
         <Kpi
           etichetta="Scostamento computo"

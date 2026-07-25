@@ -220,6 +220,8 @@ FATTURE: list[dict[str, Any]] = [
                     "unita_misura": "h",
                     "importo": 6840.00,
                     "voce_computo_id": None,
+                    "mezzo_id": "MEZ-003",
+                    "tipo_costo": "noleggio",
                 }
             ],
         },
@@ -486,21 +488,71 @@ MEZZI: list[dict[str, Any]] = [
     {
         "id": "MEZ-001",
         "dati": {
-            "targa": "EK123AB",
+            "descrizione": "Escavatore cingolato 20 t",
             "tipo": "escavatore",
-            "descrizione": "Escavatore cingolato 20t",
-            "costo_orario": 65.0,
+            "targa": "EK123AB",
+            "matricola": "CAT320-2019-4471",
+            "anno": 2019,
             "proprieta": "proprio",
+            "costo_orario": 65.0,
+            "valore_acquisto": 145000.0,
+            "vita_utile_anni": 8,
+            "costi_fissi_annui": 7200.0,
+            "ore_annue_stimate": 1400,
         },
     },
     {
         "id": "MEZ-002",
         "dati": {
-            "targa": None,
+            "descrizione": "Gru a torre 40 m",
             "tipo": "gru",
-            "descrizione": "Gru a torre 40m",
-            "costo_orario": 40.0,
+            "anno": 2022,
             "proprieta": "noleggio",
+            "fornitore_noleggio_id": "FRN-006",
+            "canone": 2800.0,
+            "unita_canone": "mese",
+        },
+    },
+    {
+        "id": "MEZ-003",
+        "dati": {
+            "descrizione": "Escavatore cingolato 20 t (a noleggio)",
+            "tipo": "escavatore",
+            "anno": 2021,
+            "proprieta": "noleggio",
+            "fornitore_noleggio_id": "FRN-006",
+            "canone": 95.0,
+            "unita_canone": "ora",
+        },
+    },
+]
+
+# Manutenzioni (storico interventi per mezzo): alimentano il costo variabile/TCO.
+MANUTENZIONI: list[dict[str, Any]] = [
+    {
+        "id": "MNT-001",
+        "dati": {
+            "mezzo_id": "MEZ-001",
+            "data": "2026-04-18",
+            "tipo": "tagliando",
+            "descrizione": "Tagliando 2000 ore: olio, filtri, controllo cingoli",
+            "costo": 1250.0,
+            "fornitore_id": None,
+            "contaore": 2015,
+            "note": None,
+        },
+    },
+    {
+        "id": "MNT-002",
+        "dati": {
+            "mezzo_id": "MEZ-001",
+            "data": "2026-06-05",
+            "tipo": "riparazione",
+            "descrizione": "Sostituzione tubo idraulico del braccio",
+            "costo": 480.0,
+            "fornitore_id": None,
+            "contaore": 2180,
+            "note": None,
         },
     },
 ]
@@ -553,6 +605,26 @@ SCADENZE: list[dict[str, Any]] = [
             "data_scadenza": "2026-08-15",
             "tipo": "pagamento",
             "cantiere_id": "CNT-002",
+            "stato": "aperta",
+        },
+    },
+    {
+        "id": "SCAD-003",
+        "dati": {
+            "descrizione": "Assicurazione RCA escavatore",
+            "data_scadenza": "2026-08-10",
+            "tipo": "assicurazione",
+            "mezzo_id": "MEZ-001",
+            "stato": "aperta",
+        },
+    },
+    {
+        "id": "SCAD-004",
+        "dati": {
+            "descrizione": "Revisione periodica gru (verifica annuale)",
+            "data_scadenza": "2026-09-20",
+            "tipo": "revisione",
+            "mezzo_id": "MEZ-002",
             "stato": "aperta",
         },
     },
