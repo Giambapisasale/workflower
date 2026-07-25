@@ -1,0 +1,96 @@
+# ERPNext come dipendenza ESTERNA di Workflower (system-of-record contabile a valle).
+#
+# ATTENZIONE: questo file è un PUNTO DI PARTENZA per l'ambiente di sviluppo/PoC
+# (piano ERP, M22), NON una configurazione di produzione. Il deploy ufficiale di
+# ERPNext usa il progetto `frappe_docker` (https://github.com/frappe/frappe_docker),
+# che orchestra backend, worker, scheduler, websocket, nginx, MariaDB e Redis.
+# Qui si tiene il minimo per far girare un'istanza contro cui provare il mapping
+# fattura→Purchase Invoice (incl. ritenuta→withholding) e imputazione al cantiere.
+#
+# Uso (dev):
+#   docker compose -f docker-compose.erpnext.yml up -d
+#   # attendere il completamento di `create-site`, poi vedere docs/erp-poc.md
+#
+# Workflower NON dipende da questo compose: lo raggiunge solo via HTTP usando le
+# env ERP_BASE_URL / ERP_API_KEY / ERP_API_SECRET (vedi deploy.env.example).
+
+x-erpnext-image: &erpnext_image
+  image: frappe/erpnext:${ERPNEXT_VERSION:-v15}
+
+services:
+  mariadb:
+    image: mariadb:10.6
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
+    volumes:
+      - erpnext-db:/var/lib/mysql
+    restart: unless-stopped
+
+  redis-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  redis-queue:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    <<: *erpnext_image
+    depends_on:
+      - mariadb
+      - redis-cache
+      - redis-queue
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      REDIS_CACHE: redis-cache:6379
+      REDIS_QUEUE: redis-queue:6379
+      SOCKETIO_PORT: "9000"
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    restart: unless-stopped
+
+  # Crea il sito una volta sola (bench new-site). Rimuovere/ignorare dopo il primo avvio.
+  create-site:
+    <<: *erpnext_image
+    depends_on:
+      - backend
+    environment:
+      SITE_NAME: ${ERP_SITE:-erp.localhost}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:-admin}
+    entrypoint: ["bash", "-lc"]
+    command:
+      - >
+        bench new-site "$$SITE_NAME"
+        --mariadb-root-password "$$DB_ROOT_PASSWORD"
+        --admin-password "$$ADMIN_PASSWORD"
+        --install-app erpnext --set-default "$$SITE_NAME" || true
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    restart: "no"
+
+  frontend:
+    <<: *erpnext_image
+    depends_on:
+      - backend
+    command: ["nginx-entrypoint.sh"]
+    environment:
+      BACKEND: backend:8000
+      SOCKETIO: backend:9000
+      FRAPPE_SITE_NAME_HEADER: ${ERP_SITE:-erp.localhost}
+      UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
+    ports:
+      - "8080:8080"
+    volumes:
+      - erpnext-sites:/home/frappe/frappe-bench/sites
+    restart: unless-stopped
+
+volumes:
+  erpnext-db:
+  erpnext-sites:

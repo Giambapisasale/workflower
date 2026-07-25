@@ -16,6 +16,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
 from app.core.diagnostico import Diagnostico
+from app.core.erp import ErpClient
 from app.core.eval_t3 import EvalT3
 from app.core.gateway import Gateway
 from app.core.improver import Improver
@@ -55,6 +56,15 @@ def get_dal(request: Request) -> DAL:
 
 def get_gateway(request: Request) -> Gateway:
     return request.app.state.gateway
+
+
+def get_erp(request: Request) -> ErpClient:
+    """Il client ERP condiviso dell'app (uno solo, iniettabile nei test).
+
+    Sempre presente: se l'ERP non è configurato via env, il client è inattivo
+    (:meth:`ErpClient.attivo` falso) e la sincronizzazione a valle è no-op.
+    """
+    return request.app.state.erp
 
 
 def get_runtime(
