@@ -10,6 +10,7 @@ from pathlib import Path
 from app.core.dal import DAL
 from app.core.erp import (
     cantiere_a_cost_center,
+    ddt_a_purchase_receipt,
     fattura_a_purchase_invoice,
     fattura_coerente,
     fornitore_a_supplier,
@@ -152,6 +153,37 @@ def test_ritenuta_come_riga_in_detrazione_con_conto() -> None:
 def test_ritenuta_ricade_su_tds_senza_conto() -> None:
     payload = fattura_a_purchase_invoice(FATT_CON_RITENUTA, supplier="Studio Bianchi")
     assert payload["apply_tds"] == 1
+
+
+# ------------------------------------------------------------------ ddt → receipt
+
+DDT = {
+    "numero": "DDT-99",
+    "data": "2026-04-01",
+    "causale": "Vendita",
+    "riferimento_ordine": "ORD-7",
+    "righe": [
+        {"descrizione": "Tondino acciaio", "quantita": 500, "unita_misura": "kg"},
+        {"descrizione": "Rete elettrosaldata", "quantita": None, "unita_misura": None},
+    ],
+}
+
+
+def test_ddt_a_purchase_receipt_testata() -> None:
+    payload = ddt_a_purchase_receipt(DDT, supplier="Ferramenta Rossi")
+    assert payload["supplier"] == "Ferramenta Rossi"
+    assert payload["posting_date"] == "2026-04-01"
+    assert payload["supplier_delivery_note"] == "DDT-99"
+
+
+def test_ddt_a_purchase_receipt_righe() -> None:
+    payload = ddt_a_purchase_receipt(DDT, supplier="Ferramenta Rossi", cost_center="Cantiere - E")
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["qty"] == 500
+    assert payload["items"][1]["qty"] == 1  # quantità assente → 1
+    assert all(i["cost_center"] == "Cantiere - E" for i in payload["items"])
+    # il DDT non porta importi: nessun rate/amount nelle righe
+    assert "rate" not in payload["items"][0]
 
 
 # ------------------------------------------------------------------ coerenza

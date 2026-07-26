@@ -584,3 +584,22 @@ LEFT JOIN (
     SELECT mezzo_id, SUM(costo) AS costo_manutenzioni
     FROM v_manutenzioni GROUP BY mezzo_id
 ) mc ON mc.mezzo_id = m.id;
+
+-- Pagamenti riletti dall'ERP (M27): stato di pagamento delle fatture sincronizzate.
+-- Sola lettura ERP→WF; l'entità e' puro dato (nessun workflow).
+CREATE OR REPLACE VIEW v_pagamenti AS
+SELECT id,
+       stato,
+       dati.fattura_id     AS fattura_id,
+       dati.stato          AS stato_pagamento,
+       dati.importo_pagato AS importo_pagato,
+       dati.data           AS data,
+       dati.erp_id         AS erp_id
+FROM read_json(
+    '${DATA_DIR}/entities/pagamenti/*.json',
+    columns = {
+        id: 'VARCHAR',
+        stato: 'VARCHAR',
+        dati: 'STRUCT(fattura_id VARCHAR, stato VARCHAR, importo_pagato DOUBLE, data DATE, erp_id VARCHAR)'
+    }
+);

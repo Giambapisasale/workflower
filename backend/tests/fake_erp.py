@@ -93,10 +93,15 @@ class ErpServerFinto:
         timeout: float | None = None,
     ) -> RispostaFinta:
         self.chiamate.append({"metodo": metodo, "url": url, "json": json})
-        doctype = self._doctype(url)
+        doctype, nome = self._doctype_e_nome(url)
         if doctype in self._errore_su:
             return RispostaFinta(500, {"exc": f"errore simulato su {doctype}"})
         if metodo == "GET":
+            if nome:  # GET /api/resource/<DocType>/<name>
+                doc = self._per_nome(doctype, nome)
+                if doc is None:
+                    return RispostaFinta(404, {"exc": f"{doctype} {nome} non trovato"})
+                return RispostaFinta(200, {"data": doc})
             return RispostaFinta(200, {"data": self._filtra(doctype, url)})
         if metodo == "POST":
             return RispostaFinta(200, {"data": self._crea(doctype, json or {})})
@@ -110,15 +115,35 @@ class ErpServerFinto:
         return [
             c["json"]
             for c in self.chiamate
-            if c["metodo"] == "POST" and self._doctype(c["url"]) == doctype
+            if c["metodo"] == "POST" and self._doctype_e_nome(c["url"])[0] == doctype
         ]
+
+    def paga_fattura(self, name: str, *, grand_total: float, outstanding: float) -> None:
+        """Imposta lo stato di pagamento di una Purchase Invoice creata (per il read-back)."""
+        doc = self._per_nome("Purchase Invoice", name)
+        if doc is None:
+            raise KeyError(f"Purchase Invoice {name} inesistente")
+        doc["grand_total"] = grand_total
+        doc["outstanding_amount"] = outstanding
 
     # ---------------------------------------------------------------- interni
 
     @staticmethod
-    def _doctype(url: str) -> str:
-        coda = url.split("/api/resource/", 1)[-1]
-        return coda.split("?", 1)[0]
+    def _doctype_e_nome(url: str) -> tuple[str, str | None]:
+        """Estrae (DocType, name) da un URL ``/api/resource/<DocType>[/<name>][?...]``."""
+        from urllib.parse import unquote
+
+        coda = url.split("/api/resource/", 1)[-1].split("?", 1)[0]
+        parti = coda.split("/", 1)
+        doctype = parti[0]
+        nome = unquote(parti[1]) if len(parti) > 1 and parti[1] else None
+        return doctype, nome
+
+    def _per_nome(self, doctype: str, nome: str) -> dict[str, Any] | None:
+        for rec in self.per_doctype.get(doctype, []):
+            if rec.get("name") == nome:
+                return rec
+        return None
 
     def _crea(self, doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
         self.contatori[doctype] = self.contatori.get(doctype, 0) + 1

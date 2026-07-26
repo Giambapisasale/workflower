@@ -42,8 +42,8 @@ TIMEOUT_DEFAULT = 10.0
 # Gruppo Supplier di default (radice ERPNext); la config può passarne uno più specifico.
 SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
 
-# Tipi di documento Workflower che vengono riflessi nell'ERP. M26 aggiungerà "ddt".
-TIPI_SINCRONIZZABILI = ("fattura",)
+# Tipi di documento Workflower che vengono riflessi nell'ERP (ciclo passivo).
+TIPI_SINCRONIZZABILI = ("fattura", "ddt")
 
 
 class ErpError(Exception):
@@ -321,6 +321,38 @@ def fattura_a_purchase_invoice(
     return payload
 
 
+def _riga_ddt_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str, Any]:
+    """Una riga DDT → una riga **Purchase Receipt Item**.
+
+    Il DDT non porta importi (la merce si valorizza in fattura): si mappano
+    descrizione e quantità; il costo cade sul cost center del cantiere.
+    """
+    quantita = riga.get("quantita")
+    qty = quantita if quantita not in (None, 0) else 1
+    item: dict[str, Any] = {
+        "item_name": riga["descrizione"][:140],
+        "description": riga["descrizione"],
+        "qty": qty,
+    }
+    if cost_center:
+        item["cost_center"] = cost_center
+    return item
+
+
+def ddt_a_purchase_receipt(
+    dati: dict[str, Any], *, supplier: str, cost_center: str | None = None
+) -> dict[str, Any]:
+    """`ddt` → payload DocType **Purchase Receipt** (merce ricevuta, senza importi)."""
+    payload: dict[str, Any] = {
+        "supplier": supplier,
+        "posting_date": dati["data"],
+        "items": [_riga_ddt_a_item(r, cost_center) for r in dati.get("righe", [])],
+    }
+    if dati.get("numero"):
+        payload["supplier_delivery_note"] = dati["numero"]
+    return payload
+
+
 def fattura_coerente(dati: dict[str, Any], tolleranza: float = 0.01) -> bool:
     """Vero se ``totale ≈ imponibile + iva`` (stessa invariante della regola di manifest).
 
@@ -405,15 +437,85 @@ def sincronizza(
     dati = envelope.dati
     supplier = _risolvi_supplier(dal, erp, dati.get("fornitore_id"), cfg)
     cost_center = _risolvi_cost_center(dal, erp, dati.get("cantiere_id"), cfg)
-    payload = fattura_a_purchase_invoice(
-        dati,
-        supplier=supplier,
-        cost_center=cost_center,
-        conto_ritenuta=cfg.conto_ritenuta,
-        conto_iva=cfg.conto_iva,
-    )
-    creato = erp.crea_documento("Purchase Invoice", payload)
+
+    if envelope.tipo == "fattura":
+        doctype = "Purchase Invoice"
+        payload = fattura_a_purchase_invoice(
+            dati,
+            supplier=supplier,
+            cost_center=cost_center,
+            conto_ritenuta=cfg.conto_ritenuta,
+            conto_iva=cfg.conto_iva,
+        )
+    else:  # ddt (TIPI_SINCRONIZZABILI garantisce che sia uno di questi)
+        doctype = "Purchase Receipt"
+        payload = ddt_a_purchase_receipt(dati, supplier=supplier, cost_center=cost_center)
+
+    creato = erp.crea_documento(doctype, payload)
     erp_id = creato.get("name")
     if not erp_id:
-        raise ErpError("ERPNext non ha restituito il name della Purchase Invoice")
-    return {"esito": "ok", "erp_id": erp_id, "supplier": supplier, "cost_center": cost_center}
+        raise ErpError(f"ERPNext non ha restituito il name del/della {doctype}")
+    return {
+        "esito": "ok",
+        "erp_id": erp_id,
+        "doctype": doctype,
+        "supplier": supplier,
+        "cost_center": cost_center,
+    }
+
+
+# ======================================================================
+# Read-back: stato di pagamento ERPNext -> entità `pagamento` (sola lettura)
+# ======================================================================
+# Unico flusso ERP→WF: rilegge lo stato di pagamento delle fatture sincronizzate e
+# lo riflette in WF come entità `pagamento` (puro dato). Nessuna scrittura di WF
+# come "master" dentro l'ERP: qui si legge soltanto.
+
+
+def _stato_pagamento(pi: dict[str, Any]) -> tuple[str, float]:
+    """Deriva (stato, importo_pagato) dallo stato ERPNext di una Purchase Invoice."""
+    grand = float(pi.get("grand_total") or 0)
+    grezzo = pi.get("outstanding_amount")
+    outstanding = float(grezzo) if grezzo is not None else grand
+    pagato = round(grand - outstanding, 2)
+    if grand > 0 and outstanding <= 0.005:
+        return "pagato", pagato
+    if pagato > 0:
+        return "parziale", pagato
+    return "non_pagato", pagato
+
+
+def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
+    """Rilegge da ERPNext lo stato di pagamento delle fatture sincronizzate.
+
+    Per ogni ``fattura`` con ``meta.erp_id`` interroga la Purchase Invoice a valle e
+    crea/aggiorna un'entità ``pagamento`` (idempotente per ``fattura_id``). No-op se
+    l'ERP non è configurato. Errori di lettura non fanno cadere il ciclo: si contano.
+    """
+    if not erp.attivo():
+        return {"esito": "erp_non_configurato", "creati": 0, "aggiornati": 0, "errori": 0}
+    from urllib.parse import quote
+
+    esistenti = {e.dati.get("fattura_id"): e for e in dal.list_all("pagamento")}
+    creati = aggiornati = errori = 0
+    for ft in dal.list_all("fattura"):
+        erp_id = ft.meta.erp_id
+        if not erp_id:
+            continue
+        try:
+            corpo = erp.richiesta("GET", f"/api/resource/Purchase Invoice/{quote(erp_id)}")
+        except ErpError:
+            errori += 1
+            continue
+        pi = corpo.get("data", corpo) if isinstance(corpo, dict) else {}
+        stato, pagato = _stato_pagamento(pi)
+        dati = {"fattura_id": ft.id, "stato": stato, "importo_pagato": pagato, "erp_id": erp_id}
+        prec = esistenti.get(ft.id)
+        if prec is not None:
+            prec.dati.update(dati)
+            dal.update(prec)
+            aggiornati += 1
+        else:
+            esistenti[ft.id] = dal.crea_progressivo("pagamento", dati, stato="validato")
+            creati += 1
+    return {"esito": "ok", "creati": creati, "aggiornati": aggiornati, "errori": errori}

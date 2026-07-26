@@ -53,6 +53,7 @@ SKELETON = [
     "entities/sal/2026",
     "entities/rapportini/2026",
     "entities/documenti",
+    "entities/pagamenti",
     "blobs/fatture/2026",
     "blobs/caricati",
     "schemas",

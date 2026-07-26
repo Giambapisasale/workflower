@@ -9,6 +9,7 @@ from app.api.dataset import router as dataset_router
 from app.api.diagnoses import router as diagnoses_router
 from app.api.documents import router as documents_router
 from app.api.entities import router as entities_router
+from app.api.erp import router as erp_router
 from app.api.health import router as health_router
 from app.api.issues import router as issues_router
 from app.api.logs import router as logs_router
@@ -36,3 +37,4 @@ api_router.include_router(toolsmith_router)
 api_router.include_router(logs_router)
 api_router.include_router(diagnoses_router)
 api_router.include_router(samples_router)
+api_router.include_router(erp_router)

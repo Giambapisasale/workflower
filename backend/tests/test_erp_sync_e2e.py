@@ -125,6 +125,21 @@ def test_errore_erp_non_blocca_validazione(crea_client, dati_rw: Path) -> None:
     assert any(r["entity_id"] == bozza.id and r["esito"] == "errore" for r in righe)
 
 
+def test_validate_ddt_crea_purchase_receipt(crea_client, dati_rw: Path) -> None:
+    dal = DAL(dati_rw)
+    seed = next(e for e in dal.list_all("ddt") if e.dati.get("fornitore_id"))
+    bozza = dal.crea_progressivo("ddt", dict(seed.dati), stato="bozza")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["erp"]["esito"] == "ok"
+    assert len(server.post_di("Purchase Receipt")) == 1
+    assert DAL(dati_rw).read("ddt", bozza.id).meta.erp_id
+
+
 def test_erp_non_configurato_nessun_effetto(
     crea_client, dati_rw: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

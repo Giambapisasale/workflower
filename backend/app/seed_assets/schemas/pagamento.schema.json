@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pagamento",
+  "description": "Stato di pagamento di una fattura, riletto dall'ERP (sola lettura ERP->WF)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fattura_id", "stato"],
+  "properties": {
+    "fattura_id": { "type": "string", "pattern": "^FT-\\d{4}-\\d{4,}$" },
+    "stato": {
+      "type": "string",
+      "enum": ["pagato", "parziale", "non_pagato"],
+      "description": "Stato di pagamento derivato dalla Purchase Invoice a valle"
+    },
+    "importo_pagato": { "type": ["number", "null"], "description": "Importo saldato in euro" },
+    "data": { "type": ["string", "null"], "format": "date", "description": "Data del pagamento, se nota" },
+    "erp_id": { "type": ["string", "null"], "description": "Nome della Purchase Invoice a valle" }
+  }
+}

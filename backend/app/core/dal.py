@@ -184,6 +184,18 @@ ENTITY_TYPES: dict[str, dict[str, Any]] = {
         "per_anno": True,
         "fmt": lambda anno, n: f"DOC-{anno}-{n:04d}",
     },
+    "pagamento": {
+        "dir": "pagamenti",
+        "etichetta": "Pagamento",
+        "id": re.compile(r"^PAG-\d{3,}$"),
+        "per_anno": False,
+        "fmt": lambda anno, n: f"PAG-{n:03d}",
+        "riepilogo": [
+            {"etichetta": "Fattura", "campo": "fattura_id", "tipo": "testo"},
+            {"etichetta": "Stato", "campo": "stato", "tipo": "testo"},
+            {"etichetta": "Pagato", "campo": "importo_pagato", "tipo": "euro"},
+        ],
+    },
 }
 
 
