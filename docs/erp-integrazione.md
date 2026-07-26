@@ -8,6 +8,31 @@ razionale e `piano-implementazione-erp.md` per le milestone (M22–M29).
 Stato: **M22–M28 implementati** (client, translator, sync alla validazione, DDT, read-back
 pagamenti, osservabilità e re-sync). Restano il deploy affiancato e l'hardening (M29).
 
+## Quickstart (docker → collega → test)
+
+```bash
+# 1) AVVIA ERPNext con Docker (prima volta: scarica immagini + crea il sito, qualche minuto)
+docker compose -f docker-compose.erpnext.yml up -d
+docker compose -f docker-compose.erpnext.yml logs -f create-site   # attendi che finisca
+#    → http://localhost:8080   utente: Administrator   password: admin
+
+# 2) COLLEGA Workflower: in ERPNext genera le API key (My Settings → API Access → Generate Keys)
+export ERP_BASE_URL=http://localhost:8080
+export ERP_API_KEY=<api_key>
+export ERP_API_SECRET=<api_secret>
+export ERP_COMPANY="La Tua Azienda"        # per Cost Center / Purchase Invoice
+export ERP_CONTO_RITENUTA="Ritenute - X"   # account_head della ritenuta
+
+# 3) VERIFICA il collegamento (nessun codice) e i test
+make erp-smoke                 # smoke contro l'ERPNext reale (connettività, Supplier, Cost Center)
+make erp-smoke ARGS=--full     # anche Purchase Invoice con ritenuta
+make test-erp                  # test automatici dell'integrazione (trasporto finto, veloci)
+```
+
+Se le `ERP_*` non sono impostate, l'integrazione è **spenta** e Workflower funziona come
+prima. Passi dettagliati e alternative (file `pwd.yml` ufficiale) in `docs/erp-poc.md`;
+mappa casi d'uso → test e triage in `docs/erp-test-plan.md`.
+
 ## Principio
 
 - L'ERP è un **sistema esterno**: Workflower non guadagna un DB, non importa codice ERPNext

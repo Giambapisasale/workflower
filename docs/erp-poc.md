@@ -17,44 +17,98 @@ l'imputazione del costo al **cantiere** come *Cost Center*.
 - Flusso **mono-direzionale** WF→ERP; l'unico ritorno è la lettura dello stato di pagamento (M27).
 - ERPNext è una **dipendenza esterna**: gira in un suo deploy, Workflower lo raggiunge via HTTP.
 
-## 1. Alzare un'istanza ERPNext di sviluppo
+## 1. Avviare ERPNext con Docker
 
-Due strade:
+Requisiti: Docker + Docker Compose. La prima volta scarica ~2 GB di immagini e crea il
+sito: metti in conto qualche minuto.
 
-1. **Ufficiale (consigliata per qualcosa di stabile)**: il progetto
-   [`frappe_docker`](https://github.com/frappe/frappe_docker) — segue il `README`
-   e la guida `pwd.yml` per un'istanza completa.
-2. **Rapida (PoC)**: lo starter incluso in questo repo:
+**Opzione A — compose incluso in questo repo** (consigliata: un solo comando):
 
-   ```bash
-   docker compose -f docker-compose.erpnext.yml up -d
-   # attendere che il servizio `create-site` termini (bench new-site + install erpnext)
-   docker compose -f docker-compose.erpnext.yml logs -f create-site
-   ```
+```bash
+# dalla radice del repo
+docker compose -f docker-compose.erpnext.yml up -d
 
-   UI su `http://localhost:8080` (utente `Administrator`, password da `ERP_ADMIN_PASSWORD`,
-   default `admin`). Se `erp.localhost` non risolve, aggiungerlo a `/etc/hosts` o usare
-   l'header `Host: erp.localhost`.
+# segui la creazione del sito: termina quando il container create-site esce con codice 0
+docker compose -f docker-compose.erpnext.yml logs -f create-site
+docker compose -f docker-compose.erpnext.yml ps          # create-site → "Exited (0)" = pronto
+```
 
-   > È un punto di partenza minimale: se `create-site` fallisce (tempi/versioni),
-   > passare alla strada 1. La validazione del *mapping* non dipende da come è alzato l'ERP.
+Poi apri **http://localhost:8080** → utente **`Administrator`**, password **`admin`**.
+
+Comandi utili:
+
+```bash
+docker compose -f docker-compose.erpnext.yml ps          # stato dei servizi
+docker compose -f docker-compose.erpnext.yml down        # ferma (mantiene i dati)
+docker compose -f docker-compose.erpnext.yml down -v     # AZZERA tutto (volumi inclusi)
+ERPNEXT_VERSION=v15 docker compose -f docker-compose.erpnext.yml up -d   # pinna la versione
+```
+
+**Opzione B — file ufficiale `pwd.yml`** (fonte di verità di frappe_docker):
+
+```bash
+curl -O https://raw.githubusercontent.com/frappe/frappe_docker/main/pwd.yml
+docker compose -f pwd.yml up -d
+```
+
+Il compose incluso ricalca `pwd.yml` (stessi servizi: db MariaDB, redis, configurator,
+create-site, backend, frontend, websocket, worker, scheduler). In **produzione** segui la
+[guida ufficiale frappe_docker](https://github.com/frappe/frappe_docker).
 
 ## 2. Credenziali API (token key:secret)
 
-In ERPNext: **User → (Administrator) → Settings → API Access → Generate Keys**.
-Si ottengono `api_key` e `api_secret`. Frappe autentica ogni chiamata REST con:
+Servono a Workflower per parlare con ERPNext. In ERPNext:
+**icona utente (in alto a destra) → My Settings → sezione *API Access* → Generate Keys**
+(oppure *Settings → API Access* sull'utente Administrator). Ottieni `api_key` e `api_secret`
+(il secret si vede **una sola volta**: copialo subito).
+
+Frappe autentica ogni chiamata REST con l'header:
 
 ```
 Authorization: token <api_key>:<api_secret>
 ```
 
-Sono i valori che poi Workflower legge da `ERP_BASE_URL` / `ERP_API_KEY` / `ERP_API_SECRET`
-(vedi `deploy.env.example`). Per il PoC si usano direttamente con `curl`.
+Per le prove manuali con `curl`:
 
 ```bash
 export ERP=http://localhost:8080
 export AUTH="Authorization: token <api_key>:<api_secret>"
+curl -sS "$ERP/api/method/frappe.auth.get_logged_user" -H "$AUTH"   # deve rispondere "Administrator"
 ```
+
+## 2bis. Collegare Workflower all'istanza
+
+Workflower legge la configurazione ERP **dall'ambiente** (mai hard-coded). Bastano le tre
+variabili obbligatorie; le altre migliorano il mapping.
+
+```bash
+export ERP_BASE_URL=http://localhost:8080     # l'URL dell'istanza (in prod: https://erp.tuodominio.it)
+export ERP_API_KEY=<api_key>
+export ERP_API_SECRET=<api_secret>
+# opzionali ma consigliate per Purchase Invoice/Cost Center reali:
+export ERP_COMPANY="La Tua Azienda"           # nome azienda in ERPNext
+export ERP_CONTO_RITENUTA="Ritenute - X"      # account_head della ritenuta (X = sigla azienda)
+export ERP_CONTO_IVA="IVA ns credito - X"     # opzionale
+```
+
+- **Sviluppo locale**: esporta le variabili nella shell che lancia `make dev` (o mettile in
+  un file caricato dal tuo shell profile). Se non sono impostate, l'integrazione è **spenta**
+  e Workflower funziona come prima (nessun errore).
+- **Deploy con docker-compose** (Workflower): aggiungi le stesse `ERP_*` al servizio `app`
+  in `docker-compose.yml` / al tuo `.env` (vedi `deploy.env.example`). Se ERPNext gira nello
+  stesso compose/host, usa il nome-servizio o l'IP raggiungibile (non `localhost`, che dentro
+  al container punta al container stesso).
+
+Verifica il collegamento **senza scrivere codice**:
+
+```bash
+make erp-smoke                 # connettività + Supplier + Cost Center
+make erp-smoke ARGS=--full     # anche una Purchase Invoice con ritenuta (serve master data)
+```
+
+Deve stampare `[PASS]`. Dall'app: valida una fattura e controlla `GET /api/erp/stato` e la
+comparsa della Purchase Invoice in ERPNext. Dettagli operativi in `docs/erp-integrazione.md`;
+i test automatici e il triage in `docs/erp-test-plan.md`.
 
 ## 3. Mappatura da provare a mano
 
