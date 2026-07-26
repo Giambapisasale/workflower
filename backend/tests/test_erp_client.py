@@ -10,6 +10,8 @@ from fake_erp import FakeTrasporto, RispostaFinta
 
 from app.core.erp import ErpClient, ErpConfig, ErpError, erp_attivo
 
+pytestmark = pytest.mark.erp
+
 
 @pytest.fixture
 def env_erp(monkeypatch: pytest.MonkeyPatch) -> None:

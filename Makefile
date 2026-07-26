@@ -1,5 +1,5 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
-.PHONY: setup dev dev-api dev-web test seed fixtures samples demo lint
+.PHONY: setup dev dev-api dev-web test test-erp erp-smoke seed fixtures samples demo lint
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -28,6 +28,12 @@ dev-web:
 
 test: ## Test backend (pytest)
 	$(PY) -m pytest backend/tests
+
+test-erp: ## Solo i test dell'integrazione ERP (veloci, con trasporto finto)
+	$(PY) -m pytest backend/tests -m erp -v
+
+erp-smoke: ## Smoke test contro un ERPNext REALE (usa ERP_* dall'ambiente). Aggiungi ARGS=--full
+	$(PY) scripts/erp_smoke.py $(ARGS)
 
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed

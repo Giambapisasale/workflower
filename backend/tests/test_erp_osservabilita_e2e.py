@@ -8,11 +8,14 @@ Nessun ERPNext reale: trasporto finto.
 
 from pathlib import Path
 
+import pytest
 from aiuti import accedi
 from fake_erp import ErpServerFinto
 
 from app.core.dal import DAL
 from app.core.erp import ErpClient, ErpConfig
+
+pytestmark = pytest.mark.erp
 
 CONFIG = ErpConfig(base_url="http://erp.test", api_key="k", api_secret="s", company="Edile SpA")
 
@@ -68,6 +71,32 @@ def test_risincronizza_si_ferma_se_erp_giu(crea_client, dati_rw: Path) -> None:
     r = client.post("/api/erp/risincronizza", headers=admin).json()
     assert r["interrotto"] is True
     assert r["errori"] >= 5  # si ferma dopo i fallimenti consecutivi, non martella
+
+
+def test_risincronizza_singola_inesistente_404(crea_client, dati_rw: Path) -> None:
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))
+    admin = accedi(client, "giovanna")
+    resp = client.post("/api/erp/risincronizza/FT-2099-9999", headers=admin)
+    assert resp.status_code == 404
+
+
+def test_risincronizza_singola_tipo_non_sincronizzabile(crea_client, dati_rw: Path) -> None:
+    dal = DAL(dati_rw)
+    sal = dal.crea_progressivo("sal", dict(next(iter(dal.list_all("sal"))).dati), stato="validato")
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))
+    admin = accedi(client, "giovanna")
+    r = client.post(f"/api/erp/risincronizza/{sal.id}", headers=admin).json()
+    assert r["esito"] == "saltato"
+
+
+def test_stato_e_risincronizza_erp_non_configurato(crea_client, dati_rw: Path, monkeypatch) -> None:
+    for v in ("ERP_BASE_URL", "ERP_API_KEY", "ERP_API_SECRET"):
+        monkeypatch.delenv(v, raising=False)
+    client = crea_client()  # ErpClient() inattivo
+    admin = accedi(client, "giovanna")
+    assert client.get("/api/erp/stato", headers=admin).json()["erp_attivo"] is False
+    r = client.post("/api/erp/risincronizza", headers=admin).json()
+    assert r["esito"] == "erp_non_configurato"
 
 
 def test_recupero_dopo_ripristino_erp(crea_client, dati_rw: Path) -> None:

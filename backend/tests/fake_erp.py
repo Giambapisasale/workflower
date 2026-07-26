@@ -122,6 +122,10 @@ class ErpServerFinto:
         """L'ERP torna su: azzera i DocType che stavano fallendo (per i test di recupero)."""
         self._errore_su = set()
 
+    def guasta(self, *doctype: str) -> None:
+        """Fa fallire (HTTP 500) i DocType indicati, anche dopo che sono stati creati."""
+        self._errore_su |= set(doctype)
+
     def paga_fattura(self, name: str, *, grand_total: float, outstanding: float) -> None:
         """Imposta lo stato di pagamento di una Purchase Invoice creata (per il read-back)."""
         doc = self._per_nome("Purchase Invoice", name)

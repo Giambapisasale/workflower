@@ -7,6 +7,8 @@ mapping puro e testabile `fornitore→Supplier`, `cantiere→Cost Center`,
 
 from pathlib import Path
 
+import pytest
+
 from app.core.dal import DAL
 from app.core.erp import (
     cantiere_a_cost_center,
@@ -15,6 +17,8 @@ from app.core.erp import (
     fattura_coerente,
     fornitore_a_supplier,
 )
+
+pytestmark = pytest.mark.erp
 
 # ------------------------------------------------------------------ fixture dati
 
@@ -70,6 +74,12 @@ def test_fornitore_a_supplier_gruppo_personalizzato() -> None:
     assert payload["supplier_group"] == "Servizi"
 
 
+def test_fornitore_senza_partita_iva() -> None:
+    payload = fornitore_a_supplier({"ragione_sociale": "Ditta Senza IVA"})
+    assert payload["supplier_name"] == "Ditta Senza IVA"
+    assert "tax_id" not in payload  # nessuna partita IVA → campo assente
+
+
 def test_cantiere_a_cost_center() -> None:
     payload = cantiere_a_cost_center(CANTIERE, company="Edile SpA")
     assert payload == {
@@ -108,6 +118,17 @@ def test_cost_center_sulle_righe() -> None:
         FATT_SENZA_RITENUTA, supplier="Studio Bianchi", cost_center="Cantiere Via Roma - E"
     )
     assert all(i["cost_center"] == "Cantiere Via Roma - E" for i in payload["items"])
+
+
+def test_senza_cost_center_le_righe_non_lo_riportano() -> None:
+    payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
+    assert all("cost_center" not in i for i in payload["items"])
+
+
+def test_senza_conti_configurati_nessuna_riga_tax() -> None:
+    # senza conto_iva né ritenuta: nessuna sezione taxes (l'ERP deriva dai template)
+    payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
+    assert "taxes" not in payload
 
 
 # ------------------------------------------------------------------ testata / taxes

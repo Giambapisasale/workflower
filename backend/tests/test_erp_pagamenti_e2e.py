@@ -15,6 +15,8 @@ from app.core.dal import DAL
 from app.core.erp import ErpClient, ErpConfig
 from app.core.views import query
 
+pytestmark = pytest.mark.erp
+
 CONFIG = ErpConfig(
     base_url="http://erp.test", api_key="k", api_secret="s", company="Edile SpA"
 )
@@ -74,6 +76,28 @@ def test_rileggi_pagamenti_crea_e_aggiorna(crea_client, dati_rw: Path) -> None:
     assert len(pagamenti) == 1
     assert pagamenti[0].dati["stato"] == "parziale"
     assert pagamenti[0].dati["importo_pagato"] == 600.0
+
+
+def test_rileggi_pagamenti_senza_fatture_sincronizzate(crea_client, dati_rw: Path) -> None:
+    """Nessuna fattura con meta.erp_id → niente da rileggere (creati/aggiornati 0)."""
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))
+    admin = accedi(client, "giovanna")
+    r = client.post("/api/erp/rileggi-pagamenti", headers=admin).json()
+    assert r == {"esito": "ok", "creati": 0, "aggiornati": 0, "errori": 0}
+
+
+def test_rileggi_pagamenti_conta_errori_di_lettura(crea_client, dati_rw: Path) -> None:
+    """Un errore nel leggere la PU a valle è contato, senza far cadere il ciclo."""
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    _valida_una_fattura(client, dati_rw, admin)  # sincronizza (PI creata)
+
+    server.guasta("Purchase Invoice")  # ora la lettura fallisce
+    r = client.post("/api/erp/rileggi-pagamenti", headers=admin).json()
+    assert r["esito"] == "ok"
+    assert r["errori"] >= 1
+    assert r["creati"] == 0
 
 
 def test_rileggi_pagamenti_erp_non_configurato(

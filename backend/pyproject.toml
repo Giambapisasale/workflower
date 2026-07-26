@@ -40,6 +40,9 @@ app = ["seed_assets/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "erp: test dell'integrazione ERP (ERPNext) — eseguibili con `pytest -m erp`",
+]
 
 [tool.ruff]
 target-version = "py312"
