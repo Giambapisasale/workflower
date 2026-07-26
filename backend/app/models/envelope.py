@@ -23,6 +23,11 @@ class Meta(BaseModel):
     created: str | None = None
     updated: str | None = None
     validato_da: str | None = None
+    # Integrazione ERP (ciclo passivo): backref al documento contabile a valle e
+    # timestamp della sincronizzazione. Valorizzati solo dopo un push riuscito
+    # verso ERPNext (Meta è extra="forbid": vanno dichiarati qui, non ad-hoc).
+    erp_id: str | None = None
+    erp_synced: str | None = None
 
 
 class Envelope(BaseModel):

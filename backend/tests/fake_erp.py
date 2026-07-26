@@ -66,3 +66,79 @@ class FakeTrasporto:
                 return prossima
             return RispostaFinta(**prossima)
         return RispostaFinta(200, {"data": {}})
+
+
+class ErpServerFinto:
+    """Finto server Frappe/ERPNext in memoria, per gli e2e della sincronizzazione.
+
+    Simula il minimo di REST che serve alla Facade: ``POST /api/resource/<DocType>``
+    crea un documento con un ``name`` (idempotenza a valle sui filtri), ``GET`` con
+    ``filters`` cerca fra i documenti creati. ``errore_su`` fa fallire (HTTP 500) un
+    dato DocType, per provare il ramo best-effort (issue + ledger).
+    """
+
+    def __init__(self, errore_su: set[str] | None = None) -> None:
+        self.per_doctype: dict[str, list[dict[str, Any]]] = {}
+        self.contatori: dict[str, int] = {}
+        self.chiamate: list[dict[str, Any]] = []
+        self._errore_su = errore_su or set()
+
+    def __call__(
+        self,
+        metodo: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        json: Any | None = None,
+        timeout: float | None = None,
+    ) -> RispostaFinta:
+        self.chiamate.append({"metodo": metodo, "url": url, "json": json})
+        doctype = self._doctype(url)
+        if doctype in self._errore_su:
+            return RispostaFinta(500, {"exc": f"errore simulato su {doctype}"})
+        if metodo == "GET":
+            return RispostaFinta(200, {"data": self._filtra(doctype, url)})
+        if metodo == "POST":
+            return RispostaFinta(200, {"data": self._crea(doctype, json or {})})
+        return RispostaFinta(405, {"exc": f"metodo {metodo} non gestito"})
+
+    def documenti(self, doctype: str) -> list[dict[str, Any]]:
+        return self.per_doctype.get(doctype, [])
+
+    def post_di(self, doctype: str) -> list[dict[str, Any]]:
+        """I payload POST ricevuti per un DocType (per le asserzioni degli e2e)."""
+        return [
+            c["json"]
+            for c in self.chiamate
+            if c["metodo"] == "POST" and self._doctype(c["url"]) == doctype
+        ]
+
+    # ---------------------------------------------------------------- interni
+
+    @staticmethod
+    def _doctype(url: str) -> str:
+        coda = url.split("/api/resource/", 1)[-1]
+        return coda.split("?", 1)[0]
+
+    def _crea(self, doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self.contatori[doctype] = self.contatori.get(doctype, 0) + 1
+        nome = (
+            payload.get("supplier_name")
+            or payload.get("cost_center_name")
+            or f"{doctype}-{self.contatori[doctype]:04d}"
+        )
+        record = {**payload, "name": nome}
+        self.per_doctype.setdefault(doctype, []).append(record)
+        return record
+
+    def _filtra(self, doctype: str, url: str) -> list[dict[str, Any]]:
+        import json as _json
+        from urllib.parse import parse_qs, urlparse
+
+        q = parse_qs(urlparse(url).query)
+        filtri = _json.loads(q.get("filters", ["[]"])[0])  # coppie [campo, op, valore]
+        trovati = []
+        for rec in self.per_doctype.get(doctype, []):
+            if all(rec.get(campo) == valore for campo, op, valore in filtri if op == "="):
+                trovati.append({"name": rec["name"]})
+        return trovati

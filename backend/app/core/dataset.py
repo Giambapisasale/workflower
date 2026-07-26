@@ -22,6 +22,10 @@ FILE_TOOLCALLS = "toolcalls.jsonl"
 # Delta fra la bozza estratta e il dato validato dall'ufficio (§3.6 / M16): la
 # base minabile da cui il Toolsmith individua i calcoli/normalizzazioni ricorrenti.
 FILE_DERIVAZIONI = "derivazioni.jsonl"
+# Log append-only delle sincronizzazioni verso l'ERP (integrazione ERP, M25): ogni
+# tentativo (ok/errore) con il backref al documento contabile a valle. Audit + base
+# per il re-sync manuale (M28).
+FILE_ERP_SYNC = "erp_sync.jsonl"
 
 
 def fingerprint(sql: str) -> str:
@@ -189,6 +193,53 @@ def registra_derivazione(
 def leggi_derivazioni(data_dir: Path | str) -> list[dict[str, Any]]:
     """Le coppie estratto→validato registrate (base minabile del Toolsmith)."""
     percorso = Path(data_dir) / "dataset" / FILE_DERIVAZIONI
+    if not percorso.is_file():
+        return []
+    voci: list[dict[str, Any]] = []
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            voci.append(json.loads(riga))
+        except json.JSONDecodeError:
+            continue
+    return voci
+
+
+def registra_sync_erp(
+    dal: DAL,
+    *,
+    entity_id: str,
+    esito: str,
+    erp_id: str | None = None,
+    errore: str | None = None,
+    run_id: str | None = None,
+) -> None:
+    """Appende al ledger un tentativo di sincronizzazione ERP e committa.
+
+    Stesso pattern di :func:`registra_query`/:func:`registra_derivazione`: file
+    append-only in ``dataset/`` + commit via il DAL (mutazione = commit). Registra
+    sia i successi (con ``erp_id``) sia i fallimenti (con ``errore``), così il
+    re-sync manuale (M28) sa cosa è rimasto indietro.
+    """
+    percorso = dal.data_dir / "dataset" / FILE_ERP_SYNC
+    percorso.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "ts": now_iso(),
+        "entity_id": entity_id,
+        "esito": esito,
+        "erp_id": erp_id,
+        "errore": errore,
+        "run_id": run_id,
+    }
+    with percorso.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    dal.commit_paths([percorso], f"erp: sync {entity_id} {esito} [{run_id or 'manual'}]")
+
+
+def leggi_sync_erp(data_dir: Path | str) -> list[dict[str, Any]]:
+    """Le righe del ledger di sincronizzazione ERP (audit + input del re-sync)."""
+    percorso = Path(data_dir) / "dataset" / FILE_ERP_SYNC
     if not percorso.is_file():
         return []
     voci: list[dict[str, Any]] = []

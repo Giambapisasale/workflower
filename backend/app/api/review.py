@@ -12,13 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, richiedi_admin
+from app.api.deps import get_dal, get_erp, richiedi_admin
 from app.core.auth import Utente
 from app.core.collega import Collega
 from app.core.dal import DAL, TIPI_INGRESSO, DalError, tipo_da_id
-from app.core.dataset import estratto_del_run, registra_derivazione
+from app.core.dataset import estratto_del_run, registra_derivazione, registra_sync_erp
+from app.core.erp import TIPI_SINCRONIZZABILI, ErpClient, ErpError, sincronizza
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
-from app.models.envelope import Envelope
+from app.models.envelope import Envelope, now_iso
 
 # Le bozze che passano dalla revisione sono le entità estratte dai workflow.
 TIPI_REVISIONABILI = TIPI_INGRESSO
@@ -68,6 +69,39 @@ def _issue_collegata(dal: DAL, entity_id: str, run_id: str | None) -> dict[str, 
         if issue.entity_id == entity_id or (run_id and issue.run_id == run_id):
             return issue.model_dump(mode="json")
     return None
+
+
+def _sincronizza_erp(dal: DAL, erp: ErpClient, entita: Envelope) -> dict[str, Any] | None:
+    """Riflette la fattura validata in ERPNext (best-effort, come :func:`_forse_golden`).
+
+    Vive qui (revisione), non in ``runtime.py``: la sincronizzazione è un effetto
+    della validazione umana. Un fallimento **non annulla** la validazione — apre una
+    issue ("ci pensa l'ufficio") e registra l'esito nel ledger per il re-sync manuale
+    (M28). No-op se l'ERP non è configurato o il tipo non è sincronizzato.
+    """
+    if not erp.attivo() or entita.tipo not in TIPI_SINCRONIZZABILI:
+        return None
+    try:
+        esito = sincronizza(dal, entita, erp)
+    except ErpError as exc:
+        dal.crea_issue(
+            "auto",
+            f"Sincronizzazione ERP fallita per {entita.id}: {exc}",
+            run_id=entita.meta.run_id,
+            entity_id=entita.id,
+        )
+        registra_sync_erp(
+            dal, entity_id=entita.id, esito="errore", errore=str(exc), run_id=entita.meta.run_id
+        )
+        return {"esito": "errore", "errore": str(exc)}
+    if esito.get("esito") == "ok":
+        entita.meta.erp_id = esito["erp_id"]
+        entita.meta.erp_synced = now_iso()
+        dal.update(entita, run_id=entita.meta.run_id)
+        registra_sync_erp(
+            dal, entity_id=entita.id, esito="ok", erp_id=esito["erp_id"], run_id=entita.meta.run_id
+        )
+    return esito
 
 
 def _forse_golden(dal: DAL, tipo: str, entita: Envelope) -> str | None:
@@ -209,6 +243,7 @@ def valida(
     entity_id: str,
     admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
+    erp: ErpClient = Depends(get_erp),
 ) -> dict[str, Any]:
     """Bozza → validato + copia del run nel golden set (piano §3.4)."""
     tipo, entita = _entita(dal, entity_id)
@@ -231,8 +266,13 @@ def valida(
             validato=aggiornata.dati,
             validato_da=admin.username,
         )
+    golden_id = _forse_golden(dal, tipo, aggiornata)
+    # Sincronizzazione a valle verso l'ERP (best-effort, come il golden): può
+    # aggiornare meta.erp_id su `aggiornata`, quindi va dopo il golden.
+    esito_erp = _sincronizza_erp(dal, erp, aggiornata)
     return {
         "stato": aggiornata.stato,
         "validato_da": admin.username,
-        "golden_id": _forse_golden(dal, tipo, aggiornata),
+        "golden_id": golden_id,
+        "erp": esito_erp,
     }

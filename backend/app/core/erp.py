@@ -39,6 +39,12 @@ Transport = Callable[..., Any]
 # Timeout corto: l'ERP è a valle e best-effort; non deve mai rallentare la validazione.
 TIMEOUT_DEFAULT = 10.0
 
+# Gruppo Supplier di default (radice ERPNext); la config può passarne uno più specifico.
+SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
+
+# Tipi di documento Workflower che vengono riflessi nell'ERP. M26 aggiungerà "ddt".
+TIPI_SINCRONIZZABILI = ("fattura",)
+
 
 class ErpError(Exception):
     """Errore verso ERPNext: trasporto irraggiungibile, HTTP >= 400 o corpo non JSON."""
@@ -46,11 +52,21 @@ class ErpError(Exception):
 
 @dataclass(frozen=True)
 class ErpConfig:
-    """Coordinate dell'istanza ERPNext, lette dall'ambiente (mai hard-coded)."""
+    """Coordinate dell'istanza ERPNext + mapping fiscale, letti dall'ambiente.
+
+    ``base_url``/``api_key``/``api_secret`` sono obbligatorie (senza, l'ERP è
+    spento). Il resto guida il *Translator* lato Facade e resta opzionale:
+    ``company`` (obbligatoria per creare Cost Center e Purchase Invoice reali),
+    ``conto_ritenuta``/``conto_iva`` (account_head delle righe tax), ``supplier_group``.
+    """
 
     base_url: str
     api_key: str
     api_secret: str
+    company: str | None = None
+    conto_ritenuta: str | None = None
+    conto_iva: str | None = None
+    supplier_group: str = SUPPLIER_GROUP_DEFAULT
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -61,7 +77,15 @@ class ErpConfig:
         secret = os.environ.get("ERP_API_SECRET")
         if not (base and key and secret):
             return None
-        return cls(base_url=base, api_key=key, api_secret=secret)
+        return cls(
+            base_url=base,
+            api_key=key,
+            api_secret=secret,
+            company=os.environ.get("ERP_COMPANY"),
+            conto_ritenuta=os.environ.get("ERP_CONTO_RITENUTA"),
+            conto_iva=os.environ.get("ERP_CONTO_IVA"),
+            supplier_group=os.environ.get("ERP_SUPPLIER_GROUP") or SUPPLIER_GROUP_DEFAULT,
+        )
 
 
 def erp_attivo() -> bool:
@@ -146,6 +170,25 @@ class ErpClient:
         except Exception as exc:
             raise ErpError(f"risposta ERP non JSON a {metodo} {percorso}: {exc}") from exc
 
+    # ------------------------------------------------------------- REST DocType
+
+    def crea_documento(self, doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST di un nuovo DocType; ritorna il record creato (il ``data`` di Frappe)."""
+        corpo = self.richiesta("POST", f"/api/resource/{doctype}", json=payload)
+        return corpo.get("data", corpo) if isinstance(corpo, dict) else corpo
+
+    def trova_documenti(
+        self, doctype: str, filtri: list[list[Any]], *, limite: int = 1
+    ) -> list[dict[str, Any]]:
+        """GET con ``filters`` Frappe; ritorna la lista ``data`` (vuota se nulla)."""
+        import json as _json
+        from urllib.parse import urlencode
+
+        query = urlencode({"filters": _json.dumps(filtri), "limit_page_length": limite})
+        corpo = self.richiesta("GET", f"/api/resource/{doctype}?{query}")
+        dati = corpo.get("data") if isinstance(corpo, dict) else None
+        return dati or []
+
 
 def _corpo_sicuro(risposta: Any, limite: int = 500) -> str:
     """Estrae il corpo della risposta per il messaggio d'errore, senza mai sollevare."""
@@ -167,9 +210,6 @@ def _corpo_sicuro(risposta: Any, limite: int = 500) -> str:
 # del fornitore, cost center del cantiere) arrivano come argomenti — la
 # risoluzione FRN-.../CNT-... la fa la Facade (M25) che ha il DAL. Così il mapping
 # resta dato testabile con test tabellari.
-
-# Gruppo Supplier di default (radice ERPNext); la Facade può passarne uno più specifico.
-SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
 
 
 def fornitore_a_supplier(
@@ -293,3 +333,87 @@ def fattura_coerente(dati: dict[str, Any], tolleranza: float = 0.01) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return abs(totale - (imponibile + iva)) <= tolleranza
+
+
+# ======================================================================
+# Facade: sincronizzazione di un documento validato verso ERPNext
+# ======================================================================
+# Orchestrazione delle chiamate REST (upsert Supplier → Purchase Invoice),
+# mono-direzionale e idempotente. NON scrive sull'envelope né sul ledger: ritorna
+# l'esito e il chiamante (la revisione) persiste backref + ledger, best-effort.
+# Qui la Facade ha il DAL solo per *leggere* le anagrafiche referenziate.
+
+
+def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: ErpConfig) -> str:
+    """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea."""
+    if not fornitore_id:
+        raise ErpError("fattura senza fornitore_id: impossibile creare la Purchase Invoice")
+    forn = dal.read("fornitore", fornitore_id).dati
+    piva = forn.get("partita_iva")
+    if piva:
+        esistenti = erp.trova_documenti("Supplier", [["tax_id", "=", piva]])
+        if esistenti:
+            return esistenti[0]["name"]
+    creato = erp.crea_documento(
+        "Supplier", fornitore_a_supplier(forn, supplier_group=config.supplier_group)
+    )
+    return creato["name"]
+
+
+def _risolvi_cost_center(
+    dal: Any, erp: "ErpClient", cantiere_id: Any, config: ErpConfig
+) -> str | None:
+    """Nome ERPNext del Cost Center per un ``CNT-...``: trovato o creato.
+
+    Senza ``company`` configurata il Cost Center non è creabile: si degrada a
+    ``None`` (le righe non portano cost center) invece di far fallire la sync.
+    """
+    if not cantiere_id or not config.company:
+        return None
+    cant = dal.read("cantiere", cantiere_id).dati
+    payload = cantiere_a_cost_center(cant, company=config.company)
+    esistenti = erp.trova_documenti(
+        "Cost Center",
+        [["cost_center_name", "=", payload["cost_center_name"]], ["company", "=", config.company]],
+    )
+    if esistenti:
+        return esistenti[0]["name"]
+    creato = erp.crea_documento("Cost Center", payload)
+    return creato["name"]
+
+
+def sincronizza(
+    dal: Any, envelope: Any, erp: "ErpClient", *, config: ErpConfig | None = None
+) -> dict[str, Any]:
+    """Riflette un documento validato in ERPNext (upsert Supplier → Purchase Invoice).
+
+    - **Mono-direzionale** (WF→ERP) e **idempotente**: se ``envelope.meta.erp_id`` è
+      già valorizzato non fa nulla (evita doppioni su ri-sincronizzazioni/re-sync M28).
+    - Solo i tipi in :data:`TIPI_SINCRONIZZABILI` (per ora ``fattura``); gli altri
+      ritornano ``esito="saltato"``.
+    - Solleva :class:`ErpError` sui problemi verso l'ERP: il chiamante (revisione)
+      apre l'issue e registra il ledger, senza far cadere la validazione.
+    """
+    if envelope.tipo not in TIPI_SINCRONIZZABILI:
+        return {"esito": "saltato", "motivo": f"tipo {envelope.tipo} non sincronizzato"}
+    if envelope.meta.erp_id:
+        return {"esito": "gia_sincronizzato", "erp_id": envelope.meta.erp_id}
+    cfg = config if config is not None else erp.config
+    if cfg is None:
+        raise ErpError("ERP non configurato")
+
+    dati = envelope.dati
+    supplier = _risolvi_supplier(dal, erp, dati.get("fornitore_id"), cfg)
+    cost_center = _risolvi_cost_center(dal, erp, dati.get("cantiere_id"), cfg)
+    payload = fattura_a_purchase_invoice(
+        dati,
+        supplier=supplier,
+        cost_center=cost_center,
+        conto_ritenuta=cfg.conto_ritenuta,
+        conto_iva=cfg.conto_iva,
+    )
+    creato = erp.crea_documento("Purchase Invoice", payload)
+    erp_id = creato.get("name")
+    if not erp_id:
+        raise ErpError("ERPNext non ha restituito il name della Purchase Invoice")
+    return {"esito": "ok", "erp_id": erp_id, "supplier": supplier, "cost_center": cost_center}

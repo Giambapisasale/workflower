@@ -62,11 +62,11 @@ def ambiente_llm(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def crea_client(dati_rw: Path, ambiente_llm: None) -> Callable[..., TestClient]:
-    """Factory di TestClient sull'app, con il trasporto LLM che serve al test."""
+    """Factory di TestClient sull'app, con i trasporti (LLM ed ERP) che servono al test."""
 
-    def _crea(completer: object | None = None) -> TestClient:
+    def _crea(completer: object | None = None, erp: object | None = None) -> TestClient:
         gateway = Gateway(completer=completer or FakeCompleter(dati_rw), attesa_retry=0)
-        return TestClient(create_app(data_dir=dati_rw, gateway=gateway))
+        return TestClient(create_app(data_dir=dati_rw, gateway=gateway, erp=erp))
 
     return _crea
 
