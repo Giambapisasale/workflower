@@ -156,3 +156,140 @@ def _corpo_sicuro(risposta: Any, limite: int = 500) -> str:
     except Exception:
         testo = "<corpo non leggibile>"
     return testo[:limite]
+
+
+# ======================================================================
+# Translator: envelope (dati Workflower) -> payload DocType ERPNext
+# ======================================================================
+# Funzioni PURE: nessun I/O, nessun DAL. Il modello ERPNext non "trapela" negli
+# schemi di /data e viceversa: qui vive tutta e sola la conoscenza di come un
+# documento Workflower diventa un DocType Frappe. Le referenze già risolte (nome
+# del fornitore, cost center del cantiere) arrivano come argomenti — la
+# risoluzione FRN-.../CNT-... la fa la Facade (M25) che ha il DAL. Così il mapping
+# resta dato testabile con test tabellari.
+
+# Gruppo Supplier di default (radice ERPNext); la Facade può passarne uno più specifico.
+SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
+
+
+def fornitore_a_supplier(
+    dati: dict[str, Any], *, supplier_group: str = SUPPLIER_GROUP_DEFAULT
+) -> dict[str, Any]:
+    """`fornitore` → payload DocType **Supplier**.
+
+    Mappa solo i campi che esistono nativamente sul Supplier; l'indirizzo in
+    ERPNext è un DocType separato (Address) e resta fuori da qui.
+    """
+    payload: dict[str, Any] = {
+        "supplier_name": dati["ragione_sociale"],
+        "supplier_type": "Company",
+        "supplier_group": supplier_group,
+    }
+    if dati.get("partita_iva"):
+        payload["tax_id"] = dati["partita_iva"]
+    return payload
+
+
+def cantiere_a_cost_center(dati: dict[str, Any], *, company: str) -> dict[str, Any]:
+    """`cantiere` → payload DocType **Cost Center** (per imputare i costi al cantiere)."""
+    return {
+        "cost_center_name": dati["nome"],
+        "company": company,
+        "is_group": 0,
+    }
+
+
+def _riga_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str, Any]:
+    """Una riga fattura → una riga **Purchase Invoice Item**.
+
+    La riga Workflower porta l'`importo` (totale riga = quantità × prezzo), non un
+    prezzo unitario: si ricava `rate` = importo/qty così che qty×rate == importo.
+    I campi interni di Workflower (`voce_computo_id`, `mezzo_id`, `tipo_costo`) sono
+    per il cost-control di WF e **non** vengono spinti nell'ERP (confine dell'analisi).
+    """
+    importo = riga["importo"]
+    quantita = riga.get("quantita")
+    qty = quantita if quantita not in (None, 0) else 1
+    item: dict[str, Any] = {
+        "item_name": riga["descrizione"][:140],
+        "description": riga["descrizione"],
+        "qty": qty,
+        "rate": importo / qty,
+    }
+    if cost_center:
+        item["cost_center"] = cost_center
+    return item
+
+
+def fattura_a_purchase_invoice(
+    dati: dict[str, Any],
+    *,
+    supplier: str,
+    cost_center: str | None = None,
+    conto_ritenuta: str | None = None,
+    conto_iva: str | None = None,
+) -> dict[str, Any]:
+    """`fattura` → payload DocType **Purchase Invoice** (+ items + taxes).
+
+    - ``supplier``/``cost_center``: nomi già risolti dalla Facade (M25).
+    - **Ritenuta d'acconto** (lo scenario M5, non negoziabile): se presente e c'è un
+      conto ritenuta configurato, entra come riga di *Purchase Taxes and Charges* in
+      **detrazione** con l'importo esatto estratto da Workflower; senza conto si
+      ricade su ``apply_tds=1`` (ERPNext la calcola dalla categoria del Supplier).
+    - **IVA**: se presente e c'è un conto IVA configurato, entra come riga in aggiunta
+      con l'importo esatto; altrimenti si lascia che l'ERP la derivi dai template.
+    """
+    payload: dict[str, Any] = {
+        "supplier": supplier,
+        "bill_no": dati["numero"],
+        "bill_date": dati["data"],
+        "items": [_riga_a_item(r, cost_center) for r in dati.get("righe", [])],
+    }
+
+    taxes: list[dict[str, Any]] = []
+    iva = dati.get("iva")
+    if iva and conto_iva:
+        taxes.append(
+            {
+                "charge_type": "Actual",
+                "account_head": conto_iva,
+                "description": "IVA",
+                "add_deduct_tax": "Add",
+                "category": "Total",
+                "tax_amount": iva,
+            }
+        )
+
+    ritenuta = dati.get("ritenuta_acconto")
+    if ritenuta:
+        if conto_ritenuta:
+            taxes.append(
+                {
+                    "charge_type": "Actual",
+                    "account_head": conto_ritenuta,
+                    "description": "Ritenuta d'acconto",
+                    "add_deduct_tax": "Deduct",
+                    "category": "Total",
+                    "tax_amount": ritenuta,
+                }
+            )
+        else:
+            payload["apply_tds"] = 1
+
+    if taxes:
+        payload["taxes"] = taxes
+    return payload
+
+
+def fattura_coerente(dati: dict[str, Any], tolleranza: float = 0.01) -> bool:
+    """Vero se ``totale ≈ imponibile + iva`` (stessa invariante della regola di manifest).
+
+    Predicato puro, usato dai test e come guardia difensiva prima di sincronizzare.
+    """
+    try:
+        imponibile = float(dati["imponibile"])
+        iva = float(dati.get("iva") or 0)
+        totale = float(dati["totale"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return abs(totale - (imponibile + iva)) <= tolleranza
