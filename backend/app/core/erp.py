@@ -27,9 +27,15 @@ from typing import Any
 
 import httpx
 
+from app.core.dataset import leggi_sync_erp, registra_sync_erp
 from app.core.logbook import ottieni_logger
+from app.models.envelope import now_iso
 
 _log = ottieni_logger("erp")
+
+# Fallimenti consecutivi oltre i quali il re-sync batch si ferma (ERP verosimilmente
+# giù): meglio interrompere che martellare centinaia di documenti a vuoto.
+MAX_ERRORI_CONSECUTIVI = 5
 
 # Trasporto: (metodo, url, *, headers, json, timeout) -> risposta con .status_code e .json().
 # Firma volutamente httpx-compatibile, così il default è un thin wrapper e il finto
@@ -519,3 +525,117 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
             esistenti[ft.id] = dal.crea_progressivo("pagamento", dati, stato="validato")
             creati += 1
     return {"esito": "ok", "creati": creati, "aggiornati": aggiornati, "errori": errori}
+
+
+# ======================================================================
+# Orchestrazione best-effort + osservabilità / re-sync (M28)
+# ======================================================================
+
+
+def applica_sincronizzazione(dal: Any, envelope: Any, erp: "ErpClient") -> dict[str, Any] | None:
+    """Sincronizza un documento e **persiste l'esito**: backref, ledger, issue.
+
+    È l'orchestrazione best-effort usata sia dalla revisione (alla validazione) sia
+    dal re-sync manuale (M28). Un fallimento non propaga: apre una issue e registra
+    la riga d'errore nel ledger. No-op (``None``) se l'ERP è spento o il tipo non è
+    sincronizzabile.
+    """
+    if not erp.attivo() or envelope.tipo not in TIPI_SINCRONIZZABILI:
+        return None
+    try:
+        esito = sincronizza(dal, envelope, erp)
+    except ErpError as exc:
+        dal.crea_issue(
+            "auto",
+            f"Sincronizzazione ERP fallita per {envelope.id}: {exc}",
+            run_id=envelope.meta.run_id,
+            entity_id=envelope.id,
+        )
+        registra_sync_erp(
+            dal, entity_id=envelope.id, esito="errore", errore=str(exc), run_id=envelope.meta.run_id
+        )
+        return {"esito": "errore", "errore": str(exc)}
+    if esito.get("esito") == "ok":
+        envelope.meta.erp_id = esito["erp_id"]
+        envelope.meta.erp_synced = now_iso()
+        dal.update(envelope, run_id=envelope.meta.run_id)
+        registra_sync_erp(
+            dal,
+            entity_id=envelope.id,
+            esito="ok",
+            erp_id=esito["erp_id"],
+            run_id=envelope.meta.run_id,
+        )
+    return esito
+
+
+def stato_sincronizzazione(dal: Any, erp: "ErpClient") -> dict[str, Any]:
+    """Riepilogo dello stato di sincronizzazione ERP (per il pannello admin).
+
+    Per ogni tipo sincronizzabile conta i documenti validati e quanti sono già a
+    valle (``meta.erp_id``); elenca quelli **da sincronizzare** e gli ultimi
+    tentativi dal ledger.
+    """
+    per_tipo: dict[str, dict[str, int]] = {}
+    da_sincronizzare: list[dict[str, str]] = []
+    for tipo in TIPI_SINCRONIZZABILI:
+        validate = sincronizzate = 0
+        for e in dal.list_all(tipo):
+            if e.stato != "validato":
+                continue
+            validate += 1
+            if e.meta.erp_id:
+                sincronizzate += 1
+            else:
+                da_sincronizzare.append({"id": e.id, "tipo": tipo})
+        per_tipo[tipo] = {
+            "validate": validate,
+            "sincronizzate": sincronizzate,
+            "da_sincronizzare": validate - sincronizzate,
+        }
+    return {
+        "erp_attivo": erp.attivo(),
+        "per_tipo": per_tipo,
+        "da_sincronizzare": da_sincronizzare,
+        "ultimi_tentativi": leggi_sync_erp(dal.data_dir)[-20:],
+    }
+
+
+def risincronizza_mancanti(
+    dal: Any, erp: "ErpClient", *, max_errori: int = MAX_ERRORI_CONSECUTIVI
+) -> dict[str, Any]:
+    """Ri-sincronizza le entità validate rimaste senza backref ERP (recupero, M28).
+
+    Best-effort per documento; si **ferma** dopo ``max_errori`` fallimenti
+    consecutivi (ERP verosimilmente giù) per non martellare. Idempotente: le entità
+    già sincronizzate vengono saltate.
+    """
+    if not erp.attivo():
+        return {
+            "esito": "erp_non_configurato",
+            "tentate": 0,
+            "ok": 0,
+            "errori": 0,
+            "interrotto": False,
+        }
+    tentate = ok = errori = 0
+    consecutivi = 0
+    interrotto = False
+    for tipo in TIPI_SINCRONIZZABILI:
+        for e in dal.list_all(tipo):
+            if e.stato != "validato" or e.meta.erp_id:
+                continue
+            tentate += 1
+            esito = applica_sincronizzazione(dal, e, erp)
+            if esito and esito.get("esito") == "ok":
+                ok += 1
+                consecutivi = 0
+            else:
+                errori += 1
+                consecutivi += 1
+                if consecutivi >= max_errori:
+                    interrotto = True
+                    break
+        if interrotto:
+            break
+    return {"esito": "ok", "tentate": tentate, "ok": ok, "errori": errori, "interrotto": interrotto}

@@ -118,6 +118,10 @@ class ErpServerFinto:
             if c["metodo"] == "POST" and self._doctype_e_nome(c["url"])[0] == doctype
         ]
 
+    def ripristina(self) -> None:
+        """L'ERP torna su: azzera i DocType che stavano fallendo (per i test di recupero)."""
+        self._errore_su = set()
+
     def paga_fattura(self, name: str, *, grand_total: float, outstanding: float) -> None:
         """Imposta lo stato di pagamento di una Purchase Invoice creata (per il read-back)."""
         doc = self._per_nome("Purchase Invoice", name)
