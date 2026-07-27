@@ -331,6 +331,9 @@ via `git push`, cambio dei PIN demo, costi LLM) in
 
 - [`analisi-progettazione.md`](analisi-progettazione.md) — architettura, principi e
   decisioni chiave (ADR).
+- [`docs/test-book.md`](docs/test-book.md) — il **test-book manuale**: 139 casi di
+  prova su tutti i casi d'uso, con ambiente, baseline attesa, matrice di copertura e
+  foglio esiti.
 - [`docs/deploy.md`](docs/deploy.md) — mettere in piedi una versione di prova
   (Render, Fly.io, VPS).
 - [`piano-implementazione.md`](piano-implementazione.md),
