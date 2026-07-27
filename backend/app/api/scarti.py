@@ -47,8 +47,8 @@ DOCSTATUS_ANNULLATO = 2
 # **non si annulla**: dire "annullala" manderebbe a cercare un pulsante che non
 # c'è. Workflower crea i documenti come bozza, quindi è il caso normale.
 ISTRUZIONE = {
-    DOCSTATUS_BOZZA: "è ancora una bozza: eliminala in ERPNext",
-    DOCSTATUS_CONFERMATO: "è confermata e sta nei conti: annullala in ERPNext (Cancel)",
+    DOCSTATUS_BOZZA: "ed è ancora una bozza: eliminala in ERPNext",
+    DOCSTATUS_CONFERMATO: "ed è confermata, quindi sta nei conti: annullala in ERPNext (Cancel)",
 }
 
 # Il doctype a valle da controllare, per tipo di entità sincronizzabile.
@@ -101,9 +101,9 @@ def _blocco_contabilita(tipo: str, entita: Envelope, erp: ErpClient) -> str | No
     docstatus = int(documento.get("docstatus") or 0)
     if docstatus == DOCSTATUS_ANNULLATO:
         return None
-    cosa_fare = ISTRUZIONE.get(docstatus, "sistemala prima in ERPNext")
+    cosa_fare = ISTRUZIONE.get(docstatus, "e va sistemata prima in ERPNext")
     return (
-        f"Questo documento è già arrivato in contabilità come {erp_id} ({doctype}): "
+        f"Questo documento è già arrivato in contabilità come {erp_id} ({doctype}) "
         f"{cosa_fare}, poi torna qui a scartarlo. Finché esiste a valle, scartarlo qui "
         "lascerebbe due verità in disaccordo."
     )

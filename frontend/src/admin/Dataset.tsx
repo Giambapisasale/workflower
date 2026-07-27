@@ -69,15 +69,25 @@ function IdoneitaT3() {
 
       {esito === null ? (
         <Stato>Nessuna misura in questa sessione.</Stato>
-      ) : esito.modello_candidato === null ? (
+      ) : !esito.t3_configurato ? (
         <Stato>
           Nessun modello T3 configurato: imposta <code>LLM_T3_MODEL</code> nell'ambiente e
-          rilancia la misura.
+          rilancia la misura. Senza, il tier T3 <b>ricade su T1</b> e il confronto sarebbe
+          fra un modello e se stesso.
         </Stato>
       ) : esito.esempi === 0 ? (
         <Stato>
-          Nessun esempio validato da rigiocare: valida qualche documento in Revisione, poi
-          torna qui.
+          Nessun esempio rigiocabile.
+          {esito.non_rigiocabili > 0 ? (
+            <>
+              {" "}
+              Ce ne sono <b>{esito.non_rigiocabili}</b> validati, ma il trace non conserva le
+              immagini dei documenti (le sostituisce con un segnaposto), quindi non si possono
+              rimandare al modello. Serviranno esempi di passi che non guardano una pagina.
+            </>
+          ) : (
+            " Valida qualche documento in Revisione, poi torna qui."
+          )}
         </Stato>
       ) : (
         <>
@@ -87,7 +97,18 @@ function IdoneitaT3() {
             <span>
               {esito.esempi} esempi · soglia {quota(esito.soglia)} · complessivo{" "}
               {quota(esito.totale.candidato.args)} contro {quota(esito.totale.riferimento.args)}
+              {esito.non_rigiocabili > 0
+                ? ` · ${esito.non_rigiocabili} esclusi (originale non ricostruibile)`
+                : ""}
             </span>
+            {esito.prompt_troncati > 0 ? (
+              <span className="w-full text-amber-700">
+                ⚠ {esito.prompt_troncati} prompt sono arrivati <b>troncati</b>: il trace non
+                conserva le stringhe lunghe, quindi i due tier lavorano con istruzioni
+                incomplete. Le percentuali assolute sono sottostimate — il{" "}
+                <b>confronto</b> fra T3 e T1 resta valido, perché la penalità è la stessa.
+              </span>
+            ) : null}
           </div>
           <table className="w-full text-sm">
             <thead>

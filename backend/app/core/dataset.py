@@ -112,16 +112,30 @@ def run_id_validati(dal: DAL) -> set[str]:
     return validi
 
 
-def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
-    """Le tool call dei run validati, riformattate come esempi per il fine-tuning.
+def toolcalls_validati(dal: DAL) -> Iterator[dict[str, Any]]:
+    """Le tool call **integrali** dei run validati, provenienza compresa.
 
     ADR-5 (log-everything): solo i run la cui bozza è stata validata da un umano
-    diventano esempi (``validated_by_user``), per non insegnare al modello gli errori.
+    contano, per non insegnare al modello gli errori.
+
+    Sorgente unica di "quali tool call valgono": la usano l'export per il
+    fine-tuning (che ne proietta i soli campi utili al training) e l'harness T3,
+    che invece ha bisogno del ``run_id`` per risalire al documento originale.
     """
     validi = run_id_validati(dal)
     for record in _righe_toolcalls(dal.data_dir):
         if record.get("outcome") != "success" or record.get("run_id") not in validi:
             continue
+        yield record
+
+
+def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
+    """Le tool call dei run validati, riformattate come esempi per il fine-tuning.
+
+    La proiezione è volutamente stretta: nel file di training la provenienza
+    (``run_id``, esito, timestamp) sarebbe rumore.
+    """
+    for record in toolcalls_validati(dal):
         yield {
             "workflow": record.get("workflow"),
             "tools": record.get("tools"),

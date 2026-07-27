@@ -231,7 +231,8 @@ export default function RevisioneDettaglio() {
             Il documento esce dai costi, dalla revisione e dai report, ma{" "}
             <strong>non viene cancellato</strong>: lo ritrovi in{" "}
             <Link className="underline" to="/admin/dati/scartati">Dati → Scartati</Link> e da lì
-            puoi ripristinarlo. Se era già arrivato in contabilità, va prima annullato in ERPNext.
+            puoi ripristinarlo. Se è già arrivato in contabilità, va prima sistemato in ERPNext:
+            in quel caso qui sotto compare cosa fare.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <input

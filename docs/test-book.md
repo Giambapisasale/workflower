@@ -280,11 +280,15 @@ Carica `ddt-edil-sud.pdf`, `sal-capannone-etna.pdf`, `rapportino-le-palme.pdf`.
 «rapportino» — tre tipi diversi senza che tu abbia scelto niente.
 `☐ OK ☐ KO`
 
-**B3 ⭐ 🔑 💶 · La ritenuta non c'è (è previsto)**
+**B3 ⭐ 🔑 💶 · La parcella con la ritenuta**
 Carica `fattura-studio-bianchi.pdf`.
-**Atteso:** il riepilogo riporta imponibile 4.000, IVA 880, totale 4.880 e **non**
-la ritenuta di 800: la v1.0 del workflow non la conosce. Serve per la sezione H.
-`☐ OK ☐ KO`
+**Atteso:** imponibile 4.000, IVA 880, totale 4.880. Sulla **ritenuta di 800** dipende
+dal modello: la skill v1.0 non la nomina, quindi un modello debole la salta — ed è il
+punto di partenza del giro dell'Improver (sezione H). Un T1 forte la estrae comunque
+(verificato: `gpt-5.5` la prende, confidenza 100%). Annota quale dei due casi vedi: se
+la ritenuta c'è già, per provare H3–H5 serve un'altra istruzione (es. «riporta la
+descrizione delle righe in maiuscolo»), non questa.
+`☐ OK ☐ KO` — ritenuta estratta dalla v1.0: ☐ sì ☐ no
 
 **B4 ⭐ · Conferma**
 Sul riepilogo, tocca *👍 Sì*.
@@ -755,8 +759,11 @@ ambiente A, sulla baseline, **`2/2`**.
 `☐ OK ☐ KO`
 
 **H5 ⭐ · La correzione si vede**
-Torna in **Revisione** e apri la bozza rielaborata di `fattura-studio-bianchi.pdf`.
-**Atteso:** ora c'è `ritenuta_acconto = 800`. È la *definition of done* del prodotto.
+Torna in **Revisione** e apri la bozza rielaborata.
+**Atteso:** il documento porta la correzione che avevi chiesto (nel caso classico,
+`ritenuta_acconto = 800`). È la *definition of done* del prodotto — e resta coperta dal
+test end-to-end `test_improver_e2e.py::test_scenario_ritenuta`, che gira col modello
+finto e quindi non dipende da quanto è bravo il T1 del momento.
 `☐ OK ☐ KO`
 
 **H6 · La validazione la rende una regressione**
@@ -967,9 +974,17 @@ tabella di zeri che sembra un fallimento del modello.
 Con `LLM_T3_MODEL` impostato su un modello locale, *Misura adesso*.
 **Atteso:** una riga per workflow con esempi, T3 su tool e argomenti, T1 sugli
 argomenti come riferimento, e il verdetto — *pronto per T3* / *regredirebbe* /
-*sotto soglia*. In testa i due modelli e la soglia. **Non parte da sola**: rigioca
-tutto il set validato su due tier.
+*sotto soglia*. In testa i due modelli, la soglia e — se ce ne sono — gli esempi
+esclusi e l'avviso sui **prompt troncati** (vedi §17 punto 3). **Non parte da sola**:
+rigioca tutto il set validato su due tier.
 `☐ OK ☐ KO ☐ N/A`
+
+**J5c ⭐ · L'harness non cade mai**
+Chiama `GET /api/dataset/eval-t3` su un ambiente appena seminato (nessun run).
+**Atteso:** `200` con `esempi: 0` e i contatori `non_rigiocabili` e
+`prompt_troncati` presenti. **Mai un 500**: una misura che va in errore a metà non
+serve a nessuno. (Era proprio così che si rompeva prima che questa pagina esistesse.)
+`☐ OK ☐ KO`
 
 **J6 · Escalation T3→T1**
 Solo con T3 attivo: carica un documento che il modello locale sbaglia.
@@ -1296,21 +1311,31 @@ noto.
 2. **Il Toolsmith ha bisogno di storia**: candidati e proposte nascono dal delta fra
    bozza e dato validato, quindi su un ambiente appena seminato le card sono vuote
    fino a che non hai corretto e validato qualche documento (vedi I8).
-3. **Il `.env` arriva all'app anche fuori da Docker**, ma solo per l'effetto
+3. **La misura T3 lavora su prompt troncati.** Il trace sostituisce ogni stringa
+   oltre 400 caratteri con un segnaposto (`<N caratteri, sha256:…>`) — comprese le
+   **skill**. Le immagini si ricostruiscono rifacendo l'OCR dell'originale, le
+   istruzioni no: i due tier vengono quindi misurati con un prompt di sistema
+   svuotato. Il **confronto** T3 contro T1 resta valido (stessa penalità per
+   entrambi), le **percentuali assolute** sono sottostimate. La card lo dichiara.
+   Vale anche per `finetuning.jsonl`, che eredita gli stessi messaggi: prima di
+   addestrare davvero un modello locale, questa è la cosa da sistemare.
+4. **Il `.env` arriva all'app anche fuori da Docker**, ma solo per l'effetto
    collaterale di `litellm` (vedi nota ² in §1.1): gli script no. Non è una
    configurazione da cui dipendere.
-4. **Emissione elettronica SdI e ciclo attivo**: fuori scope dichiarato.
-5. **La sincronizzazione ERP è mono-direzionale** WF→ERP: l'unico ritorno è lo stato
+5. **Emissione elettronica SdI e ciclo attivo**: fuori scope dichiarato.
+6. **La sincronizzazione ERP è mono-direzionale** WF→ERP: l'unico ritorno è lo stato
    di pagamento. Modifiche fatte in ERPNext non tornano indietro — e infatti lo
    scarto di un documento già a valle è **bloccato** invece di essere propagato.
-6. **Lo scarto non tocca l'ERP**: dice cosa fare (eliminare la bozza o annullare il
+7. **Lo scarto non tocca l'ERP**: dice cosa fare (eliminare la bozza o annullare il
    documento confermato) e attende. È una scelta, non una mancanza.
-7. **Un solo worker**: il DAL è single-writer per costruzione, non si scala
+8. **Un solo worker**: il DAL è single-writer per costruzione, non si scala
    orizzontalmente.
-8. **PIN demo**: `1111`/`9999` sono dimostrativi e vanno cambiati prima di qualunque
+9. **PIN demo**: `1111`/`9999` sono dimostrativi e vanno cambiati prima di qualunque
    uso reale.
-9. **La qualità dell'estrazione dipende dal modello**: un KO su B1/B12 può essere il
-   modello, non il codice. Annota sempre **quale modello** stavi usando (T0.3).
+10. **La qualità dell'estrazione dipende dal modello** — in entrambe le direzioni. Un
+    KO su B1/B12 può essere il modello, non il codice. E con un T1 forte lo scenario
+    didattico della ritenuta (B3 → H3) **non si riproduce**: il modello la estrae già
+    alla v1.0. Annota sempre **quale modello** stavi usando (T0.3).
 
 ---
 
@@ -1328,11 +1353,11 @@ noto.
 | G Interrogazione | 8 | | | | |
 | H Improver, golden e run | 18 | | | | |
 | I Consolidamento e Toolsmith | 13 | | | | |
-| J Dataset e T3 | 7 | | | | |
+| J Dataset e T3 | 8 | | | | |
 | K Contabilità ERP | 17 | | | | |
 | L Log e diagnosi | 11 | | | | |
 | M Robustezza e audit | 9 | | | | |
-| **Totale** | **159** | | | | |
+| **Totale** | **160** | | | | |
 
 **Ambiente usato:** ☐ A locale ☐ B Docker
 **Modello T1:** ______________ **T2:** ______________ **T3:** ______________

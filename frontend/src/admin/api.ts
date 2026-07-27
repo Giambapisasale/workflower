@@ -247,6 +247,12 @@ export type EvalT3 = {
   tier_riferimento: string;
   soglia: number;
   esempi: number;
+  /** Esempi validati di cui non si è potuta ricostruire l'immagine originale. */
+  non_rigiocabili: number;
+  /** Prompt che il trace ha troncato: abbassano l'accuratezza assoluta di entrambi i tier. */
+  prompt_troncati: number;
+  /** Falso se `LLM_T3_MODEL` non è impostato: T3 ricade su T1 e la misura si confronta con sé. */
+  t3_configurato: boolean;
   totale: { candidato: QuotaT3; riferimento: QuotaT3 };
   workflow: Record<
     string,
