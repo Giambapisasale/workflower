@@ -177,12 +177,24 @@ def main() -> int:
         for nome, valore in coppie:
             print(f"{nome}={valore}")
 
+        # Dall'host l'URL è localhost. La sintassi NON è intercambiabile fra le
+        # shell: in cmd.exe `set X="v"` mette le virgolette dentro al valore, e
+        # l'URL non viene più riconosciuto come tale.
+        host = [("ERP_BASE_URL", "http://localhost:8080"), *coppie]
+        formati = [
+            ("PowerShell", '$env:{n} = "{v}"'),
+            ("cmd.exe (niente virgolette: finirebbero DENTRO al valore)", "set {n}={v}"),
+            ("bash / zsh", 'export {n}="{v}"'),
+        ]
+
         print("\n" + "=" * 72)
-        print("2) ESPORTA NELLA SHELL  (serve agli script dall'host: erp-smoke, pytest)")
+        print("2) IMPOSTA NELLA SHELL  (serve agli script dall'host: erp-smoke, pytest)")
+        print("   Usa SOLO il blocco della tua shell.")
         print("=" * 72)
-        print('export ERP_BASE_URL="http://localhost:8080"')
-        for nome, valore in coppie:
-            print(f'export {nome}="{valore}"')
+        for etichetta, modello in formati:
+            print(f"\n--- {etichetta} ---")
+            for nome, valore in host:
+                print(modello.format(n=nome, v=valore))
 
         print("\nOgni esecuzione RIGENERA il secret (Frappe non lo rilegge): le")
         print("ERP_API_SECRET copiate prima smettono di valere. Lancialo una volta")
