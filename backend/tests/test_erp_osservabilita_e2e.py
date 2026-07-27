@@ -17,7 +17,13 @@ from app.core.erp import ErpClient, ErpConfig
 
 pytestmark = pytest.mark.erp
 
-CONFIG = ErpConfig(base_url="http://erp.test", api_key="k", api_secret="s", company="Edile SpA")
+CONFIG = ErpConfig(
+    base_url="http://erp.test",
+    api_key="k",
+    api_secret="s",
+    company="Edile SpA",
+    item_ddt="MATERIALE-GENERICO",
+)
 
 
 def _fattura_validata(dati_rw: Path) -> "object":

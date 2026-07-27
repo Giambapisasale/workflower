@@ -12,22 +12,30 @@ pagamenti, osservabilità e re-sync). Restano il deploy affiancato e l'hardening
 
 ```bash
 # 1) AVVIA ERPNext con Docker (prima volta: scarica immagini + crea il sito, qualche minuto)
-docker compose -f docker-compose.erpnext.yml up -d
-docker compose -f docker-compose.erpnext.yml logs -f create-site   # attendi che finisca
-#    → http://localhost:8080   utente: Administrator   password: admin
+make erp-up
+#    → http://localhost:8080/app   utente: Administrator   password: admin
+#    (la scrivania è /app; la radice / è il portale fornitori e nega i documenti con 403)
 
-# 2) COLLEGA Workflower: in ERPNext genera le API key (My Settings → API Access → Generate Keys)
-export ERP_BASE_URL=http://localhost:8080
-export ERP_API_KEY=<api_key>
-export ERP_API_SECRET=<api_secret>
-export ERP_COMPANY="La Tua Azienda"        # per Cost Center / Purchase Invoice
-export ERP_CONTO_RITENUTA="Ritenute - X"   # account_head della ritenuta
+# 2) PREPARA e COLLEGA: crea company, conti, articolo DDT e API key; stampa le ERP_*
+make erp-dev-setup
+#    stampa DUE blocchi, servono entrambi:
+#      1) righe ERP_*=... da incollare nel file .env  → le legge l'app in container
+#      2) righe export ERP_*=... da incollare in shell → le usano erp-smoke e pytest
+#    Senza il blocco 1 nel .env l'integrazione parte SPENTA, senza dirlo.
 
 # 3) VERIFICA il collegamento (nessun codice) e i test
 make erp-smoke                 # smoke contro l'ERPNext reale (connettività, Supplier, Cost Center)
 make erp-smoke ARGS=--full     # anche Purchase Invoice con ritenuta
 make test-erp                  # test automatici dell'integrazione (trasporto finto, veloci)
 ```
+
+`make erp-dev-setup` è idempotente e serve **solo in sviluppo**: sostituisce il setup wizard
+e il *Generate Keys* dalla UI. In produzione si segue la procedura ERPNext con un utente API
+dedicato (*My Settings → API Access → Generate Keys*).
+
+Se l'app gira **in container** e ERPNext è sullo stesso host, `ERP_BASE_URL` deve puntare a
+`host.docker.internal:8080`: dentro al container `localhost` è il container stesso. Le `ERP_*`
+del `.env` arrivano già al servizio `app` di `docker-compose.yml`.
 
 Se le `ERP_*` non sono impostate, l'integrazione è **spenta** e Workflower funziona come
 prima. Passi dettagliati e alternative (file `pwd.yml` ufficiale) in `docs/erp-poc.md`;
@@ -51,7 +59,16 @@ mappa casi d'uso → test e triage in `docs/erp-test-plan.md`.
 | `ERP_COMPANY` | per Cost Center / PI reali | azienda ERPNext su cui imputare |
 | `ERP_CONTO_RITENUTA` | consigliata | account_head della riga ritenuta d'acconto (in detrazione) |
 | `ERP_CONTO_IVA` | opzionale | account_head della riga IVA (in aggiunta) |
+| `ERP_ITEM_DDT` | per i DDT | codice articolo delle righe di Purchase Receipt: ERPNext ne pretende uno esistente. Usare un articolo generico **non di magazzino** (`is_stock_item=0`) |
 | `ERP_SUPPLIER_GROUP` | opzionale | gruppo Supplier (default `All Supplier Groups`) |
+| `ERP_CONTO_COSTO` | opzionale | `expense_account` delle righe fattura. Se assente si deriva da `Company.default_expense_account` |
+| `ERP_PARENT_COST_CENTER` | opzionale | padre dei Cost Center dei cantieri. Se assente si deriva dalla radice della Company |
+
+Le ultime due sono **override**: ERPNext pretende sia il padre del Cost Center sia il conto
+di costo sulle righe (le righe non portano `item_code`), ma entrambi sono derivabili dalla
+Company, quindi normalmente non vanno configurati. `ERP_ITEM_DDT` invece **serve** per
+sincronizzare i DDT: senza, la sincronizzazione del singolo DDT si ferma con un messaggio
+che dice cosa impostare (la validazione del documento regge, come per ogni errore ERP).
 
 **Se le tre `ERP_*` obbligatorie non sono tutte presenti, l'integrazione è spenta**
 (`erp_attivo()` falso): la sincronizzazione è un no-op e Workflower funziona come prima.
@@ -76,6 +93,10 @@ al golden set parte — best-effort — la sincronizzazione ERP:
 
 La sincronizzazione è **idempotente**: un documento con `meta.erp_id` già valorizzato non
 viene reinviato.
+
+I documenti arrivati si guardano nella **scrivania** di ERPNext: `/app/purchase-invoice`
+(fatture), `/app/purchase-receipt` (DDT), `/app/cost-center` (cantieri). Non dal portale
+alla radice del sito: quello è la vetrina per fornitori e clienti e nega i documenti.
 
 ## Endpoint admin
 
@@ -110,8 +131,22 @@ dato** (schema + riga `ENTITY_TYPES` + vista, nessun workflow).
 `esito`, `erp_id`, `errore`, `run_id`), committato in git come ogni mutazione. È l'audit
 trail e l'input dell'osservabilità/re-sync.
 
+## Pannello admin "Contabilità"
+
+`Admin → Contabilità` (`/admin/erp`) è la faccia visibile di tutto questo, senza curl:
+
+- **contatori per tipo** (quanti documenti validati sono arrivati a valle);
+- **elenco dei rimasti indietro** con un pulsante *Riprova* per documento, e
+  *Re-invia gli arretrati* per il recupero in blocco;
+- **registro dei tentativi** dal ledger, con il motivo di ogni fallimento;
+- *Rileggi i pagamenti* per il read-back.
+
+Con l'integrazione spenta la pagina lo dice e non mostra azioni (resta lo storico).
+Il lessico è quello dell'ufficio — "arrivato in contabilità", non "erp_id".
+
 ## Note
 
-- Il pannello admin "Sincronizzazioni ERP" (UI React) consuma `GET /api/erp/stato` e i due
-  `risincronizza`: è un follow-up di UI (nessuna logica nuova lato backend).
+- Gli esiti di sincronizzazione finiscono anche nel **logbook** (fase `erp`): successo a
+  `INFO`, fallimento a `ERROR` con traceback — così sono visibili in `Admin → Log` e
+  analizzabili dalla diagnosi automatica, non solo come issue e riga di ledger.
 - L'emissione elettronica SdI e il ciclo attivo restano **fuori scope** (vedi non-goal del piano).

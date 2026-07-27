@@ -19,9 +19,10 @@ alla rete o alle variabili d'ambiente. La difesa è a due strati:
    d'evasione (``__subclasses__``, ``__globals__``, …) e builtin pericolosi
    (``open``, ``eval``, ``exec``, ``__import__``, …) sono rifiutati subito.
 2. **A runtime, in un subprocess isolato** (``python -I``): builtin ridotti,
-   ``__import__`` controllato sulla whitelist, e — su POSIX — limiti di memoria,
-   CPU e dimensione file (``resource``). Il tempo di parete è imposto dal padre
-   via timeout del subprocess, quindi vale su ogni piattaforma.
+   ``__import__`` controllato sulla whitelist e limiti di risorsa imposti dal
+   sistema operativo — su POSIX memoria, CPU e dimensione file (``resource``), su
+   Windows la memoria via Job Object. Il tempo di parete è imposto dal padre via
+   timeout del subprocess, quindi vale su ogni piattaforma.
 
 Ogni fallimento (import vietato, timeout, eccezione, esplosione di memoria,
 output fuori contratto) diventa un :class:`ToolError`: al chiamante il tool
@@ -29,10 +30,13 @@ risulta "non utilizzabile", non un crash del runtime.
 
 Portabilità (``CLAUDE.md``, piano F3 M14): **stessa interfaccia, due back-end**.
 Su POSIX i limiti di risorsa sono imposti con ``resource`` nel figlio; su Windows
-(piattaforma di sviluppo) ``resource`` non esiste e la protezione si riduce al
-timeout di parete + troncamento output, con il Job Object come punto d'estensione
-documentato. Il runtime — ``runtime.py``, ``gateway.py``, ``dal.py``,
-``tracer.py`` — non cambia: la sandbox è una *capacità nuova* iniettabile.
+``resource`` non esiste e il tetto di memoria è imposto con un **Job Object**
+(``ProcessMemoryLimit``), quindi l'esplosione di memoria è fermata dal sistema
+operativo su entrambe le piattaforme. Il limite di CPU e il divieto di scrittura
+file restano POSIX-only: su Windows valgono il timeout di parete e la difesa
+statica (``open`` è già rifiutato dall'AST). Il runtime — ``runtime.py``,
+``gateway.py``, ``dal.py``, ``tracer.py`` — non cambia: la sandbox è una
+*capacità nuova* iniettabile.
 """
 
 from __future__ import annotations
@@ -150,6 +154,84 @@ def _valida_sorgente(codice: str, whitelist: frozenset[str]) -> None:
 _RUNNER = r'''
 import sys, os, json, builtins
 
+
+def _limita_windows(mem_byte):
+    """Impone il tetto di memoria al processo corrente con un Job Object.
+
+    Equivalente Windows di RLIMIT_AS: superato il tetto, l'allocazione fallisce
+    con MemoryError (gestito dal chiamante) invece di far crescere il processo
+    senza freno. Se una qualsiasi chiamata all'API non riesce si prosegue: la
+    protezione residua è il timeout di parete imposto dal padre.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    class IO_COUNTERS(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_ulonglong),
+            ("WriteOperationCount", ctypes.c_ulonglong),
+            ("OtherOperationCount", ctypes.c_ulonglong),
+            ("ReadTransferCount", ctypes.c_ulonglong),
+            ("WriteTransferCount", ctypes.c_ulonglong),
+            ("OtherTransferCount", ctypes.c_ulonglong),
+        ]
+
+    class BASIC_LIMITS(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class EXTENDED_LIMITS(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", BASIC_LIMITS),
+            ("IoInfo", IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    LIMIT_PROCESS_MEMORY = 0x00000100
+    LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+    INFO_EXTENDED_LIMIT = 9
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+    ]
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+
+    lavoro = kernel32.CreateJobObjectW(None, None)
+    if not lavoro:
+        return
+    info = EXTENDED_LIMITS()
+    # KILL_ON_JOB_CLOSE: alla morte del figlio il job si chiude e con esso
+    # eventuali processi residui, così nulla sopravvive alla sandbox.
+    info.BasicLimitInformation.LimitFlags = (
+        LIMIT_PROCESS_MEMORY | LIMIT_KILL_ON_JOB_CLOSE
+    )
+    info.ProcessMemoryLimit = mem_byte
+    if not kernel32.SetInformationJobObject(
+        lavoro, INFO_EXTENDED_LIMIT, ctypes.byref(info), ctypes.sizeof(info)
+    ):
+        return
+    kernel32.AssignProcessToJobObject(lavoro, kernel32.GetCurrentProcess())
+
+
 def _principale():
     dati = json.loads(sys.stdin.read())
     codice = dati["codice"]
@@ -169,17 +251,24 @@ def _principale():
         reale.write(json.dumps(payload))
         reale.flush()
 
-    # Limiti di risorsa: POSIX via resource; altrove (Windows) best-effort, la
-    # protezione resta il timeout di parete imposto dal padre.
-    try:
-        import resource
-        mem = limiti["memoria_byte"]
-        resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
-        cpu = limiti["cpu_sec"]
-        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))  # nessuna scrittura file
-    except Exception:
-        pass
+    # Limiti di risorsa: POSIX via resource, Windows via Job Object. In entrambi
+    # i casi la memoria è imposta dal sistema operativo; il tempo di parete resta
+    # comunque garantito dal timeout del subprocess nel padre.
+    if os.name == "nt":
+        try:
+            _limita_windows(limiti["memoria_byte"])
+        except Exception:
+            pass
+    else:
+        try:
+            import resource
+            mem = limiti["memoria_byte"]
+            resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+            cpu = limiti["cpu_sec"]
+            resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))  # nessuna scrittura file
+        except Exception:
+            pass
 
     _import_reale = builtins.__import__
 

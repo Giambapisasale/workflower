@@ -50,6 +50,11 @@ I test ERP sono marcati `@pytest.mark.erp`: `pytest -m erp` li seleziona tutti
 | **Re-sync** batch e singolo; **early-abort** con ERP giù; **recupero** dopo ripristino | `test_erp_osservabilita_e2e.py` |
 | Re-sync singolo 404 / tipo non sincronizzabile / ERP non configurato | `test_erp_osservabilita_e2e.py` |
 | **RBAC**: endpoint ERP solo admin (401 senza token, 403 operatore) | `test_erp_auth.py` |
+| **Campi obbligatori di ERPNext**: padre del Cost Center, conto di costo sulle righe fattura, articolo sulle righe DDT | `test_erp_translate.py`, `test_erp_sync_e2e.py` |
+| Resolver del master data (radice Cost Center, conto di costo dalla Company) | `test_erp_sync_e2e.py` |
+| DDT senza `ERP_ITEM_DDT` → errore **azionabile** (dice cosa configurare) | `test_erp_sync_e2e.py` |
+| Il finto rifiuta i payload incompleti come Frappe (la rete che regge i casi sopra) | `test_erp_sync_e2e.py` |
+| Esiti di sincronizzazione (ok/errore) tracciati nel **logbook** | `test_erp_sync_e2e.py` |
 | **Regressione ritenuta (M5)** — non deve mai rompersi | `test_improver_e2e.py::test_scenario_ritenuta` (+ runtime/views/toolsmith) |
 
 Attrezzatura di test: `tests/fake_erp.py` — `ErpServerFinto` (finto server Frappe
@@ -57,17 +62,52 @@ stateful: crea/filtra documenti, GET-by-name, `guasta()`/`ripristina()` per simu
 guasti e ripristini) e `FakeTrasporto` (risposte predefinite). Iniettati via
 `create_app(erp=...)` (fixture `crea_client(erp=...)`).
 
+> Il finto è deliberatamente **severo**: rifiuta con 417 i payload senza i campi che
+> ERPNext pretende (`OBBLIGATORI_TESTATA` / `OBBLIGATORI_RIGHE`) e parte con il master
+> data che ogni istanza configurata possiede (Company + Cost Center radice). È la
+> lezione del PoC: un finto gentile aveva lasciato passare tre bug che solo l'istanza
+> reale ha respinto. Con `permissivo=True` si torna al comportamento indulgente per i
+> test che non stanno provando il mapping.
+
 ## Verifica del deploy/integrazione (ERPNext reale)
 
-1. Alza ERPNext (vedi `docs/erp-poc.md` / `docker-compose.erpnext.yml`).
-2. Genera le API key in ERPNext ed esporta `ERP_BASE_URL`, `ERP_API_KEY`,
-   `ERP_API_SECRET` (e `ERP_COMPANY`, `ERP_CONTO_RITENUTA` per il passo `--full`).
-3. `make erp-smoke` → deve stampare `[PASS]` su connettività, Supplier, Cost Center.
-   Con `ARGS=--full` verifica anche la Purchase Invoice con ritenuta.
-4. Prova reale dall'app: valida una fattura e controlla `GET /api/erp/stato` +
-   la Purchase Invoice comparsa in ERPNext.
+Tre comandi, da zero a `[PASS]` (la prima volta scarica ~2 GB e crea il sito: qualche minuto):
+
+```bash
+make erp-up            # alza ERPNext in Docker (create-site è idempotente: si può ripetere)
+make erp-dev-setup     # company, piano dei conti, conto ritenute, articolo DDT, API key
+                       # → stampa le ERP_* da esportare (copia-incolla nella shell)
+make erp-smoke ARGS=--full
+```
+
+`make erp-dev-setup` è **idempotente** e sostituisce i passaggi manuali nella UI di
+ERPNext (setup wizard + *Generate Keys*). È solo per sviluppo/PoC: in produzione si
+segue la procedura ERPNext con un utente API dedicato.
+
+Poi la prova dall'app: valida una fattura e controlla `GET /api/erp/stato` + la
+Purchase Invoice comparsa in ERPNext. Se l'app gira **in container** e ERPNext è sullo
+stesso host, `ERP_BASE_URL` deve usare `host.docker.internal` (dentro al container
+`localhost` è il container stesso); le `ERP_*` del `.env` arrivano già al servizio
+`app` di `docker-compose.yml`.
 
 I record creati dallo smoke hanno prefisso `WF-SMOKE` (facili da individuare/ripulire).
+
+### Cosa è stato verificato contro un'istanza reale
+
+ERPNext v15.118.1 in Docker, seed di Workflower, app in container (esito: tutto verde):
+
+| Verifica | Esito |
+|---|---|
+| Smoke `--full`: connettività, Supplier, Cost Center, Purchase Invoice con ritenuta | `[PASS]` ×4 |
+| Ritenuta d'acconto sul documento a valle (scenario M5) | riga *Deduct* 800,00 esatti; netto 4080 su 4880 |
+| Imputazione al cantiere | `cost_center` = `Residenza Le Palme - AC` sulle righe |
+| Validazione dall'app → Purchase Invoice | `erp_id` + `erp_synced` sull'envelope |
+| Re-sync batch di 7 documenti (5 fatture + 2 DDT) | 7/7 ok, 0 errori |
+| DDT → Purchase Receipt | creata (articolo generico non di magazzino) |
+| Read-back pagamenti (M27) | fattura pagata → `pagamento` "pagato" 4080, visibile in `v_pagamenti` |
+| Idempotenza di re-sync e read-back | 0 doppioni (read-back: 0 creati / 6 aggiornati) |
+| **ERP giù** durante la validazione | documento **validato** comunque + issue automatica |
+| Recupero a ERP tornato su | `POST /api/erp/risincronizza` → 1/1 ok |
 
 ## Triage — se qualcosa fallisce
 

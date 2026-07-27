@@ -89,6 +89,15 @@ def test_cantiere_a_cost_center() -> None:
     }
 
 
+def test_cantiere_a_cost_center_con_padre() -> None:
+    # ERPNext tiene i Cost Center ad albero e RIFIUTA un figlio senza padre
+    # ("Please enter parent cost center"): il padre deve arrivare nel payload.
+    payload = cantiere_a_cost_center(
+        CANTIERE, company="Edile SpA", parent_cost_center="Edile SpA - E"
+    )
+    assert payload["parent_cost_center"] == "Edile SpA - E"
+
+
 # ------------------------------------------------------------------ righe / items
 
 
@@ -123,6 +132,20 @@ def test_cost_center_sulle_righe() -> None:
 def test_senza_cost_center_le_righe_non_lo_riportano() -> None:
     payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
     assert all("cost_center" not in i for i in payload["items"])
+
+
+def test_conto_costo_sulle_righe() -> None:
+    # Le righe non portano `item_code`: senza `expense_account` ERPNext rifiuta la
+    # Purchase Invoice ("Expense account is mandatory for item ...").
+    payload = fattura_a_purchase_invoice(
+        FATT_SENZA_RITENUTA, supplier="Studio Bianchi", conto_costo="Costi - E"
+    )
+    assert all(i["expense_account"] == "Costi - E" for i in payload["items"])
+
+
+def test_senza_conto_costo_le_righe_non_lo_riportano() -> None:
+    payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
+    assert all("expense_account" not in i for i in payload["items"])
 
 
 def test_senza_conti_configurati_nessuna_riga_tax() -> None:
@@ -205,6 +228,23 @@ def test_ddt_a_purchase_receipt_righe() -> None:
     assert all(i["cost_center"] == "Cantiere - E" for i in payload["items"])
     # il DDT non porta importi: nessun rate/amount nelle righe
     assert "rate" not in payload["items"][0]
+
+
+def test_ddt_righe_con_articolo_generico() -> None:
+    # La Purchase Receipt è un documento di magazzino: ERPNext pretende un
+    # `item_code` esistente e rifiuta la riga a testo libero ("Item None does not
+    # exist"). Workflower non ha anagrafica articoli → articolo generico configurato.
+    payload = ddt_a_purchase_receipt(
+        DDT, supplier="Ferramenta Rossi", item_code="MATERIALE-GENERICO"
+    )
+    assert all(i["item_code"] == "MATERIALE-GENERICO" for i in payload["items"])
+    # la descrizione vera resta sulla riga: l'articolo generico non la sostituisce
+    assert payload["items"][0]["description"] == "Tondino acciaio"
+
+
+def test_ddt_righe_senza_articolo_non_lo_riportano() -> None:
+    payload = ddt_a_purchase_receipt(DDT, supplier="Ferramenta Rossi")
+    assert all("item_code" not in i for i in payload["items"])
 
 
 # ------------------------------------------------------------------ coerenza

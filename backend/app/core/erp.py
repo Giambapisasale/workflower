@@ -64,6 +64,12 @@ class ErpConfig:
     spento). Il resto guida il *Translator* lato Facade e resta opzionale:
     ``company`` (obbligatoria per creare Cost Center e Purchase Invoice reali),
     ``conto_ritenuta``/``conto_iva`` (account_head delle righe tax), ``supplier_group``.
+
+    ``parent_cost_center`` e ``conto_costo`` sono **override**: ERPNext li pretende
+    (un Cost Center vuole un padre, una riga senza ``item_code`` vuole un conto di
+    costo) ma sono derivabili dalla Company, quindi se non impostati la Facade li
+    risolve dall'istanza — vedi :func:`radice_cost_center` e
+    :func:`conto_costo_predefinito`.
     """
 
     base_url: str
@@ -73,6 +79,9 @@ class ErpConfig:
     conto_ritenuta: str | None = None
     conto_iva: str | None = None
     supplier_group: str = SUPPLIER_GROUP_DEFAULT
+    parent_cost_center: str | None = None
+    conto_costo: str | None = None
+    item_ddt: str | None = None
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -91,6 +100,9 @@ class ErpConfig:
             conto_ritenuta=os.environ.get("ERP_CONTO_RITENUTA"),
             conto_iva=os.environ.get("ERP_CONTO_IVA"),
             supplier_group=os.environ.get("ERP_SUPPLIER_GROUP") or SUPPLIER_GROUP_DEFAULT,
+            parent_cost_center=os.environ.get("ERP_PARENT_COST_CENTER"),
+            conto_costo=os.environ.get("ERP_CONTO_COSTO"),
+            item_ddt=os.environ.get("ERP_ITEM_DDT"),
         )
 
 
@@ -135,6 +147,9 @@ class ErpClient:
         self.config = config if config is not None else ErpConfig.da_env()
         self._transport = transport or _trasporto_httpx
         self.timeout = timeout
+        # Master data derivato dalla Company (radice dei Cost Center, conto di costo):
+        # non cambia durante un giro di sincronizzazione, si legge una volta sola.
+        self._master: dict[str, str | None] = {}
 
     def attivo(self) -> bool:
         return self.config is not None
@@ -184,13 +199,28 @@ class ErpClient:
         return corpo.get("data", corpo) if isinstance(corpo, dict) else corpo
 
     def trova_documenti(
-        self, doctype: str, filtri: list[list[Any]], *, limite: int = 1
+        self,
+        doctype: str,
+        filtri: list[list[Any]],
+        *,
+        limite: int = 1,
+        campi: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """GET con ``filters`` Frappe; ritorna la lista ``data`` (vuota se nulla)."""
+        """GET con ``filters`` Frappe; ritorna la lista ``data`` (vuota se nulla).
+
+        Senza ``campi`` Frappe restituisce il solo ``name``; passarli serve quando
+        occorre discriminare fra più risultati (es. la radice dei Cost Center).
+        """
         import json as _json
         from urllib.parse import urlencode
 
-        query = urlencode({"filters": _json.dumps(filtri), "limit_page_length": limite})
+        parametri: dict[str, Any] = {
+            "filters": _json.dumps(filtri),
+            "limit_page_length": limite,
+        }
+        if campi:
+            parametri["fields"] = _json.dumps(campi)
+        query = urlencode(parametri)
         corpo = self.richiesta("GET", f"/api/resource/{doctype}?{query}")
         dati = corpo.get("data") if isinstance(corpo, dict) else None
         return dati or []
@@ -236,22 +266,38 @@ def fornitore_a_supplier(
     return payload
 
 
-def cantiere_a_cost_center(dati: dict[str, Any], *, company: str) -> dict[str, Any]:
-    """`cantiere` → payload DocType **Cost Center** (per imputare i costi al cantiere)."""
-    return {
+def cantiere_a_cost_center(
+    dati: dict[str, Any], *, company: str, parent_cost_center: str | None = None
+) -> dict[str, Any]:
+    """`cantiere` → payload DocType **Cost Center** (per imputare i costi al cantiere).
+
+    ERPNext organizza i Cost Center ad albero e pretende un padre: ``parent_cost_center``
+    è la radice della Company (la risolve la Facade, vedi :func:`radice_cost_center`).
+    """
+    payload: dict[str, Any] = {
         "cost_center_name": dati["nome"],
         "company": company,
         "is_group": 0,
     }
+    if parent_cost_center:
+        payload["parent_cost_center"] = parent_cost_center
+    return payload
 
 
-def _riga_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str, Any]:
+def _riga_a_item(
+    riga: dict[str, Any], cost_center: str | None, conto_costo: str | None = None
+) -> dict[str, Any]:
     """Una riga fattura → una riga **Purchase Invoice Item**.
 
     La riga Workflower porta l'`importo` (totale riga = quantità × prezzo), non un
     prezzo unitario: si ricava `rate` = importo/qty così che qty×rate == importo.
     I campi interni di Workflower (`voce_computo_id`, `mezzo_id`, `tipo_costo`) sono
     per il cost-control di WF e **non** vengono spinti nell'ERP (confine dell'analisi).
+
+    Le righe non portano ``item_code`` (i documenti di cantiere descrivono a testo,
+    non a codice articolo): ERPNext non può quindi derivare il conto di costo
+    dall'articolo e lo pretende esplicito — è ``conto_costo``, risolto dalla Facade
+    dalla Company (vedi :func:`conto_costo_predefinito`).
     """
     importo = riga["importo"]
     quantita = riga.get("quantita")
@@ -264,6 +310,8 @@ def _riga_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str, Any
     }
     if cost_center:
         item["cost_center"] = cost_center
+    if conto_costo:
+        item["expense_account"] = conto_costo
     return item
 
 
@@ -274,10 +322,13 @@ def fattura_a_purchase_invoice(
     cost_center: str | None = None,
     conto_ritenuta: str | None = None,
     conto_iva: str | None = None,
+    conto_costo: str | None = None,
 ) -> dict[str, Any]:
     """`fattura` → payload DocType **Purchase Invoice** (+ items + taxes).
 
     - ``supplier``/``cost_center``: nomi già risolti dalla Facade (M25).
+    - ``conto_costo``: ``expense_account`` delle righe, obbligatorio in ERPNext
+      quando la riga non porta ``item_code`` (è il nostro caso).
     - **Ritenuta d'acconto** (lo scenario M5, non negoziabile): se presente e c'è un
       conto ritenuta configurato, entra come riga di *Purchase Taxes and Charges* in
       **detrazione** con l'importo esatto estratto da Workflower; senza conto si
@@ -289,7 +340,7 @@ def fattura_a_purchase_invoice(
         "supplier": supplier,
         "bill_no": dati["numero"],
         "bill_date": dati["data"],
-        "items": [_riga_a_item(r, cost_center) for r in dati.get("righe", [])],
+        "items": [_riga_a_item(r, cost_center, conto_costo) for r in dati.get("righe", [])],
     }
 
     taxes: list[dict[str, Any]] = []
@@ -327,11 +378,19 @@ def fattura_a_purchase_invoice(
     return payload
 
 
-def _riga_ddt_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str, Any]:
+def _riga_ddt_a_item(
+    riga: dict[str, Any], cost_center: str | None, item_code: str | None = None
+) -> dict[str, Any]:
     """Una riga DDT → una riga **Purchase Receipt Item**.
 
     Il DDT non porta importi (la merce si valorizza in fattura): si mappano
     descrizione e quantità; il costo cade sul cost center del cantiere.
+
+    La Purchase Receipt è un documento di **magazzino**: a differenza della
+    Purchase Invoice, ERPNext pretende un ``item_code`` esistente e rifiuta la riga
+    "a testo libero". Workflower non ha un'anagrafica articoli (i DDT di cantiere
+    descrivono a parole), quindi si usa un articolo generico configurato —
+    ``ERP_ITEM_DDT`` — e la descrizione vera resta in ``description``.
     """
     quantita = riga.get("quantita")
     qty = quantita if quantita not in (None, 0) else 1
@@ -340,19 +399,25 @@ def _riga_ddt_a_item(riga: dict[str, Any], cost_center: str | None) -> dict[str,
         "description": riga["descrizione"],
         "qty": qty,
     }
+    if item_code:
+        item["item_code"] = item_code
     if cost_center:
         item["cost_center"] = cost_center
     return item
 
 
 def ddt_a_purchase_receipt(
-    dati: dict[str, Any], *, supplier: str, cost_center: str | None = None
+    dati: dict[str, Any],
+    *,
+    supplier: str,
+    cost_center: str | None = None,
+    item_code: str | None = None,
 ) -> dict[str, Any]:
     """`ddt` → payload DocType **Purchase Receipt** (merce ricevuta, senza importi)."""
     payload: dict[str, Any] = {
         "supplier": supplier,
         "posting_date": dati["data"],
-        "items": [_riga_ddt_a_item(r, cost_center) for r in dati.get("righe", [])],
+        "items": [_riga_ddt_a_item(r, cost_center, item_code) for r in dati.get("righe", [])],
     }
     if dati.get("numero"):
         payload["supplier_delivery_note"] = dati["numero"]
@@ -382,6 +447,49 @@ def fattura_coerente(dati: dict[str, Any], tolleranza: float = 0.01) -> bool:
 # Qui la Facade ha il DAL solo per *leggere* le anagrafiche referenziate.
 
 
+def radice_cost_center(erp: "ErpClient", company: str) -> str | None:
+    """Il Cost Center **radice** della Company (padre dei cantieri), o ``None``.
+
+    ERPNext crea per ogni Company un Cost Center di gruppo omonimo, radice
+    dell'albero: è il padre naturale dei cantieri. Lo si cerca fra i gruppi della
+    Company scegliendo quello **senza padre**. Il risultato è memorizzato sul client:
+    è master data, non cambia durante un giro di sincronizzazione.
+    """
+    chiave = f"radice_cc:{company}"
+    if chiave not in erp._master:
+        gruppi = erp.trova_documenti(
+            "Cost Center",
+            [["company", "=", company], ["is_group", "=", 1]],
+            limite=20,
+            campi=["name", "parent_cost_center"],
+        )
+        radici = [g for g in gruppi if not g.get("parent_cost_center")]
+        scelti = radici or gruppi
+        erp._master[chiave] = scelti[0]["name"] if scelti else None
+    return erp._master[chiave]
+
+
+def conto_costo_predefinito(erp: "ErpClient", company: str) -> str | None:
+    """Il conto di costo predefinito della Company (``default_expense_account``).
+
+    Serve come ``expense_account`` delle righe, che ERPNext pretende quando la riga
+    non porta ``item_code``. Memorizzato sul client come gli altri master data.
+    """
+    chiave = f"conto_costo:{company}"
+    if chiave not in erp._master:
+        from urllib.parse import quote
+
+        try:
+            corpo = erp.richiesta("GET", f"/api/resource/Company/{quote(company)}")
+            dati = corpo.get("data", corpo) if isinstance(corpo, dict) else {}
+            erp._master[chiave] = dati.get("default_expense_account") or None
+        except ErpError:
+            # Master data non leggibile: si prosegue senza: ERPNext dirà cosa manca
+            # e l'errore finisce in issue + ledger come ogni altro problema di sync.
+            erp._master[chiave] = None
+    return erp._master[chiave]
+
+
 def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: ErpConfig) -> str:
     """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea."""
     if not fornitore_id:
@@ -409,7 +517,8 @@ def _risolvi_cost_center(
     if not cantiere_id or not config.company:
         return None
     cant = dal.read("cantiere", cantiere_id).dati
-    payload = cantiere_a_cost_center(cant, company=config.company)
+    padre = config.parent_cost_center or radice_cost_center(erp, config.company)
+    payload = cantiere_a_cost_center(cant, company=config.company, parent_cost_center=padre)
     esistenti = erp.trova_documenti(
         "Cost Center",
         [["cost_center_name", "=", payload["cost_center_name"]], ["company", "=", config.company]],
@@ -446,16 +555,30 @@ def sincronizza(
 
     if envelope.tipo == "fattura":
         doctype = "Purchase Invoice"
+        conto_costo = cfg.conto_costo
+        if not conto_costo and cfg.company:
+            conto_costo = conto_costo_predefinito(erp, cfg.company)
         payload = fattura_a_purchase_invoice(
             dati,
             supplier=supplier,
             cost_center=cost_center,
             conto_ritenuta=cfg.conto_ritenuta,
             conto_iva=cfg.conto_iva,
+            conto_costo=conto_costo,
         )
     else:  # ddt (TIPI_SINCRONIZZABILI garantisce che sia uno di questi)
         doctype = "Purchase Receipt"
-        payload = ddt_a_purchase_receipt(dati, supplier=supplier, cost_center=cost_center)
+        if not cfg.item_ddt:
+            # Meglio un errore che dica cosa configurare del "Item None does not
+            # exist" che risponderebbe ERPNext: questo testo finisce nell'issue.
+            raise ErpError(
+                "DDT non sincronizzabile: ERPNext richiede un articolo sulle righe di "
+                "Purchase Receipt. Configura ERP_ITEM_DDT con il codice di un articolo "
+                "generico (consigliato: non di magazzino, is_stock_item=0)."
+            )
+        payload = ddt_a_purchase_receipt(
+            dati, supplier=supplier, cost_center=cost_center, item_code=cfg.item_ddt
+        )
 
     creato = erp.crea_documento(doctype, payload)
     erp_id = creato.get("name")
@@ -510,7 +633,14 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
             continue
         try:
             corpo = erp.richiesta("GET", f"/api/resource/Purchase Invoice/{quote(erp_id)}")
-        except ErpError:
+        except ErpError as exc:
+            _log.warning(
+                "stato pagamento non leggibile per %s (ERP %s): %s",
+                ft.id,
+                erp_id,
+                exc,
+                extra={"entity_id": ft.id},
+            )
             errori += 1
             continue
         pi = corpo.get("data", corpo) if isinstance(corpo, dict) else {}
@@ -524,6 +654,9 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
         else:
             esistenti[ft.id] = dal.crea_progressivo("pagamento", dati, stato="validato")
             creati += 1
+    _log.info(
+        "read-back pagamenti: creati %d, aggiornati %d, errori %d", creati, aggiornati, errori
+    )
     return {"esito": "ok", "creati": creati, "aggiornati": aggiornati, "errori": errori}
 
 
@@ -545,6 +678,16 @@ def applica_sincronizzazione(dal: Any, envelope: Any, erp: "ErpClient") -> dict[
     try:
         esito = sincronizza(dal, envelope, erp)
     except ErpError as exc:
+        # Il logbook è la superficie diagnostica dell'ufficio (pagina "Log") e
+        # l'ingresso della diagnosi automatica: un fallimento verso l'ERP deve
+        # comparire lì, non solo come issue e riga di ledger.
+        _log.error(
+            "sincronizzazione ERP fallita per %s: %s",
+            envelope.id,
+            exc,
+            exc_info=exc,
+            extra={"run_id": envelope.meta.run_id, "entity_id": envelope.id},
+        )
         dal.crea_issue(
             "auto",
             f"Sincronizzazione ERP fallita per {envelope.id}: {exc}",
@@ -556,6 +699,13 @@ def applica_sincronizzazione(dal: Any, envelope: Any, erp: "ErpClient") -> dict[
         )
         return {"esito": "errore", "errore": str(exc)}
     if esito.get("esito") == "ok":
+        _log.info(
+            "documento %s sincronizzato su ERP come %s %s",
+            envelope.id,
+            esito.get("doctype"),
+            esito["erp_id"],
+            extra={"run_id": envelope.meta.run_id, "entity_id": envelope.id},
+        )
         envelope.meta.erp_id = esito["erp_id"]
         envelope.meta.erp_synced = now_iso()
         dal.update(envelope, run_id=envelope.meta.run_id)
@@ -635,7 +785,16 @@ def risincronizza_mancanti(
                 consecutivi += 1
                 if consecutivi >= max_errori:
                     interrotto = True
+                    _log.warning(
+                        "re-sync interrotto dopo %d fallimenti consecutivi: ERP "
+                        "verosimilmente giù (tentate %d, ok %d)",
+                        consecutivi,
+                        tentate,
+                        ok,
+                    )
                     break
         if interrotto:
             break
+    if tentate:
+        _log.info("re-sync ERP: tentate %d, ok %d, errori %d", tentate, ok, errori)
     return {"esito": "ok", "tentate": tentate, "ok": ok, "errori": errori, "interrotto": interrotto}

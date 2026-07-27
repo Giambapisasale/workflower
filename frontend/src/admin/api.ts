@@ -330,6 +330,53 @@ export type EsitoCollega = {
   dettaglio: { riga: number; voce_id: string | null; punteggio: number }[];
 };
 
+/** Un tentativo di sincronizzazione ERP dal ledger `dataset/erp_sync.jsonl`. */
+export type ErpTentativo = {
+  ts: string;
+  entity_id: string;
+  esito: string; // "ok" | "errore"
+  erp_id: string | null;
+  errore: string | null;
+  run_id: string | null;
+};
+
+export type ErpContatori = {
+  validate: number;
+  sincronizzate: number;
+  da_sincronizzare: number;
+};
+
+/** Stato dell'integrazione ERP (M28): contatori, arretrati, ultimi tentativi. */
+export type ErpStato = {
+  erp_attivo: boolean;
+  per_tipo: Record<string, ErpContatori>;
+  da_sincronizzare: { id: string; tipo: string }[];
+  ultimi_tentativi: ErpTentativo[];
+};
+
+export type ErpEsitoBatch = {
+  esito: string;
+  tentate: number;
+  ok: number;
+  errori: number;
+  interrotto: boolean;
+};
+
+export type ErpEsitoSingolo = {
+  esito: string;
+  erp_id?: string;
+  doctype?: string;
+  errore?: string;
+  motivo?: string;
+};
+
+export type ErpEsitoPagamenti = {
+  esito: string;
+  creati: number;
+  aggiornati: number;
+  errori: number;
+};
+
 /** Schema JSON (sottoinsieme che ci serve per generare i form). */
 export type JsonSchema = {
   type?: string | string[];
@@ -505,6 +552,17 @@ export const admin = {
 
   archiviaDiagnosi: (id: string) =>
     richiesta<Diagnosi>(`/diagnoses/${id}/archive`, metodoJson("POST")),
+
+  // Integrazione ERP (M28): registro delle sincronizzazioni e recupero manuale.
+  erpStato: () => richiesta<ErpStato>("/erp/stato"),
+
+  erpRisincronizza: () => richiesta<ErpEsitoBatch>("/erp/risincronizza", metodoJson("POST")),
+
+  erpRisincronizzaUno: (entityId: string) =>
+    richiesta<ErpEsitoSingolo>(`/erp/risincronizza/${entityId}`, metodoJson("POST")),
+
+  erpRileggiPagamenti: () =>
+    richiesta<ErpEsitoPagamenti>("/erp/rileggi-pagamenti", metodoJson("POST")),
 
   // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
   entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),

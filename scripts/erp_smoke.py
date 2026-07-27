@@ -20,13 +20,22 @@ I record creati sono di prova e riconoscibili dal prefisso "WF-SMOKE".
 import argparse
 import sys
 
-from app.core.erp import (
+# I messaggi usano frecce ed em-dash: su Windows la console è cp1252 e un print()
+# fallirebbe con UnicodeEncodeError proprio mentre stampa un [PASS]. Forziamo UTF-8
+# sui flussi dello script prima di scrivere qualsiasi cosa.
+for _flusso in (sys.stdout, sys.stderr):
+    if hasattr(_flusso, "reconfigure"):
+        _flusso.reconfigure(encoding="utf-8", errors="replace")
+
+from app.core.erp import (  # noqa: E402  (dopo la riconfigurazione dei flussi)
     ErpClient,
     ErpConfig,
     ErpError,
     cantiere_a_cost_center,
+    conto_costo_predefinito,
     fattura_a_purchase_invoice,
     fornitore_a_supplier,
+    radice_cost_center,
 )
 
 PREFISSO = "WF-SMOKE"
@@ -109,7 +118,10 @@ def main() -> int:
     cost_center = None
     if config.company:
         try:
-            payload = cantiere_a_cost_center(CANTIERE, company=config.company)
+            padre = config.parent_cost_center or radice_cost_center(client, config.company)
+            payload = cantiere_a_cost_center(
+                CANTIERE, company=config.company, parent_cost_center=padre
+            )
             filtri = [
                 ["cost_center_name", "=", payload["cost_center_name"]],
                 ["company", "=", config.company],
@@ -129,6 +141,9 @@ def main() -> int:
             problemi += 1
         else:
             try:
+                conto_costo = config.conto_costo
+                if not conto_costo and config.company:
+                    conto_costo = conto_costo_predefinito(client, config.company)
                 pi = client.crea_documento(
                     "Purchase Invoice",
                     fattura_a_purchase_invoice(
@@ -137,6 +152,7 @@ def main() -> int:
                         cost_center=cost_center,
                         conto_ritenuta=config.conto_ritenuta,
                         conto_iva=config.conto_iva,
+                        conto_costo=conto_costo,
                     ),
                 )
                 rit = FATTURA["ritenuta_acconto"]

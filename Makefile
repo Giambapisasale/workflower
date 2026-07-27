@@ -1,5 +1,6 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
-.PHONY: setup dev dev-api dev-web test test-erp erp-smoke seed fixtures samples demo lint
+.PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
+        seed fixtures samples demo lint
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -34,6 +35,16 @@ test-erp: ## Solo i test dell'integrazione ERP (veloci, con trasporto finto)
 
 erp-smoke: ## Smoke test contro un ERPNext REALE (usa ERP_* dall'ambiente). Aggiungi ARGS=--full
 	$(PY) scripts/erp_smoke.py $(ARGS)
+
+erp-up: ## Avvia l'ERPNext di sviluppo (docker). La prima volta crea il sito: qualche minuto.
+	docker compose -f docker-compose.erpnext.yml up -d
+
+erp-down: ## Ferma l'ERPNext di sviluppo (mantiene i dati; aggiungi ARGS=-v per azzerare)
+	docker compose -f docker-compose.erpnext.yml down $(ARGS)
+
+erp-dev-setup: ## Prepara l'ERPNext di sviluppo (company, conti, articolo, API key) e stampa le ERP_*
+	docker compose -f docker-compose.erpnext.yml cp scripts/erp_dev_setup.py backend:/tmp/erp_dev_setup.py
+	docker compose -f docker-compose.erpnext.yml exec -T backend bash -lc "cd /home/frappe/frappe-bench/sites && ../env/bin/python /tmp/erp_dev_setup.py"
 
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed

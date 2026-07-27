@@ -8,7 +8,8 @@
 #   docker compose -f docker-compose.erpnext.yml up -d
 #   # la prima volta scarica le immagini e CREA il sito (servizio create-site):
 #   docker compose -f docker-compose.erpnext.yml logs -f create-site   # attendi "current"
-#   # poi apri http://localhost:8080  →  utente: Administrator   password: admin
+#   # poi apri http://localhost:8080/app  →  utente: Administrator   password: admin
+#   # (la SCRIVANIA è /app; la radice / è il portale fornitori e nega i documenti: 403)
 #
 # ── Stop / reset ───────────────────────────────────────────────────────────────
 #   docker compose -f docker-compose.erpnext.yml down          # ferma (mantiene i dati)
@@ -17,6 +18,10 @@
 # Workflower NON dipende da questo compose: lo raggiunge via HTTP con le env
 # ERP_BASE_URL / ERP_API_KEY / ERP_API_SECRET (vedi docs/erp-poc.md § "Collega").
 # Pinna la versione con:  ERPNEXT_VERSION=v15 docker compose -f docker-compose.erpnext.yml up -d
+
+# Progetto separato da quello dell'app (vedi la nota in docker-compose.yml): i due
+# stack vivono nella stessa cartella ma non devono interferire.
+name: workflower-erpnext
 
 x-customizable-image: &customizable_image
   image: frappe/erpnext:${ERPNEXT_VERSION:-v15}
@@ -28,8 +33,16 @@ x-depends-on-configurator: &depends_on_configurator
     configurator:
       condition: service_completed_successfully
 
+# I servizi che *servono* il sito devono attendere che il sito ESISTA: se partono
+# in parallelo a create-site mettono in cache un elenco app vuoto e ogni chiamata
+# REST risponde "App erpnext is not installed" finché non si svuota la cache.
+x-depends-on-site: &depends_on_site
+  depends_on:
+    create-site:
+      condition: service_completed_successfully
+
 x-backend-defaults: &backend_defaults
-  <<: [*customizable_image, *depends_on_configurator]
+  <<: [*customizable_image, *depends_on_site]
   volumes:
     - sites:/home/frappe/frappe-bench/sites
 
@@ -90,6 +103,10 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
+        if [ -f sites/frontend/site_config.json ]; then
+          echo "sito 'frontend' già presente: niente da creare";
+          exit 0;
+        fi;
         bench new-site --mariadb-user-host-login-scope='%' \
           --admin-password=admin \
           --db-root-username=root --db-root-password=admin \
@@ -121,7 +138,7 @@ services:
       - "8080:8080"
 
   websocket:
-    <<: [*customizable_image, *depends_on_configurator]
+    <<: [*customizable_image, *depends_on_site]
     command: ["node", "/home/frappe/frappe-bench/apps/frappe/socketio.js"]
     volumes:
       - sites:/home/frappe/frappe-bench/sites
@@ -138,8 +155,13 @@ services:
     <<: *backend_defaults
     command: ["bench", "schedule"]
 
+  # db e redis hanno bisogno di una restart policy quanto i servizi frappe: se il
+  # motore Docker si riavvia (o la macchina va in sospensione) i frappe tornano su
+  # da soli e senza questa riga troverebbero il database spento — stack apparentemente
+  # avviato ma inutilizzabile, con "Can't connect to MySQL server on 'db'" nei log.
   db:
     image: mariadb:10.6
+    restart: unless-stopped
     healthcheck:
       test: mysqladmin ping -h localhost --password=admin
       interval: 1s
@@ -156,11 +178,13 @@ services:
 
   redis-cache:
     image: redis:6.2-alpine
+    restart: unless-stopped
     volumes:
       - redis-cache-data:/data
 
   redis-queue:
     image: redis:6.2-alpine
+    restart: unless-stopped
     volumes:
       - redis-queue-data:/data
 

@@ -155,6 +155,9 @@ supportato da litellm.
   consolidamento (viste, tool parametrici, funzioni Python) e idoneità T3.
 - **Dataset** — costo per documento, tool call, export `toolcalls.jsonl` e
   `finetuning.jsonl`, query ricorrenti.
+- **Contabilità** — le sincronizzazioni verso l'ERP: quanti documenti sono
+  arrivati a valle, quelli rimasti indietro con *Riprova*, il registro dei
+  tentativi con il motivo dei fallimenti (vedi `docs/erp-integrazione.md`).
 - **Log** — la diagnostica: eventi di tutte le fasi, errori in evidenza, livello
   configurabile a runtime (vedi sotto).
 - **Diagnosi** — l'analisi automatica degli errori con proposta di risoluzione

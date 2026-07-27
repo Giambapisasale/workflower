@@ -16,6 +16,7 @@ import Dati from "./Dati";
 import Diagnosi from "./Diagnosi";
 import EntitaForm from "./EntitaForm";
 import EntitaLista from "./EntitaLista";
+import Erp from "./Erp";
 import Interroga from "./Interroga";
 import Log from "./Log";
 import Revisione from "./Revisione";
@@ -36,6 +37,7 @@ const VOCI = [
   { a: "/admin/workflows", etichetta: "Workflows", fine: false },
   { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
   { a: "/admin/dataset", etichetta: "Dataset", fine: false },
+  { a: "/admin/erp", etichetta: "Contabilità", fine: false },
   { a: "/admin/log", etichetta: "Log", fine: false },
   { a: "/admin/diagnosi", etichetta: "Diagnosi", fine: false },
 ];
@@ -115,6 +117,7 @@ export default function AdminApp() {
           <Route path="workflows" element={<Workflows />} />
           <Route path="tools" element={<SkillsTools />} />
           <Route path="dataset" element={<Dataset />} />
+          <Route path="erp" element={<Erp />} />
           <Route path="log" element={<Log />} />
           <Route path="diagnosi" element={<Diagnosi />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

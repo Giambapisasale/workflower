@@ -6,6 +6,7 @@ dopo `validate` la fattura compare in ERPNext come Purchase Invoice, con backref
 ERP non configurato = no-op. Nessun ERPNext reale: trasporto finto (fake_erp).
 """
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,17 @@ from aiuti import accedi
 from fake_erp import ErpServerFinto
 from git import Repo
 
+from app.core import logbook
 from app.core.dal import DAL
 from app.core.dataset import leggi_sync_erp
-from app.core.erp import ErpClient, ErpConfig, sincronizza
+from app.core.erp import (
+    ErpClient,
+    ErpConfig,
+    ErpError,
+    conto_costo_predefinito,
+    radice_cost_center,
+    sincronizza,
+)
 
 pytestmark = pytest.mark.erp
 
@@ -26,6 +35,7 @@ CONFIG = ErpConfig(
     company="Edile SpA",
     conto_ritenuta="Ritenute - E",
     conto_iva="IVA ns credito - E",
+    item_ddt="MATERIALE-GENERICO",  # ERPNext pretende un articolo sulle righe della PR
 )
 
 
@@ -219,6 +229,148 @@ def test_tipo_non_sincronizzabile_nessun_effetto(crea_client, dati_rw: Path) -> 
     assert resp.status_code == 200, resp.text
     assert resp.json()["erp"] is None  # SAL non è sincronizzabile
     assert server.chiamate == []
+
+
+# ------------------------------------------------------------------------------
+# Campi che ERPNext pretende davvero (regressione: scoperti solo contro un'istanza
+# reale, il finto li lasciava passare — ora li rifiuta come Frappe).
+# ------------------------------------------------------------------------------
+
+
+def test_cost_center_del_cantiere_ha_il_padre(crea_client, dati_rw: Path) -> None:
+    """Il Cost Center creato per il cantiere pende dalla radice della Company."""
+    bozza = _bozza_da_seed(dati_rw, con_ritenuta=False)
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.json()["erp"]["esito"] == "ok"
+    payload = server.post_di("Cost Center")[0]
+    assert payload["parent_cost_center"] == "Edile SpA - E"  # radice, non inventata
+
+
+def test_purchase_invoice_righe_con_conto_di_costo(crea_client, dati_rw: Path) -> None:
+    """Le righe portano l'expense_account derivato dalla Company."""
+    bozza = _bozza_da_seed(dati_rw, con_ritenuta=False)
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.json()["erp"]["esito"] == "ok"
+    payload = server.post_di("Purchase Invoice")[0]
+    assert all(i["expense_account"] == "Costi - E" for i in payload["items"])
+
+
+def test_purchase_receipt_righe_con_articolo(crea_client, dati_rw: Path) -> None:
+    """Le righe della Purchase Receipt portano l'articolo generico configurato."""
+    dal = DAL(dati_rw)
+    seed = next(e for e in dal.list_all("ddt") if e.dati.get("fornitore_id"))
+    bozza = dal.crea_progressivo("ddt", dict(seed.dati), stato="bozza")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.json()["erp"]["esito"] == "ok"
+    payload = server.post_di("Purchase Receipt")[0]
+    assert all(i["item_code"] == "MATERIALE-GENERICO" for i in payload["items"])
+
+
+def test_ddt_senza_articolo_configurato_errore_parlante(crea_client, dati_rw: Path) -> None:
+    """Senza ERP_ITEM_DDT il DDT non si sincronizza, ma l'errore dice cosa fare.
+
+    Meglio un messaggio azionabile nell'issue del "Item None does not exist" che
+    risponderebbe ERPNext; e la validazione regge comunque.
+    """
+    dal = DAL(dati_rw)
+    seed = next(e for e in dal.list_all("ddt") if e.dati.get("fornitore_id"))
+    bozza = dal.crea_progressivo("ddt", dict(seed.dati), stato="bozza")
+    server = ErpServerFinto()
+    senza_item = replace(CONFIG, item_ddt=None)
+    client = crea_client(erp=ErpClient(config=senza_item, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.json()["stato"] == "validato"  # la validazione non cade
+    assert resp.json()["erp"]["esito"] == "errore"
+    assert "ERP_ITEM_DDT" in resp.json()["erp"]["errore"]
+    assert not server.post_di("Purchase Receipt")
+    issue = next(i for i in DAL(dati_rw).list_issues() if i.entity_id == bozza.id)
+    assert "ERP_ITEM_DDT" in issue.testo
+
+
+def test_il_finto_rifiuta_i_payload_incompleti() -> None:
+    """Il finto è severo come ERPNext: è ciò che rende i test sopra una rete.
+
+    Senza questa severità i tre casi qui sopra passerebbero anche con il payload
+    sbagliato — è esattamente come i bug erano sfuggiti fino alla prova reale.
+    """
+    server = ErpServerFinto()
+    erp = ErpClient(config=CONFIG, transport=server)
+
+    with pytest.raises(ErpError, match="parent_cost_center"):
+        erp.crea_documento("Cost Center", {"cost_center_name": "X", "company": "Edile SpA"})
+    with pytest.raises(ErpError, match="expense_account"):
+        erp.crea_documento("Purchase Invoice", {"supplier": "X", "items": [{"qty": 1}]})
+    with pytest.raises(ErpError, match="item_code"):
+        erp.crea_documento("Purchase Receipt", {"supplier": "X", "items": [{"qty": 1}]})
+
+
+def test_il_fallimento_erp_finisce_nel_logbook(crea_client, dati_rw: Path) -> None:
+    """Un fallimento verso l'ERP deve comparire nel logbook, non solo come issue.
+
+    Il logbook è la pagina "Log" dell'ufficio e l'ingresso della diagnosi
+    automatica: un errore che non arriva lì è invisibile a quella macchina.
+    """
+    logbook.configura_logging(dati_rw, livello="INFO")
+    bozza = _bozza_da_seed(dati_rw, con_ritenuta=False)
+    server = ErpServerFinto(errore_su={"Purchase Invoice"})
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    errori = logbook.leggi_log(dati_rw, livello_min="ERROR")
+    assert any(
+        v.get("fase") == "erp" and bozza.id in str(v.get("messaggio")) for v in errori
+    ), "il fallimento di sincronizzazione ERP non è arrivato nel logbook"
+
+
+def test_la_sincronizzazione_riuscita_e_tracciata_nel_logbook(crea_client, dati_rw: Path) -> None:
+    """Anche l'esito positivo lascia traccia: serve a ricostruire cosa è andato a valle."""
+    logbook.configura_logging(dati_rw, livello="INFO")
+    bozza = _bozza_da_seed(dati_rw, con_ritenuta=False)
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    voci = logbook.leggi_log(dati_rw, fase="erp")
+    assert any("sincronizzato" in str(v.get("messaggio")) for v in voci)
+
+
+def test_resolver_radice_cost_center_e_conto_costo() -> None:
+    """I resolver leggono il master data dalla Company, senza inventare nomi."""
+    server = ErpServerFinto()
+    erp = ErpClient(config=CONFIG, transport=server)
+    assert radice_cost_center(erp, "Edile SpA") == "Edile SpA - E"
+    assert conto_costo_predefinito(erp, "Edile SpA") == "Costi - E"
+
+
+def test_resolver_ignora_i_gruppi_figli(crea_client, dati_rw: Path) -> None:
+    """Fra più Cost Center di gruppo si sceglie la radice (quella senza padre)."""
+    server = ErpServerFinto()
+    server.per_doctype["Cost Center"].append(
+        {
+            "name": "Commesse - E",
+            "company": "Edile SpA",
+            "is_group": 1,
+            "parent_cost_center": "Edile SpA - E",  # gruppo figlio: non è la radice
+        }
+    )
+    erp = ErpClient(config=CONFIG, transport=server)
+    assert radice_cost_center(erp, "Edile SpA") == "Edile SpA - E"
 
 
 def test_erp_non_configurato_nessun_effetto(

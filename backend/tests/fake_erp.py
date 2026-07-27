@@ -68,6 +68,20 @@ class FakeTrasporto:
         return RispostaFinta(200, {"data": {}})
 
 
+# Campi che ERPNext pretende davvero e che un finto troppo gentile lascerebbe
+# passare. Sono costati tre bug scoperti solo contro un'istanza reale:
+# Cost Center senza padre, righe Purchase Invoice senza conto di costo, righe
+# Purchase Receipt senza articolo. Il finto li rifiuta con HTTP 417 come Frappe,
+# così il caso è coperto dai test e non torna più.
+OBBLIGATORI_TESTATA: dict[str, tuple[str, ...]] = {
+    "Cost Center": ("parent_cost_center",),
+}
+OBBLIGATORI_RIGHE: dict[str, tuple[str, ...]] = {
+    "Purchase Invoice": ("expense_account",),
+    "Purchase Receipt": ("item_code",),
+}
+
+
 class ErpServerFinto:
     """Finto server Frappe/ERPNext in memoria, per gli e2e della sincronizzazione.
 
@@ -75,13 +89,40 @@ class ErpServerFinto:
     crea un documento con un ``name`` (idempotenza a valle sui filtri), ``GET`` con
     ``filters`` cerca fra i documenti creati. ``errore_su`` fa fallire (HTTP 500) un
     dato DocType, per provare il ramo best-effort (issue + ledger).
+
+    Riproduce anche la **severità** di ERPNext sui campi obbligatori (vedi
+    :data:`OBBLIGATORI_TESTATA` / :data:`OBBLIGATORI_RIGHE`): un payload incompleto
+    riceve 417 come dall'istanza reale, non un 200 di cortesia. Con ``permissivo=True``
+    si torna al comportamento gentile, per i test che non stanno provando il mapping.
     """
 
-    def __init__(self, errore_su: set[str] | None = None) -> None:
+    def __init__(
+        self,
+        errore_su: set[str] | None = None,
+        *,
+        permissivo: bool = False,
+        company: str = "Edile SpA",
+        conto_costo: str = "Costi - E",
+    ) -> None:
         self.per_doctype: dict[str, list[dict[str, Any]]] = {}
         self.contatori: dict[str, int] = {}
         self.chiamate: list[dict[str, Any]] = []
         self._errore_su = errore_su or set()
+        self._permissivo = permissivo
+        # Master data che ogni ERPNext configurato possiede e che la Facade legge per
+        # derivare padre dei cost center e conto di costo: la Company e il Cost Center
+        # radice omonimo. Presenti dall'inizio, come in un'istanza reale.
+        self.per_doctype["Company"] = [
+            {"name": company, "default_expense_account": conto_costo}
+        ]
+        self.per_doctype["Cost Center"] = [
+            {
+                "name": f"{company} - E",
+                "company": company,
+                "is_group": 1,
+                "parent_cost_center": "",
+            }
+        ]
 
     def __call__(
         self,
@@ -104,6 +145,11 @@ class ErpServerFinto:
                 return RispostaFinta(200, {"data": doc})
             return RispostaFinta(200, {"data": self._filtra(doctype, url)})
         if metodo == "POST":
+            mancante = self._campo_mancante(doctype, json or {})
+            if mancante:
+                return RispostaFinta(
+                    417, {"exception": f"ValidationError: {mancante} è obbligatorio"}
+                )
             return RispostaFinta(200, {"data": self._crea(doctype, json or {})})
         return RispostaFinta(405, {"exc": f"metodo {metodo} non gestito"})
 
@@ -147,6 +193,19 @@ class ErpServerFinto:
         nome = unquote(parti[1]) if len(parti) > 1 and parti[1] else None
         return doctype, nome
 
+    def _campo_mancante(self, doctype: str, payload: dict[str, Any]) -> str | None:
+        """Il primo campo obbligatorio assente, come lo rifiuterebbe ERPNext."""
+        if self._permissivo:
+            return None
+        for campo in OBBLIGATORI_TESTATA.get(doctype, ()):
+            if not payload.get(campo):
+                return campo
+        for campo in OBBLIGATORI_RIGHE.get(doctype, ()):
+            for riga in payload.get("items") or []:
+                if not riga.get(campo):
+                    return f"items.{campo}"
+        return None
+
     def _per_nome(self, doctype: str, nome: str) -> dict[str, Any] | None:
         for rec in self.per_doctype.get(doctype, []):
             if rec.get("name") == nome:
@@ -170,8 +229,10 @@ class ErpServerFinto:
 
         q = parse_qs(urlparse(url).query)
         filtri = _json.loads(q.get("filters", ["[]"])[0])  # coppie [campo, op, valore]
+        # Come Frappe: senza `fields` torna il solo name, altrimenti i campi chiesti.
+        campi = _json.loads(q.get("fields", ["[]"])[0]) or ["name"]
         trovati = []
         for rec in self.per_doctype.get(doctype, []):
             if all(rec.get(campo) == valore for campo, op, valore in filtri if op == "="):
-                trovati.append({"name": rec["name"]})
+                trovati.append({c: rec.get(c) for c in campi})
         return trovati
