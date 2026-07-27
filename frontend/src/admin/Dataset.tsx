@@ -1,4 +1,6 @@
-import { admin } from "./api";
+import { useState } from "react";
+import { ErroreApi } from "../shared/api";
+import { admin, type EvalT3 } from "./api";
 import { useCarica } from "./formato";
 import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
@@ -6,6 +8,10 @@ const SOGLIA_CONSOLIDAMENTO = 3; // oltre, la query è "candidata a tool" (§3.6
 
 function costo(v: number): string {
   return `$ ${v.toFixed(4)}`;
+}
+
+function quota(v: number): string {
+  return `${(v * 100).toFixed(0)}%`;
 }
 
 async function esporta() {
@@ -16,6 +22,111 @@ async function esporta() {
   a.download = "toolcalls.jsonl";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Idoneità T3: il modello locale candidato è abbastanza bravo da prendersi traffico?
+ *
+ *  Non parte da sola, e non deve: rigioca **tutto** il set validato su due tier, e
+ *  quindi costa token due volte. È una misura che si chiede quando serve una
+ *  decisione, non un numero da tenere aggiornato in cruscotto. */
+function IdoneitaT3() {
+  const [esito, setEsito] = useState<EvalT3 | null>(null);
+  const [inCorso, setInCorso] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+
+  async function misura() {
+    setInCorso(true);
+    setErrore(null);
+    try {
+      setEsito(await admin.evalT3());
+    } catch (e) {
+      setErrore(e instanceof ErroreApi ? e.message : "Misura non riuscita.");
+    } finally {
+      setInCorso(false);
+    }
+  }
+
+  const righe = Object.entries(esito?.workflow ?? {});
+
+  return (
+    <Card
+      titolo="Idoneità T3 — il modello locale"
+      azioni={
+        <Bottone variante="primario" onClick={misura} disabled={inCorso}>
+          {inCorso ? "Misuro…" : "Misura adesso"}
+        </Bottone>
+      }
+    >
+      <p className="mb-3 text-sm text-slate-600">
+        Rigioca gli esempi già validati sul tier <b>T3</b> (modello locale) e sul tier di
+        riferimento <b>T1</b>, e confronta la precisione con cui scelgono il tool e i suoi
+        argomenti. Dice quali workflow sono <b>pronti</b> e dove il locale{" "}
+        <b>regredirebbe</b>. Nessun addestramento: solo misura. Costa token su due tier, perciò
+        parte solo quando lo chiedi.
+      </p>
+
+      {errore ? <Errore>{errore}</Errore> : null}
+
+      {esito === null ? (
+        <Stato>Nessuna misura in questa sessione.</Stato>
+      ) : esito.modello_candidato === null ? (
+        <Stato>
+          Nessun modello T3 configurato: imposta <code>LLM_T3_MODEL</code> nell'ambiente e
+          rilancia la misura.
+        </Stato>
+      ) : esito.esempi === 0 ? (
+        <Stato>
+          Nessun esempio validato da rigiocare: valida qualche documento in Revisione, poi
+          torna qui.
+        </Stato>
+      ) : (
+        <>
+          <div className="mb-3 flex flex-wrap gap-2 text-xs text-slate-500">
+            <Badge tono="blu">T3: {esito.modello_candidato}</Badge>
+            <Badge tono="grigio">T1: {esito.modello_riferimento ?? "—"}</Badge>
+            <span>
+              {esito.esempi} esempi · soglia {quota(esito.soglia)} · complessivo{" "}
+              {quota(esito.totale.candidato.args)} contro {quota(esito.totale.riferimento.args)}
+            </span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+                <th className="pb-2">Workflow</th>
+                <th className="pb-2 text-right">Esempi</th>
+                <th className="pb-2 text-right">T3 tool</th>
+                <th className="pb-2 text-right">T3 argomenti</th>
+                <th className="pb-2 text-right">T1 argomenti</th>
+                <th className="pb-2">Verdetto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {righe.map(([nome, v]) => (
+                <tr key={nome} className="border-b border-slate-50">
+                  <td className="py-2 pr-3 text-slate-700">{nome}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{v.esempi}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{quota(v.candidato.tool)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums">{quota(v.candidato.args)}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-slate-500">
+                    {quota(v.riferimento.args)}
+                  </td>
+                  <td className="py-2">
+                    {v.pronto_per_t3 ? (
+                      <Badge tono="verde">pronto per T3</Badge>
+                    ) : v.regressione ? (
+                      <Badge tono="rosso">regredirebbe</Badge>
+                    ) : (
+                      <Badge tono="giallo">sotto soglia</Badge>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </Card>
+  );
 }
 
 export default function Dataset() {
@@ -52,6 +163,8 @@ export default function Dataset() {
           </div>
         ) : null}
       </Card>
+
+      <IdoneitaT3 />
 
       <Card titolo={`Query di Interroga per fingerprint (${gruppi.length})`}>
         {gruppi.length === 0 ? (

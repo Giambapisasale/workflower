@@ -1,15 +1,17 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
 .PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
-        seed fixtures samples demo lint
+        seed reseed fixtures samples demo lint
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
 .SHELLFLAGS := /C
 PY := backend\.venv\Scripts\python.exe
 PYBOOT := py -3.12
+RMDATA := rmdir /s /q data
 else
 PY := backend/.venv/bin/python
 PYBOOT := python3.12
+RMDATA := rm -rf data
 endif
 
 setup: ## Prima installazione: venv backend + dipendenze frontend
@@ -47,6 +49,16 @@ erp-dev-setup: ## Prepara l'ERPNext di sviluppo (company, conti, articolo, API k
 	docker compose -f docker-compose.erpnext.yml exec -T backend bash -lc "cd /home/frappe/frappe-bench/sites && ../env/bin/python /tmp/erp_dev_setup.py"
 
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
+	$(PY) -m app.seed
+
+# Ambiente da zero. Il `-` davanti alla rimozione è voluto: su Windows un handle
+# residuo (git.exe di GitPython, una connessione DuckDB, una shell col cwd dentro
+# data/) impedisce di togliere la *directory radice* anche a contenuto già
+# cancellato — e va bene, perché app.seed accetta una directory esistente vuota e
+# rifiuta solo quelle non vuote. ATTENZIONE: cancella il repo dati, storia git
+# inclusa.
+reseed: ## AZZERA ./data e lo ricrea dal seed (perde i dati e la loro storia)
+	-$(RMDATA)
 	$(PY) -m app.seed
 
 fixtures: ## Genera i PDF sintetici in ./fixtures (3 fatture + DDT/SAL/rapportino)

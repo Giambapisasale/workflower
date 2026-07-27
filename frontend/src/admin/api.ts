@@ -147,6 +147,121 @@ export type Workflow = {
 
 export type EventoTrace = Record<string, unknown> & { evento: string; ts?: string };
 
+/** Un'esecuzione riassunta (elenco Run): il trace completo si carica a parte. */
+export type RigaRun = {
+  run_id: string;
+  workflow: string | null;
+  version: string | null;
+  input: string | null;
+  ts: string | null;
+  esito: string;
+  entity_id: string | null;
+  errore: string | null;
+  costo_usd: number;
+  tokens: number;
+  durata_ms: number;
+  n_llm: number;
+  n_tool: number;
+  escalation: number;
+};
+
+export type CasoGolden = {
+  id: string;
+  workflow: string;
+  version: string;
+  doc: string;
+  entity_tipo: string;
+  entity_id: string | null;
+  run_id: string | null;
+  validato_da: string | null;
+  creato: string | null;
+  n_campi: number;
+  originale_presente: boolean;
+};
+
+export type Scartato = {
+  id: string;
+  tipo: string;
+  etichetta: string;
+  titolo: string | null;
+  motivo: string | null;
+  scartato_da: string | null;
+  scartato_il: string | null;
+  era_validato: boolean;
+  erp_id: string | null;
+};
+
+/** Un campo che l'ufficio corregge spesso: dove vale la pena un tool. */
+export type CandidatoToolsmith = {
+  workflow: string | null;
+  tipo: string | null;
+  campo: string;
+  occorrenze: number;
+  valori: unknown[];
+};
+
+export type CasoTest = {
+  argomenti: Record<string, unknown>;
+  atteso: Record<string, unknown>;
+  ottenuto?: Record<string, unknown> | null;
+  ok?: boolean;
+  errore?: string;
+};
+
+export type PropostaTool = {
+  id: string;
+  nome: string;
+  candidato: {
+    nome: string;
+    tipo: string;
+    campi_input: string[];
+    campo_output: string;
+    workflow: string | null;
+  };
+  codice: string;
+  schema: Record<string, unknown>;
+  test: CasoTest[];
+  esito_test: { totale: number; ok: number; casi: CasoTest[] };
+  esempi: number;
+  stato: "proposta" | "approvata" | "rifiutata";
+  creato: string | null;
+  deciso_da: string | null;
+  pytool?: string | null;
+  patch_skill?: string | null;
+};
+
+export type EsitoApprovaProposta = {
+  proposta: string;
+  stato: string;
+  pytool: string;
+  patch_skill: { id: string; replay: { totale: number; ok: number }; diff_skill: string } | null;
+};
+
+/** Idoneità di un modello locale (T3) misurata contro il tier di riferimento. */
+export type QuotaT3 = { tool: number; args: number };
+
+export type EvalT3 = {
+  modello_candidato: string | null;
+  modello_riferimento: string | null;
+  tier_candidato: string;
+  tier_riferimento: string;
+  soglia: number;
+  esempi: number;
+  totale: { candidato: QuotaT3; riferimento: QuotaT3 };
+  workflow: Record<
+    string,
+    {
+      esempi: number;
+      candidato: QuotaT3;
+      riferimento: QuotaT3;
+      regressione: boolean;
+      pronto_per_t3: boolean;
+    }
+  >;
+  pronti: string[];
+  regressioni: string[];
+};
+
 export type EsitoAsk = { sql: string; rows: Record<string, unknown>[] };
 
 export type RigaReplay = {
@@ -271,7 +386,14 @@ export type GruppoQuery = {
   letterali: string[]; // letterali dell'esempio, candidati a diventare parametri di un tool
 };
 
-export type ToolRegistry = { name: string; descrizione: string; usi: number; ciclo: string };
+export type ToolRegistry = {
+  name: string;
+  descrizione: string;
+  usi: number;
+  ciclo: string;
+  /** "nativa" = inclusa nell'app; "pytool" = consolidata dal Toolsmith (rimovibile). */
+  origine?: string;
+};
 
 export type VistaConsolidata = {
   creato: string;
@@ -441,6 +563,71 @@ export const admin = {
 
   trace: (runId: string) =>
     richiesta<{ eventi: EventoTrace[] }>(`/runs/${runId}/trace`).then((r) => r.eventi),
+
+  // Run: le esecuzioni riassunte, porta d'ingresso ai trace.
+  run: (filtro: { workflow?: string; esito?: string; limite?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (filtro.workflow) q.set("workflow", filtro.workflow);
+    if (filtro.esito) q.set("esito", filtro.esito);
+    if (filtro.limite) q.set("limite", String(filtro.limite));
+    const qs = q.toString();
+    return richiesta<{ run: RigaRun[] }>(`/runs${qs ? `?${qs}` : ""}`).then((r) => r.run);
+  },
+
+  // Golden set: la rete di regressione dell'Improver, ispezionabile e correggibile.
+  golden: (workflow?: string) =>
+    richiesta<{ golden: CasoGolden[] }>(
+      `/golden${workflow ? `?workflow=${encodeURIComponent(workflow)}` : ""}`,
+    ).then((r) => r.golden),
+
+  eliminaGolden: (id: string) =>
+    richiesta<{ rimosso: string }>(`/golden/${encodeURIComponent(id)}`, metodoJson("DELETE")),
+
+  // Scarto di un inserimento sbagliato, e ripristino.
+  scarta: (id: string, motivo: string) =>
+    richiesta<{ stato: string; golden_rimossi: string[]; segnalazioni_chiuse: string[] }>(
+      `/review/${id}/scarta`,
+      corpo({ motivo }),
+    ),
+
+  scartati: () => richiesta<{ scartati: Scartato[] }>("/scartati").then((r) => r.scartati),
+
+  ripristina: (id: string) =>
+    richiesta<{ id: string; stato: string }>(`/scartati/${id}/ripristina`, metodoJson("POST")),
+
+  // Toolsmith (F3): consolidamento di un calcolo ricorrente in un tool Python.
+  toolsmithCandidati: () =>
+    richiesta<{ candidati: CandidatoToolsmith[] }>("/toolsmith/candidati").then(
+      (r) => r.candidati,
+    ),
+
+  toolsmithProponi: (body: {
+    nome: string;
+    tipo: string;
+    campi_input: string[];
+    campo_output: string;
+    workflow?: string | null;
+  }) => richiesta<PropostaTool>("/toolsmith/proponi", corpo(body)),
+
+  toolsmithProposte: () =>
+    richiesta<{ proposte: PropostaTool[] }>("/toolsmith/proposte").then((r) => r.proposte),
+
+  toolsmithApprova: (id: string) =>
+    richiesta<EsitoApprovaProposta>(`/toolsmith/proposte/${id}/approve`, metodoJson("POST")),
+
+  toolsmithRifiuta: (id: string) =>
+    richiesta<{ id: string; stato: string }>(
+      `/toolsmith/proposte/${id}/reject`,
+      metodoJson("POST"),
+    ),
+
+  eliminaPytool: (nome: string) =>
+    richiesta<{ rimosso: string }>(`/dataset/pytool/${encodeURIComponent(nome)}`, {
+      method: "DELETE",
+    }),
+
+  // Idoneità T3: misura sul set validato. Costa token — solo su richiesta esplicita.
+  evalT3: () => richiesta<EvalT3>("/dataset/eval-t3"),
 
   chiediSql: (question: string) =>
     richiesta<EsitoAsk>("/ask", corpo({ question, mode: "admin" })),

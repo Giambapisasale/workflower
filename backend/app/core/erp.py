@@ -53,7 +53,17 @@ TIPI_SINCRONIZZABILI = ("fattura", "ddt")
 
 
 class ErpError(Exception):
-    """Errore verso ERPNext: trasporto irraggiungibile, HTTP >= 400 o corpo non JSON."""
+    """Errore verso ERPNext: trasporto irraggiungibile, HTTP >= 400 o corpo non JSON.
+
+    ``stato`` porta il codice HTTP quando c'è stata una risposta, ``None`` quando
+    non si è arrivati a parlare col server. Distinguere serve: un 404 su un
+    documento a valle significa "non c'è più", mentre un trasporto giù significa
+    "non lo so" — due decisioni diverse per chi chiama (vedi ``api/scarti.py``).
+    """
+
+    def __init__(self, messaggio: str, stato: int | None = None) -> None:
+        super().__init__(messaggio)
+        self.stato = stato
 
 
 @dataclass(frozen=True)
@@ -184,7 +194,8 @@ class ErpClient:
         stato = getattr(risposta, "status_code", None)
         if stato is None or stato >= 400:
             raise ErpError(
-                f"ERP ha risposto {stato} a {metodo} {percorso}: {_corpo_sicuro(risposta)}"
+                f"ERP ha risposto {stato} a {metodo} {percorso}: {_corpo_sicuro(risposta)}",
+                stato=stato,
             )
         try:
             return risposta.json()

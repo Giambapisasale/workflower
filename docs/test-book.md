@@ -35,42 +35,81 @@ aspettavi (quello è già scritto).
 
 Due strade. Non sono equivalenti: scegli in base a cosa vuoi provare.
 
-| | **A — Locale (`make dev`)** | **B — Docker (già in piedi)** |
+| | **A — Locale (`make dev`)** | **B — Docker** |
 |---|---|---|
 | Interfaccia | <http://localhost:5173/op> · `/admin` | <http://localhost/op> · `/admin` |
-| Golden set di partenza | **presente** (2 casi dal seed) | **vuoto** ¹ |
+| Golden set di partenza | **2 casi dal seed** | **2 casi dal seed** ¹ |
 | PDF di prova | in `fixtures/` + scaricabili dall'app | scaricabili dall'app |
 | Configurazione | variabili **nella shell** ² | dal file `.env` |
 | Ricarica del codice | a caldo | serve `docker compose up -d --build` |
-| Adatto a | **giro completo**, sezioni H/I/J | sezioni A–G, K, L |
+| Adatto a | sviluppo e giro completo | **ambiente di prova realistico** |
 
-¹ Il golden set viene seminato solo se `reportlab` è installato, e nell'immagine di
-produzione non c'è (è una dipendenza di sviluppo). Non è un guasto: il golden set
-si riempie da solo man mano che validi documenti in Revisione. Ma la **sezione H
-(Improver)** con golden vuoto verifica molto poco — il replay direbbe `0/0`. Per H
-usa l'ambiente A, o esegui prima D3 due o tre volte.
+¹ Gli originali dei casi golden sono asset versionati e vengono **copiati**, non
+ridisegnati: il golden set esiste anche nell'immagine di produzione, dove
+`reportlab` (dipendenza di sviluppo) non è installato. Prima era vuoto nel
+container, e il replay di una patch diceva `0/0` — cioè non dimostrava niente.
 
 ² Il progetto **non legge il `.env`** fuori da Docker: `make dev` usa l'ambiente del
 processo. Le variabili vanno impostate nella shell, e la sintassi non è
 intercambiabile fra shell (in `cmd.exe` `set X="v"` mette le virgolette *dentro* al
 valore).
 
-### 1.2 Ambiente A — locale, da zero
+### 1.2 Ambiente da zero, in ordine
 
-Il `data/` che hai adesso sul disco è di una milestone vecchia: non ha dipendenti,
-mezzi, pozzetti, pagamenti né i workflow `toolsmith`/`diagnostico`. **Non
-sovrascriverlo** — semina un repo dati nuovo accanto:
+La sequenza completa per ripartire come da prima installazione. **Cancella dati**:
+il repo `data/`, il volume dell'app e i volumi ERPNext.
+
+```bash
+docker compose down -v
+```
+```bash
+docker compose -f docker-compose.erpnext.yml down -v
+```
+```bash
+make reseed
+```
+```bash
+make erp-up
+```
+
+Attendi che il sito ERPNext esista (la prima volta sono minuti):
+
+```bash
+docker compose -f docker-compose.erpnext.yml logs -f create-site
+```
+
+Poi prepara l'ERP e collega:
+
+```bash
+make erp-dev-setup
+```
+
+Stampa due blocchi. Il **blocco 1** va nel `.env` (usa `host.docker.internal`, che è
+come il container raggiunge l'host); il blocco della tua shell serve agli script
+dall'host. Infine:
+
+```bash
+docker compose up -d
+```
+```bash
+make erp-smoke ARGS=--full
+```
+
+L'entrypoint del container fa il seed da solo quando il volume è vuoto. `make reseed`
+serve al `data/` locale, per l'ambiente A e per `pytest`.
+
+### 1.3 Ambiente A — locale
 
 PowerShell:
 
 ```bash
-$env:DATA_DIR = "./data-test"; $env:JWT_SECRET = "una-stringa-lunga-almeno-32-caratteri"; $env:LLM_T1_MODEL = "gpt-5.5"; $env:LLM_T2_MODEL = "gpt-5.4"; $env:OPENAI_API_KEY = "sk-..."; $env:LOG_LEVEL = "INFO"
+$env:JWT_SECRET = "una-stringa-lunga-almeno-32-caratteri"; $env:LLM_T1_MODEL = "gpt-5.5"; $env:LLM_T2_MODEL = "gpt-5.4"; $env:OPENAI_API_KEY = "sk-..."; $env:LOG_LEVEL = "INFO"
 ```
 
 poi, nella **stessa** finestra:
 
 ```bash
-make demo
+make fixtures
 ```
 
 ```bash
@@ -84,20 +123,6 @@ l'app gira sull'host:
 ```bash
 $env:ERP_BASE_URL = "http://localhost:8080"; $env:ERP_API_KEY = "..."; $env:ERP_API_SECRET = "..."; $env:ERP_COMPANY = "Aitho Costruzioni"; $env:ERP_CONTO_RITENUTA = "Ritenute - AC"; $env:ERP_CONTO_IVA = "IVA 22% - AC"; $env:ERP_ITEM_DDT = "WF-MATERIALE-CANTIERE"
 ```
-
-### 1.3 Ambiente B — Docker
-
-```bash
-docker compose up -d
-```
-
-```bash
-docker compose -f docker-compose.erpnext.yml up -d
-```
-
-Le `ERP_*` devono stare nel `.env` con `ERP_BASE_URL=http://host.docker.internal:8080`
-(dentro al container `localhost` è il container stesso). Se mancano, l'integrazione
-è **spenta in silenzio** e tutta la sezione K non è eseguibile.
 
 ### 1.4 Utenti
 
@@ -460,12 +485,56 @@ link alle Segnalazioni.
 finestra tecnica ammessa, ed è nell'area d'ufficio.
 `☐ OK ☐ KO`
 
-**D12 · Trace del run**
-Admin → **Segnalazioni** → su una segnalazione, *Mostra trace*. (È l'**unico** punto
-dell'interfaccia da cui si apre un trace: da Revisione il `run_id` viene passato solo
-all'Improver.)
-**Atteso:** input, prompt, tool call, esito, **costo** e **latenza** della singola
-esecuzione.
+**D12 ⭐ · Trace del run**
+In revisione, *Mostra trace*. (Si apre anche da **Run** e da **Segnalazioni**.)
+**Atteso:** gli eventi in ordine — `run_start`, le chiamate al modello con **token,
+costo e latenza**, le tool call, la validazione, `run_end` — e le tue note sui campi
+(D5) in coda, come `field_feedback`.
+`☐ OK ☐ KO`
+
+**D13 ⭐ · Scarta una bozza sbagliata**
+Su una bozza, *Scarta* → il motivo è **obbligatorio** (senza, il bottone resta
+spento) → scrivi «fattura doppia» → *Sì, scarta*.
+**Atteso:** si torna alla coda e la bozza non c'è più. In **Cruscotto** il conteggio
+fatture scende di 1 e lo speso cala. In **Dati → Scartati** compare la riga con
+motivo, autore e data.
+`☐ OK ☐ KO`
+
+**D14 ⭐ · L'operatore lo viene a sapere**
+Con l'utente che aveva caricato quel documento, apri *I miei documenti*.
+**Atteso:** semaforo **🔴** e «L'ufficio ha scartato questo documento. Se serve,
+ricaricalo.» Non deve restare 🟢 «Tutto a posto» per una fattura che non esiste più.
+`☐ OK ☐ KO`
+
+**D15 ⭐ · Ripristina**
+Dati → Scartati → *Ripristina*.
+**Atteso:** l'inserimento torna dov'era — in coda di revisione se era bozza, validato
+se era validato — senza il motivo di scarto, e il cruscotto torna ai numeri di prima.
+`☐ OK ☐ KO`
+
+**D16 · Scartare un validato toglie il caso golden**
+Valida una bozza (annota il `GOLD-…` che compare), poi scartala. Guarda i **casi
+golden** in Workflows.
+**Atteso:** quel caso non c'è più. Altrimenti l'Improver misurerebbe ogni nuova
+versione contro un dato che l'ufficio ha ripudiato.
+`☐ OK ☐ KO`
+
+**D17 · Lo scarto chiude la segnalazione**
+Su un documento con una segnalazione aperta (B5), scarta.
+**Atteso:** la segnalazione sparisce dalle aperte: non c'è più niente su cui
+intervenire.
+`☐ OK ☐ KO`
+
+**D18 · L'id non si riusa**
+Dopo D13, carica un altro documento dello stesso tipo.
+**Atteso:** prende l'id **successivo**, non quello liberato dallo scarto — altrimenti
+il ripristino andrebbe a sbattere contro il nuovo documento.
+`☐ OK ☐ KO`
+
+**D19 · Un'anagrafica non si scarta**
+Via API: `POST /api/review/FRN-001/scarta`.
+**Atteso:** `409`, «non è un documento in arrivo: le anagrafiche si correggono o si
+eliminano da Dati». Lo scarto è per i documenti, non per il master data.
 `☐ OK ☐ KO`
 
 ---
@@ -767,34 +836,48 @@ Card «Tool nativi (Python)».
 **contatore d'uso** e badge di ciclo di vita.
 `☐ OK ☐ KO`
 
-**I8 ⌨ 🔑 💶 · Toolsmith: candidati**
-Non c'è interfaccia. `GET /api/toolsmith/candidati` con token admin.
-**Atteso:** i campi corretti in modo ricorrente (il delta fra bozza estratta e dato
-validato). Serve aver validato più documenti con correzioni ripetute — la ritenuta
-d'acconto è l'esempio guida.
+**I8 ⭐ · Toolsmith: i candidati**
+Skills & Tools, card «Candidati Python — calcoli che l'ufficio corregge sempre».
+**Atteso:** un campo per riga con quante volte è stato corretto, il tipo, il workflow
+e qualche valore d'esempio. Con nessuna correzione ripetuta: la card lo dice e spiega
+che il segnale nasce dal delta fra bozza e dato validato. Per generarne uno: correggi
+lo **stesso** campo in due o tre documenti (in *Modifica dati*) e validali.
 `☐ OK ☐ KO`
 
-**I9 ⌨ 🔑 💶 · Toolsmith: proponi**
-`POST /api/toolsmith/proponi` con `{nome, tipo, campi_input, campo_output, workflow}`.
-**Atteso:** una proposta con **codice Python**, schema, e **test generati dai trace
-storici**, eseguiti in **sandbox**.
+**I9 ⭐ 🔑 💶 · Toolsmith: genera la proposta**
+Su un candidato, *Proponi un tool* → nome (minuscole/underscore) → seleziona i campi
+da cui si **ricava** l'uscita → *Genera la proposta*.
+**Atteso:** con meno di 3 esempi validati, un messaggio che lo **spiega** («servono
+almeno 3 esempi validati, trovati N»), non un errore tecnico. Con abbastanza esempi,
+nasce una proposta.
 `☐ OK ☐ KO`
 
-**I10 ⌨ · Toolsmith: approva**
-`GET /api/toolsmith/proposte`, poi `POST /api/toolsmith/proposte/{id}/approve`.
-**Atteso:** il tool è registrato in `data/tools/<nome>/` (dato versionato), la skill è
-patchata per chiamarlo, e l'LLM resta come **fallback**. Il codice **non** viene mai
-importato nel processo.
+**I10 ⭐ · Toolsmith: ispeziona**
+Sulla proposta, *Ispeziona*.
+**Atteso:** il **codice Python**, lo **schema** e i **test coi casi già validati**, con
+atteso, ottenuto e ✅/❌ per ognuno, eseguiti in **sandbox**. Il badge dice `test N/N`.
+Se non passano tutti, un avviso in chiaro: approvare consoliderebbe un calcolo
+sbagliato.
 `☐ OK ☐ KO`
 
-**I11 ⌨ · Toolsmith: rifiuta**
-`POST /api/toolsmith/proposte/{id}/reject`.
-**Atteso:** nessun tool registrato, nessuna skill toccata.
+**I11 ⭐ · Toolsmith: approva**
+*Approva*.
+**Atteso:** il messaggio nomina il tool registrato **e** la patch di skill che ne è
+nata, col replay sul golden set e il link ai Workflows dove si approva a parte. Nel
+registry «Tool nativi» il tool compare col badge **Toolsmith** e un pulsante
+*Rimuovi* (i nativi non ce l'hanno).
 `☐ OK ☐ KO`
 
-> **Nota da riportare.** Il README annuncia «Skills & Tools → Candidati Python» e
-> «Dataset → Idoneità T3» come pagine dell'interfaccia. **Non esistono**: sono solo
-> API. Non è un guasto del backend, è un buco di interfaccia — segnalalo come tale.
+**I12 · Toolsmith: rifiuta**
+Genera una seconda proposta e *Rifiuta*.
+**Atteso:** stato `rifiutata`, nessun tool registrato, nessuna skill toccata.
+`☐ OK ☐ KO`
+
+**I13 · Rimuovi un tool consolidato**
+Su un tool con badge Toolsmith, *Rimuovi* → *Sì, rimuovi*.
+**Atteso:** sparisce dal registry; il candidato torna disponibile. È un commit git,
+reversibile.
+`☐ OK ☐ KO`
 
 ---
 

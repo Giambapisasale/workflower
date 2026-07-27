@@ -20,7 +20,7 @@ from app.core.dal import DAL, DalError, tipo_da_id
 from app.core.golden import carica_golden
 from app.core.improver import Improver, ImproverError
 from app.core.runtime import RunResult, WorkflowRuntime
-from app.core.tracer import leggi_eventi, statistiche_run
+from app.core.tracer import elenco_run, leggi_eventi, statistiche_run
 
 router = APIRouter(tags=["workflows"])
 
@@ -49,6 +49,23 @@ def elenco_workflows(
             }
         )
     return {"workflows": workflows}
+
+
+@router.get("/runs")
+def elenco_run_api(
+    workflow: str | None = Query(default=None),
+    esito: str | None = Query(default=None, description="ok | errore | in_corso"),
+    limite: int = Query(default=100, ge=1, le=500),
+    _admin: Utente = Depends(richiedi_admin),
+    data_dir: Path = Depends(get_data_dir),
+) -> dict[str, Any]:
+    """Le esecuzioni recenti, riassunte: la porta d'ingresso ai trace.
+
+    Finora il trace di un run era raggiungibile solo se si conosceva il ``run_id``
+    (o passando da una segnalazione): tutto il resto delle esecuzioni — comprese
+    quelle andate male senza che nessuno segnalasse — era invisibile.
+    """
+    return {"run": elenco_run(data_dir, workflow=workflow, esito=esito, limite=limite)}
 
 
 @router.get("/runs/{run_id}/trace")

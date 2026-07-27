@@ -24,8 +24,20 @@ function riga(e: EventoTrace): { icona: string; testo: string } {
       return { icona: "🗣️", testo: `operatore (${s("tipo")}) · ${s("utente")}` };
     case "field_feedback":
       return { icona: "📝", testo: `nota su ${s("campo")}: ${s("nota")} · ${s("utente")}` };
-    default:
-      return { icona: "·", testo: e.evento };
+    case "escalation":
+      return {
+        icona: "↑",
+        testo: `${s("step")} · rifatto da ${s("da")} a ${s("a")} · ${s("motivo")}`,
+      };
+    default: {
+      // Un evento che questa funzione non conosce ancora: meglio mostrarne i campi
+      // che il solo nome — un trace serve a capire, non a fare da indovinello.
+      const campi = Object.entries(e)
+        .filter(([k]) => !["evento", "ts", "run_id"].includes(k))
+        .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+        .join(" · ");
+      return { icona: "·", testo: campi ? `${e.evento} · ${campi}` : e.evento };
+    }
   }
 }
 

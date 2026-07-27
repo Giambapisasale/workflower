@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
 import { admin, type JsonSchema, type VoceEntita } from "./api";
 import CampiSchema from "./CampiSchema";
@@ -7,6 +7,7 @@ import { euro, percento, useCarica } from "./formato";
 import { caricaMetaForm } from "./metaForm";
 import MiglioraWorkflow from "./MiglioraWorkflow";
 import RiferimentiDaCompletare from "./RiferimentiDaCompletare";
+import TracePanel from "./TracePanel";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
 type MetaEdit = {
@@ -38,6 +39,7 @@ function cella(campo: string, v: unknown): string {
 
 export default function RevisioneDettaglio() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const { dati: rev, errore, inCorso, ricarica } = useCarica(() => admin.revisione(id), [id]);
   const [urlOriginale, setUrlOriginale] = useState<string | null>(null);
   const [mostraJson, setMostraJson] = useState(false);
@@ -49,6 +51,10 @@ export default function RevisioneDettaglio() {
   const [metaEdit, setMetaEdit] = useState<MetaEdit | null>(null);
   const [formValore, setFormValore] = useState<Record<string, unknown>>({});
   const [erroreSalva, setErroreSalva] = useState<string | null>(null);
+  const [scartando, setScartando] = useState(false);
+  const [motivoScarto, setMotivoScarto] = useState("");
+  const [erroreScarto, setErroreScarto] = useState<string | null>(null);
+  const [mostraTrace, setMostraTrace] = useState(false);
 
   useEffect(() => {
     let url: string | null = null;
@@ -139,6 +145,23 @@ export default function RevisioneDettaglio() {
     }
   }
 
+  async function scarta() {
+    const motivo = motivoScarto.trim();
+    if (!motivo) return;
+    setAzione("scarta");
+    setErroreScarto(null);
+    try {
+      await admin.scarta(id, motivo);
+      navigate("/admin/revisione");
+    } catch (e) {
+      // Il 409 della contabilità è un'istruzione operativa («annullalo prima in
+      // ERPNext»), non un guasto: va mostrato per intero.
+      setErroreScarto(e instanceof ErroreApi ? e.message : "Non è stato possibile scartare.");
+    } finally {
+      setAzione(null);
+    }
+  }
+
   async function salvaModifica() {
     if (!rev) return;
     setAzione("salva-modifica");
@@ -166,8 +189,13 @@ export default function RevisioneDettaglio() {
             <Badge tono="giallo">bozza</Badge>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Bottone onClick={() => setMostraJson((v) => !v)}>{mostraJson ? "Nascondi dati" : "Mostra dati"}</Bottone>
+          {rev.run_id ? (
+            <Bottone onClick={() => setMostraTrace((v) => !v)}>
+              {mostraTrace ? "Nascondi trace" : "Mostra trace"}
+            </Bottone>
+          ) : null}
           {!modifica && (
             <Bottone onClick={apriModifica} disabled={azione === "apri-modifica"}>
               {azione === "apri-modifica" ? "Apro…" : "Modifica dati"}
@@ -178,6 +206,17 @@ export default function RevisioneDettaglio() {
               {azione === "collega" ? "Abbino…" : "Collega al computo"}
             </Bottone>
           )}
+          {!modifica && !scartando && (
+            <Bottone
+              variante="pericolo"
+              onClick={() => {
+                setScartando(true);
+                setErroreScarto(null);
+              }}
+            >
+              Scarta
+            </Bottone>
+          )}
           {!modifica && !rev.validato && (
             <Bottone variante="primario" onClick={valida} disabled={azione === "valida"}>
               {azione === "valida" ? "Salvo…" : "Salva come validato"}
@@ -185,6 +224,55 @@ export default function RevisioneDettaglio() {
           )}
         </div>
       </div>
+
+      {scartando ? (
+        <Card titolo="Scarta questo documento">
+          <p className="mb-3 text-sm text-slate-600">
+            Il documento esce dai costi, dalla revisione e dai report, ma{" "}
+            <strong>non viene cancellato</strong>: lo ritrovi in{" "}
+            <Link className="underline" to="/admin/dati/scartati">Dati → Scartati</Link> e da lì
+            puoi ripristinarlo. Se era già arrivato in contabilità, va prima annullato in ERPNext.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              autoFocus
+              value={motivoScarto}
+              onChange={(e) => setMotivoScarto(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && scarta()}
+              placeholder="Perché lo scarti? (es. fattura doppia)"
+              className="w-80 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            />
+            <Bottone
+              variante="pericolo"
+              onClick={scarta}
+              disabled={azione === "scarta" || !motivoScarto.trim()}
+            >
+              {azione === "scarta" ? "Scarto…" : "Sì, scarta"}
+            </Bottone>
+            <Bottone
+              onClick={() => {
+                setScartando(false);
+                setMotivoScarto("");
+                setErroreScarto(null);
+              }}
+              disabled={azione === "scarta"}
+            >
+              Annulla
+            </Bottone>
+          </div>
+          {erroreScarto ? (
+            <div className="mt-3">
+              <Errore>{erroreScarto}</Errore>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {mostraTrace && rev.run_id ? (
+        <Card titolo={`Trace del run ${rev.run_id}`}>
+          <TracePanel runId={rev.run_id} />
+        </Card>
+      ) : null}
 
       {esitoCollega ? (
         <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">

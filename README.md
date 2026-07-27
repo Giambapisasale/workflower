@@ -57,6 +57,18 @@ regola in linguaggio naturale** (es. «individua il fornitore dalla partita IVA�
 da **Revisione** o **Workflows**: diventa una proposta di patch, con la stessa rete
 di sicurezza del replay, da approvare.
 
+**Un inserimento sbagliato si scarta, e si ripristina.** Una fattura letta male, un
+doppione, un documento caricato per errore: da **Revisione** si *scarta* indicando il
+**motivo**. Non è una cancellazione — l'entità esce da costi, revisione e report
+spostandosi in `data/scartati/`, dove resta come dato versionato e da cui si
+**ripristina** (`Dati → Scartati`). Lo scarto toglie anche il caso golden nato da quel
+documento (altrimenti l'Improver misurerebbe ogni nuova versione contro un dato che
+l'ufficio ha ripudiato), chiude la segnalazione aperta e aggiorna il fascicolo
+dell'operatore, che smette di dire «tutto a posto». Se il documento è **già arrivato in
+contabilità**, lo scarto è **bloccato** finché non lo si sistema in ERPNext: Workflower
+legge il `docstatus` a valle e dice cosa fare — eliminare la bozza o annullare il
+documento confermato — senza mai scrivere annullamenti nell'ERP.
+
 **Anagrafica mancante → creala dal documento.** Se un documento cita un fornitore
 o un cantiere non ancora a sistema, l'estrazione lascia il riferimento vuoto e in
 **revisione** compare la proposta di **creare l'anagrafica mancante** — precompilata
@@ -145,16 +157,21 @@ supportato da litellm.
 - **Scostamenti** — computo ↔ consuntivo, per voce e per cantiere.
 - **Revisione** — coda delle bozze da controllare; confronto con l'originale,
   feedback sui campi, *valida* (entra nel golden set), *collega al computo*,
-  **crea l'anagrafica mancante dal documento** e **istruzioni per migliorare il
-  workflow**.
+  **crea l'anagrafica mancante dal documento**, il **trace** del run,
+  **istruzioni per migliorare il workflow** e **scarta** (vedi sotto).
 - **Segnalazioni** — le note degli operatori; da qui parte l'Improver.
 - **Interroga** — domanda in italiano → SQL generato → tabella.
 - **Workflows** — versioni, manifest, statistiche dei run, patch dell'Improver
-  con il replay sul golden set, *approva/rifiuta*, e **migliora con un'istruzione**.
-- **Skills & Tools** — registry dei tool con contatori d'uso, candidati al
-  consolidamento (viste, tool parametrici, funzioni Python) e idoneità T3.
+  con il replay sul golden set, *approva/rifiuta*, **migliora con un'istruzione**
+  e i **casi golden** (la rete di regressione, ispezionabile e correggibile).
+- **Run** — tutte le esecuzioni con esito, costo e durata, filtrabili per
+  workflow ed esito, e il **trace** completo di ognuna.
+- **Skills & Tools** — registry dei tool con contatori d'uso e le **tre forme** di
+  consolidamento: viste `v_*`, tool parametrici `t_*` e le funzioni Python del
+  **Toolsmith** (candidati → proposta con codice e test in sandbox →
+  approva/rifiuta).
 - **Dataset** — costo per documento, tool call, export `toolcalls.jsonl` e
-  `finetuning.jsonl`, query ricorrenti.
+  `finetuning.jsonl`, query ricorrenti e **idoneità T3** del modello locale.
 - **Contabilità** — le sincronizzazioni verso l'ERP: quanti documenti sono
   arrivati a valle, quelli rimasti indietro con *Riprova*, il registro dei
   tentativi con il motivo dei fallimenti (vedi `docs/erp-integrazione.md`).
@@ -210,6 +227,7 @@ locale candidato contro T1 e indica i workflow "pronti".
 | `make setup` | Prima installazione (venv + dipendenze) |
 | `make dev` | Backend (:8000) + frontend (:5173) |
 | `make seed` | Crea il repo dati `./data` (git separato) |
+| `make reseed` | **Azzera** `./data` e lo ricrea dal seed (perde i dati e la loro storia) |
 | `make fixtures` | Genera i PDF sintetici in `./fixtures` (fatture + DDT/SAL/rapportino) |
 | `make demo` | Seed + fixtures + istruzioni del giro |
 | `make test` | Test backend (pytest) |

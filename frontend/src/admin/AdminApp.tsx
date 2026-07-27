@@ -21,6 +21,8 @@ import Interroga from "./Interroga";
 import Log from "./Log";
 import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
+import Run from "./Run";
+import Scartati from "./Scartati";
 import Scostamenti from "./Scostamenti";
 import Segnalazioni from "./Segnalazioni";
 import SkillsTools from "./SkillsTools";
@@ -35,6 +37,7 @@ const VOCI = [
   { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
   { a: "/admin/interroga", etichetta: "Interroga", fine: false },
   { a: "/admin/workflows", etichetta: "Workflows", fine: false },
+  { a: "/admin/run", etichetta: "Run", fine: false },
   { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
   { a: "/admin/dataset", etichetta: "Dataset", fine: false },
   { a: "/admin/erp", etichetta: "Contabilità", fine: false },
@@ -105,6 +108,8 @@ export default function AdminApp() {
         <Routes>
           <Route index element={<Cruscotto />} />
           <Route path="dati" element={<Dati />} />
+          {/* prima di dati/:tipo, altrimenti "scartati" sarebbe letto come un tipo */}
+          <Route path="dati/scartati" element={<Scartati />} />
           <Route path="dati/:tipo" element={<EntitaLista />} />
           <Route path="dati/:tipo/nuovo" element={<EntitaForm />} />
           <Route path="dati/:tipo/:id" element={<EntitaForm />} />
@@ -115,6 +120,7 @@ export default function AdminApp() {
           <Route path="segnalazioni" element={<Segnalazioni />} />
           <Route path="interroga" element={<Interroga />} />
           <Route path="workflows" element={<Workflows />} />
+          <Route path="run" element={<Run />} />
           <Route path="tools" element={<SkillsTools />} />
           <Route path="dataset" element={<Dataset />} />
           <Route path="erp" element={<Erp />} />

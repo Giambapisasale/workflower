@@ -180,6 +180,25 @@ class ErpServerFinto:
         doc["grand_total"] = grand_total
         doc["outstanding_amount"] = outstanding
 
+    def conferma(self, doctype: str, name: str) -> None:
+        """Submit del documento (``docstatus`` 1): da qui in poi è nei conti."""
+        self._imposta_docstatus(doctype, name, 1)
+
+    def annulla(self, doctype: str, name: str) -> None:
+        """Cancel del documento (``docstatus`` 2): la condizione che sblocca lo scarto."""
+        self._imposta_docstatus(doctype, name, 2)
+
+    def elimina(self, doctype: str, name: str) -> None:
+        """Il documento a valle non c'è più: da qui in poi il GET risponde 404."""
+        documenti = self.per_doctype.get(doctype, [])
+        self.per_doctype[doctype] = [d for d in documenti if d.get("name") != name]
+
+    def _imposta_docstatus(self, doctype: str, name: str, valore: int) -> None:
+        doc = self._per_nome(doctype, name)
+        if doc is None:
+            raise KeyError(f"{doctype} {name} inesistente")
+        doc["docstatus"] = valore
+
     # ---------------------------------------------------------------- interni
 
     @staticmethod
@@ -219,7 +238,10 @@ class ErpServerFinto:
             or payload.get("cost_center_name")
             or f"{doctype}-{self.contatori[doctype]:04d}"
         )
-        record = {**payload, "name": nome}
+        # Come Frappe: un POST senza ``docstatus`` crea una **bozza** (0), non un
+        # documento confermato. Workflower non fa submit, quindi è ciò che accade
+        # davvero a valle — verificato contro l'istanza reale.
+        record = {"docstatus": 0, **payload, "name": nome}
         self.per_doctype.setdefault(doctype, []).append(record)
         return record
 

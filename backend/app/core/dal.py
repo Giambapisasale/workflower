@@ -340,18 +340,23 @@ class DAL:
 
         L'allocazione non riserva nulla: chi crea deve gestire
         ``AlreadyExistsError`` e riprovare (vedi tool ``salva_bozza``).
+
+        Guarda anche gli **scartati**: un id già usato non torna libero perché il
+        documento è stato scartato, altrimenti un ripristino collideerebbe con
+        l'entità nata dopo con lo stesso numero.
         """
         spec = self._spec(tipo)
-        base = self.data_dir / "entities" / spec["dir"]
-        if spec["per_anno"]:
-            if anno is None:
-                raise DalError(f"anno obbligatorio per il tipo {tipo}")
-            base = base / str(anno)
+        if spec["per_anno"] and anno is None:
+            raise DalError(f"anno obbligatorio per il tipo {tipo}")
         progressivi = [0]
-        for percorso in base.glob("*.json"):
-            coda = percorso.stem.rsplit("-", 1)[-1]
-            if coda.isdigit():
-                progressivi.append(int(coda))
+        for radice in ("entities", "scartati"):
+            base = self.data_dir / radice / spec["dir"]
+            if spec["per_anno"]:
+                base = base / str(anno)
+            for percorso in base.glob("*.json"):
+                coda = percorso.stem.rsplit("-", 1)[-1]
+                if coda.isdigit():
+                    progressivi.append(int(coda))
         return spec["fmt"](anno, max(progressivi) + 1)
 
     # ---------------------------------------------------------- scritture
@@ -458,6 +463,111 @@ class DAL:
                 author=GIT_AUTHOR,
                 committer=GIT_AUTHOR,
             )
+
+    # ------------------------------------------------------- scarto/ripristino
+
+    def scarta(
+        self,
+        tipo: str,
+        entity_id: str,
+        *,
+        motivo: str,
+        scartato_da: str,
+        tag: str | None = None,
+    ) -> Envelope:
+        """Ripudia un inserimento **senza cancellarlo**: lo sposta in ``scartati/``.
+
+        L'alternativa (``delete``) perde il perché e non si ripristina. Qui il file
+        resta dato versionato, con motivo e autore nel meta, ma esce dall'albero
+        ``entities/`` — e quindi da tutte le viste, dalla coda di revisione e dagli
+        aggregati — perché i glob delle viste guardano solo là.
+
+        Primitiva pura come ``delete``: le guardie (referenti, documento già in
+        contabilità) vivono nell'API.
+        """
+        sorgente = self._path(tipo, entity_id)
+        destinazione = self._path_scartato(tipo, entity_id)
+        with self._write_lock:
+            if not sorgente.is_file():
+                raise NotFoundError(f"{tipo} {entity_id} non trovato")
+            envelope = Envelope.model_validate_json(sorgente.read_text(encoding="utf-8"))
+            envelope.stato = "scartato"
+            envelope.meta.scartato_da = scartato_da
+            envelope.meta.scartato_il = now_iso()
+            envelope.meta.motivo_scarto = motivo
+            envelope.meta.updated = envelope.meta.scartato_il
+            self._sposta(envelope, sorgente, destinazione, "scarta", tag or f"manual:{scartato_da}")
+        return envelope
+
+    def ripristina(
+        self, tipo: str, entity_id: str, *, ripristinato_da: str, tag: str | None = None
+    ) -> Envelope:
+        """Riporta uno scartato in ``entities/``, ripulendo il meta di scarto.
+
+        Lo stato torna a ``validato`` se l'entità era stata validata prima dello
+        scarto, altrimenti a ``bozza``: rientra nella coda di revisione, dove era.
+        """
+        sorgente = self._path_scartato(tipo, entity_id)
+        destinazione = self._path(tipo, entity_id)
+        with self._write_lock:
+            if not sorgente.is_file():
+                raise NotFoundError(f"{tipo} {entity_id} non trovato fra gli scartati")
+            if destinazione.is_file():
+                raise AlreadyExistsError(f"{tipo} {entity_id} esiste già: non si può ripristinare")
+            envelope = Envelope.model_validate_json(sorgente.read_text(encoding="utf-8"))
+            envelope.stato = "validato" if envelope.meta.validato_da else "bozza"
+            envelope.meta.scartato_da = None
+            envelope.meta.scartato_il = None
+            envelope.meta.motivo_scarto = None
+            envelope.meta.updated = now_iso()
+            self._sposta(
+                envelope, sorgente, destinazione, "ripristina", tag or f"manual:{ripristinato_da}"
+            )
+        return envelope
+
+    def leggi_scartato(self, tipo: str, entity_id: str) -> Envelope:
+        percorso = self._path_scartato(tipo, entity_id)
+        if not percorso.is_file():
+            raise NotFoundError(f"{tipo} {entity_id} non trovato fra gli scartati")
+        return Envelope.model_validate_json(percorso.read_text(encoding="utf-8"))
+
+    def list_scartati(self, tipo: str | None = None) -> list[Envelope]:
+        """Gli inserimenti scartati, di un tipo o di tutti (per l'elenco admin)."""
+        tipi = [tipo] if tipo else list(ENTITY_TYPES)
+        scartati: list[Envelope] = []
+        for nome in tipi:
+            spec = self._spec(nome)
+            base = self.data_dir / "scartati" / spec["dir"]
+            pattern = "*/*.json" if spec["per_anno"] else "*.json"
+            scartati.extend(
+                Envelope.model_validate_json(p.read_text(encoding="utf-8"))
+                for p in sorted(base.glob(pattern))
+            )
+        return scartati
+
+    def _sposta(
+        self, envelope: Envelope, sorgente: Path, destinazione: Path, azione: str, tag: str
+    ) -> None:
+        """Scrive l'envelope nella nuova sede, toglie la vecchia, un solo commit.
+
+        Chiamare solo dentro ``_write_lock``. Non è un ``git mv`` perché il
+        contenuto cambia insieme al percorso (stato e meta): due operazioni
+        sull'indice, un commit, come ogni altra mutazione.
+        """
+        self._scrivi_atomico(
+            destinazione, json.dumps(envelope.model_dump(mode="json"), ensure_ascii=False, indent=2)
+            + "\n",
+        )
+        rel_sorgente = sorgente.relative_to(self.data_dir).as_posix()
+        rel_destinazione = destinazione.relative_to(self.data_dir).as_posix()
+        self.repo.index.add([rel_destinazione])
+        self.repo.index.remove([rel_sorgente], working_tree=True)
+        self.repo.index.commit(
+            f"{envelope.tipo} {envelope.id}: {azione} [{tag}]",
+            author=GIT_AUTHOR,
+            committer=GIT_AUTHOR,
+        )
+        _log.debug("commit: %s %s: %s", envelope.tipo, envelope.id, azione)
 
     def crea_issue(
         self,
@@ -662,6 +772,26 @@ class DAL:
                 f"golden {payload['id']}: crea [{run_id or 'manual'}]",
             )
         return payload
+
+    def elimina_golden(self, golden_id: str, *, eliminato_da: str = "manual") -> bool:
+        """Toglie un caso dal golden set. ``False`` se non c'era.
+
+        Serve quando l'ufficio ripudia il dato su cui il caso era stato costruito
+        (uno scarto): lasciarlo dentro significherebbe misurare ogni nuova versione
+        del workflow contro una risposta che l'ufficio considera sbagliata.
+        """
+        percorso = self.data_dir / "golden" / f"{golden_id}.json"
+        with self._write_lock:
+            if not percorso.is_file():
+                return False
+            rel = percorso.relative_to(self.data_dir).as_posix()
+            self.repo.index.remove([rel], working_tree=True)
+            self.repo.index.commit(
+                f"golden {golden_id}: elimina [{eliminato_da}]",
+                author=GIT_AUTHOR,
+                committer=GIT_AUTHOR,
+            )
+        return True
 
     def consolida_vista(
         self,
@@ -1026,11 +1156,20 @@ class DAL:
         except KeyError as exc:
             raise UnknownTypeError(f"tipo entità sconosciuto: {tipo!r}") from exc
 
-    def _path(self, tipo: str, entity_id: str) -> Path:
+    def _path_scartato(self, tipo: str, entity_id: str) -> Path:
+        """Percorso di un'entità scartata: ``scartati/`` invece di ``entities/``.
+
+        Fuori dall'albero delle entità di proposito: tutte le viste globbano
+        ``entities/<dir>/…``, quindi uno scartato è invisibile a cruscotto,
+        scostamenti, registro, report e Interroga **senza filtri SQL**.
+        """
+        return self._path(tipo, entity_id, radice="scartati")
+
+    def _path(self, tipo: str, entity_id: str, radice: str = "entities") -> Path:
         spec = self._spec(tipo)
         if not spec["id"].fullmatch(entity_id):
             raise InvalidIdError(f"id non valido per {tipo}: {entity_id!r}")
-        base = self.data_dir / "entities" / spec["dir"]
+        base = self.data_dir / radice / spec["dir"]
         if spec["per_anno"]:
             base = base / entity_id.split("-")[1]
         return base / f"{entity_id}.json"
