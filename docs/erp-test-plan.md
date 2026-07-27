@@ -50,6 +50,9 @@ I test ERP sono marcati `@pytest.mark.erp`: `pytest -m erp` li seleziona tutti
 | **Re-sync** batch e singolo; **early-abort** con ERP giù; **recupero** dopo ripristino | `test_erp_osservabilita_e2e.py` |
 | Re-sync singolo 404 / tipo non sincronizzabile / ERP non configurato | `test_erp_osservabilita_e2e.py` |
 | **RBAC**: endpoint ERP solo admin (401 senza token, 403 operatore) | `test_erp_auth.py` |
+| **Scarto bloccato** se il documento è a valle: bozza → "elimina", confermato → "annulla", ERP giù → "riprova" | `test_scarti_erp.py` |
+| Scarto **permesso** a documento annullato (`docstatus` 2) o eliminato (404) | `test_scarti_erp.py` |
+| Nessuna lettura a valle se il documento non è mai stato sincronizzato | `test_scarti_erp.py` |
 | **Campi obbligatori di ERPNext**: padre del Cost Center, conto di costo sulle righe fattura, articolo sulle righe DDT | `test_erp_translate.py`, `test_erp_sync_e2e.py` |
 | Resolver del master data (radice Cost Center, conto di costo dalla Company) | `test_erp_sync_e2e.py` |
 | DDT senza `ERP_ITEM_DDT` → errore **azionabile** (dice cosa configurare) | `test_erp_sync_e2e.py` |

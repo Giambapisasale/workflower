@@ -9,8 +9,8 @@ sessione. Serve a rispondere a una domanda: *cosa funziona davvero quando lo toc
 con le dita*, non *cosa passa in pytest*. La suite automatica (`make test`) copre la
 logica; questo copre l'esperienza.
 
-**Durata indicativa:** 2 ore per il giro completo, 35 minuti per il solo percorso
-critico (i casi segnati ⭐).
+**Durata indicativa:** 2 ore e mezza per il giro completo, 40 minuti per il solo
+percorso critico (i casi segnati ⭐).
 
 ---
 
@@ -49,10 +49,14 @@ ridisegnati: il golden set esiste anche nell'immagine di produzione, dove
 `reportlab` (dipendenza di sviluppo) non è installato. Prima era vuoto nel
 container, e il replay di una patch diceva `0/0` — cioè non dimostrava niente.
 
-² Il progetto **non legge il `.env`** fuori da Docker: `make dev` usa l'ambiente del
-processo. Le variabili vanno impostate nella shell, e la sintassi non è
-intercambiabile fra shell (in `cmd.exe` `set X="v"` mette le virgolette *dentro* al
-valore).
+² Il confine è sottile e vale conoscerlo. **L'app legge il `.env` anche fuori da
+Docker**, ma per un effetto collaterale: `litellm` chiama `load_dotenv()` quando
+viene importato, quindi `make dev` si ritrova nell'ambiente tutto il `.env`,
+`ERP_*` comprese. Gli **script** invece no — `scripts/erp_smoke.py` non importa il
+gateway, quindi per lui le variabili vanno **nella shell**, e la sintassi non è
+intercambiabile (in `cmd.exe` `set X="v"` mette le virgolette *dentro* al valore).
+Nei test il `.env` viene ripulito di proposito (`conftest.erp_non_configurato`):
+un test non deve trovarsi collegato all'ERP reale per caso.
 
 ### 1.2 Ambiente da zero, in ordine
 
@@ -786,6 +790,50 @@ In **Workflows**, guarda i contatori per workflow.
 singolo run si apre da Segnalazioni — vedi D12.)
 `☐ OK ☐ KO`
 
+**H12 ⭐ · I casi golden si vedono**
+In **Workflows**, card «Casi golden — la rete di regressione».
+**Atteso:** i **2** casi del seed con workflow, versione, documento, chi ha validato,
+e il badge *originale mancante* assente (l'originale deve essere rieseguibile).
+Validando in D3 ne compare uno in più.
+`☐ OK ☐ KO`
+
+**H13 · Rimuovi un caso golden**
+*Rimuovi* → *Sì, rimuovi* su un caso.
+**Atteso:** sparisce, e il conteggio «casi golden» del workflow scende. Il replay
+della patch successiva ne userà uno in meno. Commit git, reversibile.
+`☐ OK ☐ KO`
+
+**H14 ⭐ · Elenco dei run**
+Admin → **Run**.
+**Atteso:** una riga per esecuzione con quando, workflow@versione, documento, esito,
+**costo** e **durata**; i KPI in alto contano run mostrati, falliti, costo totale ed
+escalation. Dal più recente.
+`☐ OK ☐ KO`
+
+**H15 ⭐ · Trace da Run**
+Su una riga, *Trace*.
+**Atteso:** il trace si apre in linea, con `run_id`, numero di chiamate al modello,
+tool e token in testa, e gli eventi in ordine.
+`☐ OK ☐ KO`
+
+**H16 · Filtri dei run**
+Filtra per workflow e per esito *Falliti*.
+**Atteso:** i filtri si combinano e restano nell'URL (ricaricando la pagina tengono).
+Con nessun risultato, una frase che lo spiega.
+`☐ OK ☐ KO`
+
+**H17 · Da Workflows ai run**
+In **Workflows**, clicca il numero di run di un workflow (e, se >0, quello degli
+errori).
+**Atteso:** porta a **Run** già filtrato su quel workflow (e sui falliti).
+`☐ OK ☐ KO`
+
+**H18 · Un run fallito si vede**
+Genera un errore (B9), poi Run → esito *Falliti*.
+**Atteso:** il run c'è, con il motivo dell'errore in rosso sotto la riga. Prima di
+questa pagina un run fallito senza segnalazione era invisibile.
+`☐ OK ☐ KO`
+
 **H11 ⭐ · L'operatore non approva mai**
 Cerca, nell'interfaccia operatore, qualunque modo di approvare una patch.
 **Atteso:** non esiste. L'operatore segnala, l'ufficio decide.
@@ -908,11 +956,19 @@ Card «Query ricorrenti».
 query registrata: prova la pagina Interroga.»
 `☐ OK ☐ KO`
 
-**J5 ⌨ 🔑 💶 · Idoneità T3**
-Nessuna interfaccia. `GET /api/dataset/eval-t3?candidato=T3&riferimento=T1` con
-`LLM_T3_MODEL` impostato su un modello locale.
-**Atteso:** accuratezza del candidato contro T1 sugli esempi validati, e quali
-workflow sono «pronti per T3». Senza `LLM_T3_MODEL`, salta.
+**J5 ⭐ · Idoneità T3: senza modello lo dice**
+Dataset → card «Idoneità T3 — il modello locale» → *Misura adesso*, con
+`LLM_T3_MODEL` **non** impostato.
+**Atteso:** «Nessun modello T3 configurato: imposta `LLM_T3_MODEL`…» — non una
+tabella di zeri che sembra un fallimento del modello.
+`☐ OK ☐ KO`
+
+**J5b 🔑 💶 · Idoneità T3: la misura**
+Con `LLM_T3_MODEL` impostato su un modello locale, *Misura adesso*.
+**Atteso:** una riga per workflow con esempi, T3 su tool e argomenti, T1 sugli
+argomenti come riferimento, e il verdetto — *pronto per T3* / *regredirebbe* /
+*sotto soglia*. In testa i due modelli e la soglia. **Non parte da sola**: rigioca
+tutto il set validato su due tier.
 `☐ OK ☐ KO ☐ N/A`
 
 **J6 · Escalation T3→T1**
@@ -1005,6 +1061,27 @@ storico resta visibile. Validare funziona esattamente come prima.
 Card «Registro dei tentativi».
 **Atteso:** quando, documento, esito, e per i fallimenti **il motivo** — leggibile,
 non un traceback. Corrisponde a `data/dataset/erp_sync.jsonl`.
+`☐ OK ☐ KO`
+
+**K15 ⭐ 🧾 · Scartare un documento già in contabilità è bloccato**
+Valida una fattura con l'ERP collegato (K2), poi prova a scartarla da Revisione.
+**Atteso:** **409** con il numero della Purchase Invoice e l'istruzione **giusta per
+il suo stato**: se è *Draft* «eliminala in ERPNext», se è *confermata* «annullala in
+ERPNext (Cancel)». Non deve dire «annullala» di una bozza: in Frappe una bozza non si
+annulla, e cercheresti un pulsante che non c'è. Il documento resta validato.
+`☐ OK ☐ KO` — istruzione ricevuta: ____________________
+
+**K16 ⭐ 🧾 · Sistemato a valle, lo scarto passa**
+Elimina (o annulla) quel documento in `/app/purchase-invoice`, poi riprova a
+scartarlo.
+**Atteso:** questa volta lo scarto riesce. Workflower ha **letto** lo stato a valle,
+non ha scritto niente: l'ERP resta l'unico padrone dei suoi annullamenti.
+`☐ OK ☐ KO`
+
+**K17 🧾 · Con l'ERP giù, non indovina**
+Con una fattura già sincronizzata, `make erp-down`, poi prova a scartarla.
+**Atteso:** **409** «Non riesco a verificare la contabilità adesso… riprova quando
+l'ERP risponde». Non sapere non è come sapere che va bene.
 `☐ OK ☐ KO`
 
 **K14 · La scrivania, non il portale**
@@ -1165,11 +1242,15 @@ lasciati.
 | Domande in linguaggio naturale (operatore) | C6, C7 |
 | Coda di revisione + originale a fianco | D1, D2 |
 | Validazione umana → golden set | D3, D4, H6 |
+| **Scarto di un inserimento** (motivo, effetti, ripristino) | D13–D19 |
+| Scarto bloccato se il documento è in contabilità | K15–K17 |
+| Golden set ispezionabile e correggibile | H12, H13 |
+| Elenco dei run e trace da ogni punto | D12, H14–H18 |
 | Feedback sui campi | D5 |
 | Correzione manuale dei dati | D6 |
 | Collegamento fattura ↔ computo | D7, E6 |
 | Anagrafica mancante creata dal documento | D8, D9 |
-| Trace per-run (costo, latenza, tool call) | D12, H10 |
+| Trace per-run (costo, latenza, tool call) | D12, H10, H15 |
 | Cruscotto costi, ritenute, ore, manodopera | E1–E4 |
 | Registro di cantiere | E5 |
 | Preventivo vs consuntivo (scostamenti) | E6, E7 |
@@ -1185,9 +1266,9 @@ lasciati.
 | Consolidamento in vista `v_*` | I1–I3 |
 | Consolidamento in tool parametrico `t_*` | I4–I6 |
 | Registry dei tool nativi con contatori | I7 |
-| Toolsmith Python (codice=dato, sandbox) | I8–I11, M6 |
+| Toolsmith Python (codice=dato, sandbox) | I8–I13, M6 |
 | Costi LLM ed export dataset | J1–J4 |
-| Tier locale T3 e idoneità | J5, J6 |
+| Tier locale T3 e idoneità | J5, J5b, J6 |
 | Sync alla validazione → ERPNext | K2–K4 |
 | Ritenuta d'acconto a valle | K3 |
 | Idempotenza e no-doppioni | K5, K6, K10 |
@@ -1210,17 +1291,20 @@ lasciati.
 Da sapere prima, per non registrare come KO ciò che è fuori scope o è un buco già
 noto.
 
-1. **Toolsmith Python e Idoneità T3 non hanno interfaccia** (I8–I11, J5): esistono
-   solo come API. Il README li descrive come pagine — è un buco di interfaccia, non
-   del backend.
-2. **Golden set vuoto nell'immagine Docker**: `reportlab` è una dipendenza di
-   sviluppo e il seed dei casi golden viene saltato. Il golden si riempie validando.
-3. **Nessun `.env` fuori da Docker**: `make dev` legge solo l'ambiente della shell.
-4. **Il trace si apre solo da Segnalazioni** (D12): non da Revisione né da Workflows,
-   che pure mostrano i run. L'API `GET /api/runs/{run_id}/trace` è generale.
-5. **Emissione elettronica SdI e ciclo attivo**: fuori scope dichiarato.
-6. **La sincronizzazione ERP è mono-direzionale** WF→ERP: l'unico ritorno è lo stato
-   di pagamento. Modifiche fatte in ERPNext non tornano indietro.
+1. **Il tier T3 va configurato a parte** (`LLM_T3_MODEL`): senza, la card «Idoneità
+   T3» lo dice e J5/J6 non sono eseguibili. Non è un guasto.
+2. **Il Toolsmith ha bisogno di storia**: candidati e proposte nascono dal delta fra
+   bozza e dato validato, quindi su un ambiente appena seminato le card sono vuote
+   fino a che non hai corretto e validato qualche documento (vedi I8).
+3. **Il `.env` arriva all'app anche fuori da Docker**, ma solo per l'effetto
+   collaterale di `litellm` (vedi nota ² in §1.1): gli script no. Non è una
+   configurazione da cui dipendere.
+4. **Emissione elettronica SdI e ciclo attivo**: fuori scope dichiarato.
+5. **La sincronizzazione ERP è mono-direzionale** WF→ERP: l'unico ritorno è lo stato
+   di pagamento. Modifiche fatte in ERPNext non tornano indietro — e infatti lo
+   scarto di un documento già a valle è **bloccato** invece di essere propagato.
+6. **Lo scarto non tocca l'ERP**: dice cosa fare (eliminare la bozza o annullare il
+   documento confermato) e attende. È una scelta, non una mancanza.
 7. **Un solo worker**: il DAL è single-writer per costruzione, non si scala
    orizzontalmente.
 8. **PIN demo**: `1111`/`9999` sono dimostrativi e vanno cambiati prima di qualunque
@@ -1238,17 +1322,17 @@ noto.
 | A Accesso e permessi | 9 | | | | |
 | B Caricamento documenti | 16 | | | | |
 | C Ore e domande | 7 | | | | |
-| D Revisione | 12 | | | | |
+| D Revisione e scarto | 19 | | | | |
 | E Costi e report | 10 | | | | |
 | F Dati e anagrafiche | 10 | | | | |
 | G Interrogazione | 8 | | | | |
-| H Improver | 11 | | | | |
-| I Consolidamento | 11 | | | | |
-| J Dataset e T3 | 6 | | | | |
-| K Contabilità ERP | 14 | | | | |
+| H Improver, golden e run | 18 | | | | |
+| I Consolidamento e Toolsmith | 13 | | | | |
+| J Dataset e T3 | 7 | | | | |
+| K Contabilità ERP | 17 | | | | |
 | L Log e diagnosi | 11 | | | | |
 | M Robustezza e audit | 9 | | | | |
-| **Totale** | **139** | | | | |
+| **Totale** | **159** | | | | |
 
 **Ambiente usato:** ☐ A locale ☐ B Docker
 **Modello T1:** ______________ **T2:** ______________ **T3:** ______________

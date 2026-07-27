@@ -98,6 +98,28 @@ I documenti arrivati si guardano nella **scrivania** di ERPNext: `/app/purchase-
 (fatture), `/app/purchase-receipt` (DDT), `/app/cost-center` (cantieri). Non dal portale
 alla radice del sito: quello è la vetrina per fornitori e clienti e nega i documenti.
 
+## Scartare un documento già arrivato a valle
+
+Se l'ufficio **scarta** un inserimento (Revisione → *Scarta*) che è già stato
+sincronizzato, Workflower **si ferma**: prima va sistemato in ERPNext, poi si scarta
+qui. Altrimenti resterebbero due verità in disaccordo — Workflower senza la fattura,
+ERPNext con la fattura nei conti.
+
+La verifica è una **lettura** del `docstatus` del documento a valle, e l'istruzione
+cambia con il suo stato, perché in Frappe le due cose sono diverse:
+
+| Stato a valle | `docstatus` | Cosa fare in ERPNext | Scarto |
+|---|---|---|---|
+| Bozza (è come nasce da WF) | 0 | **eliminala** — una bozza non si annulla | bloccato |
+| Confermata (è nei conti) | 1 | **annullala** (*Cancel*) | bloccato |
+| Annullata | 2 | niente | permesso |
+| Non c'è più (404) | — | niente | permesso |
+| ERP irraggiungibile o spento | — | riprovare quando risponde | bloccato |
+
+Workflower **non scrive annullamenti** nell'ERP: la scrittura verso valle resta un
+effetto della sola validazione (ADR-4). Bloccare è la scelta prudente; l'alternativa —
+propagare il `cancel` — è stata scartata di proposito.
+
 ## Endpoint admin
 
 | Metodo / rotta | Cosa fa |

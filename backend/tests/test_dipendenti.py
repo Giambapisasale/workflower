@@ -7,8 +7,8 @@ import pytest
 from aiuti import accedi
 from fastapi.testclient import TestClient
 
-from app.api.entities import _campi_riferimento
 from app.core.dal import DAL
+from app.core.riferimenti import campi_riferimento
 from app.core.views import connect
 
 
@@ -75,13 +75,13 @@ def test_v_dipendenti_e_allocazioni(seeded_dir: Path) -> None:
     assert len(alloc) == 3  # DIP-004 (ufficio) non ha allocazioni
 
 
-def test_campi_riferimento(seeded_dir: Path) -> None:
-    rif_rap = _campi_riferimento(_schema(seeded_dir, "rapportino"))
+def testcampi_riferimento(seeded_dir: Path) -> None:
+    rif_rap = campi_riferimento(_schema(seeded_dir, "rapportino"))
     assert rif_rap.get("dipendente_id") == "dipendente"
     assert rif_rap.get("lavorazione_id") == "lavorazione"
     assert rif_rap.get("cantiere_id") == "cantiere"
 
-    rif_dip = _campi_riferimento(_schema(seeded_dir, "dipendente"))
+    rif_dip = campi_riferimento(_schema(seeded_dir, "dipendente"))
     assert rif_dip.get("cantiere_id") == "cantiere"  # dedotto dall'array allocazioni
 
 

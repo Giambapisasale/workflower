@@ -157,7 +157,7 @@ def _chiudi_segnalazioni(dal: DAL, entity_id: str, run_id: str | None) -> list[s
     return chiuse
 
 
-def _vista_scartato(dal: DAL, entita: Envelope) -> dict[str, Any]:
+def _vista_scartato(entita: Envelope) -> dict[str, Any]:
     return {
         "id": entita.id,
         "tipo": entita.tipo,
@@ -235,7 +235,7 @@ def elenco_scartati(
     """Gli inserimenti scartati, dal più recente: l'archivio da cui si ripristina."""
     scartati = dal.list_scartati()
     scartati.sort(key=lambda e: e.meta.scartato_il or "", reverse=True)
-    return {"scartati": [_vista_scartato(dal, e) for e in scartati]}
+    return {"scartati": [_vista_scartato(e) for e in scartati]}
 
 
 @router.post("/scartati/{entity_id}/ripristina")

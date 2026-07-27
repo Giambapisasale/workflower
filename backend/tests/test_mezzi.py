@@ -7,7 +7,7 @@ import pytest
 from aiuti import accedi
 from fastapi.testclient import TestClient
 
-from app.api.entities import _campi_riferimento
+from app.core.riferimenti import campi_riferimento
 from app.core.views import connect
 
 
@@ -19,13 +19,13 @@ def _schema(seeded_dir: Path, tipo: str) -> dict:
 
 
 def test_campi_riferimento_mezzi(seeded_dir: Path) -> None:
-    assert _campi_riferimento(_schema(seeded_dir, "fattura")).get("mezzo_id") == "mezzo"
-    rif_mezzo = _campi_riferimento(_schema(seeded_dir, "mezzo"))
+    assert campi_riferimento(_schema(seeded_dir, "fattura")).get("mezzo_id") == "mezzo"
+    rif_mezzo = campi_riferimento(_schema(seeded_dir, "mezzo"))
     assert rif_mezzo.get("fornitore_noleggio_id") == "fornitore"
-    rif_scad = _campi_riferimento(_schema(seeded_dir, "scadenza"))
+    rif_scad = campi_riferimento(_schema(seeded_dir, "scadenza"))
     assert rif_scad.get("mezzo_id") == "mezzo"
     assert rif_scad.get("cantiere_id") == "cantiere"
-    rif_man = _campi_riferimento(_schema(seeded_dir, "manutenzione"))
+    rif_man = campi_riferimento(_schema(seeded_dir, "manutenzione"))
     assert rif_man.get("mezzo_id") == "mezzo"
     assert rif_man.get("fornitore_id") == "fornitore"
 

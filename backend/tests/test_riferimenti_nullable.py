@@ -12,9 +12,9 @@ from fake_llm import FakeCompleter
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator, FormatChecker
 
-from app.api.entities import _campi_riferimento
 from app.core.dal import DAL
 from app.core.gateway import Gateway
+from app.core.riferimenti import campi_riferimento
 from app.core.runtime import WorkflowRuntime, schema_contratto
 from app.fixtures import FIXTURES
 from app.models.envelope import Meta
@@ -85,14 +85,14 @@ def test_contratto_estrazione_ammette_riferimento_nullo() -> None:
 
 
 def test_campi_riferimento_ancora_rilevati() -> None:
-    assert _campi_riferimento(_schema("fattura")) == {
+    assert campi_riferimento(_schema("fattura")) == {
         "fornitore_id": "fornitore",
         "cantiere_id": "cantiere",
         "mezzo_id": "mezzo",  # tag di costo sulle righe (annidato nell'array)
     }
-    assert _campi_riferimento(_schema("sal")) == {"cantiere_id": "cantiere"}
+    assert campi_riferimento(_schema("sal")) == {"cantiere_id": "cantiere"}
     # il sidecar (oggetto senza pattern) NON è scambiato per un riferimento
-    assert "riferimenti_estratti" not in _campi_riferimento(_schema("fattura"))
+    assert "riferimenti_estratti" not in campi_riferimento(_schema("fattura"))
 
 
 def test_run_salva_bozza_con_riferimento_nullo(
