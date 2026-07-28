@@ -17,6 +17,7 @@ from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
 from app.core.diagnostico import Diagnostico
 from app.core.erp import ErpClient
+from app.core.eval_interroga import EvalInterroga
 from app.core.eval_t3 import EvalT3
 from app.core.gateway import Gateway
 from app.core.improver import Improver
@@ -76,7 +77,7 @@ def get_runtime(
 def get_interroga(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> Interroga:
-    return Interroga(dal.data_dir, gateway)
+    return Interroga(dal, gateway)
 
 
 def get_improver(
@@ -95,6 +96,12 @@ def get_eval_t3(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> EvalT3:
     return EvalT3(dal, gateway)
+
+
+def get_eval_interroga(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> EvalInterroga:
+    return EvalInterroga(dal, gateway)
 
 
 def get_diagnostico(

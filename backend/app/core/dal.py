@@ -773,6 +773,44 @@ class DAL:
             )
         return payload
 
+    def crea_golden_domanda(
+        self,
+        domanda: str,
+        sql: str,
+        *,
+        workflow: str = "interroga",
+        version: str = "1.0",
+        run_id: str | None = None,
+        validato_da: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggiunge un caso-domanda al golden set: la domanda e la query approvata.
+
+        L'atteso è il **SQL di riferimento**, non le righe: le righe invecchiano
+        (basta una fattura in più) mentre la query resta valida, e il confronto si
+        fa rieseguendola al momento della misura. Chi chiama ha già verificato che
+        la query passi i guardrail e restituisca almeno una riga — un riferimento
+        che non trova niente farebbe "passare" qualunque candidato muto.
+        """
+        with self._write_lock:
+            cartella = self.data_dir / "golden"
+            cartella.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "id": self._prossimo_id_progressivo(cartella, "GOLD"),
+                "workflow": workflow,
+                "version": str(version),
+                "domanda": domanda,
+                "atteso": {"sql": sql},
+                "run_id": run_id,
+                "validato_da": validato_da,
+                "creato": now_iso(),
+            }
+            self._committa_json(
+                cartella / f"{payload['id']}.json",
+                payload,
+                f"golden {payload['id']}: crea domanda [{validato_da or 'manual'}]",
+            )
+        return payload
+
     def elimina_golden(self, golden_id: str, *, eliminato_da: str = "manual") -> bool:
         """Toglie un caso dal golden set. ``False`` se non c'era.
 

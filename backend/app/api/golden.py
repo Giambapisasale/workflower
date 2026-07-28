@@ -14,13 +14,23 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.api.deps import get_dal, get_data_dir, richiedi_admin
 from app.core.auth import Utente
 from app.core.dal import DAL
 from app.core.golden import carica_golden
+from app.core.interroga import InterrogaError, applica_guardrail, esegui_query
 
 router = APIRouter(tags=["golden"])
+
+
+class DomandaGolden(BaseModel):
+    """Una domanda e la query che l'ufficio ha riconosciuto come giusta."""
+
+    domanda: str
+    sql: str
+    run_id: str | None = None
 
 
 @router.get("/golden")
@@ -39,19 +49,61 @@ def elenco(
         casi.append(
             {
                 "id": caso.id,
+                "tipo": caso.tipo,
                 "workflow": caso.workflow,
                 "version": caso.version,
                 "doc": caso.doc,
+                "domanda": caso.domanda,
                 "entity_tipo": caso.entity_tipo,
                 "entity_id": caso.entity_id,
                 "run_id": caso.run_id,
                 "validato_da": caso.validato_da,
                 "creato": caso.creato,
                 "n_campi": len(caso.atteso),
-                "originale_presente": (Path(data_dir) / caso.doc).is_file(),
+                # un caso-domanda non ha un originale su disco: l'input è il testo
+                "originale_presente": (
+                    (Path(data_dir) / caso.doc).is_file() if caso.doc else True
+                ),
             }
         )
     return {"golden": casi}
+
+
+@router.post("/golden/domande", status_code=201)
+def crea_domanda(
+    body: DomandaGolden,
+    admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+) -> dict[str, Any]:
+    """Promuove una domanda e la sua query a caso di regressione (§3.6).
+
+    È il passo di approvazione umana del ciclo sull'interrogazione: l'ufficio pone
+    la domanda in modalità admin, vede la query e le righe, e se sono giuste le
+    fissa qui. Il server non si fida della query ricevuta: riapplica i guardrail
+    di ``/ask`` e la **esegue**. Due rifiuti espliciti, perché un caso golden
+    sbagliato è peggio di un caso in meno:
+
+    - query che non passa i guardrail o non gira → 400;
+    - query che non restituisce **nessuna riga** → 400: un riferimento vuoto lo
+      pareggerebbe qualunque candidato muto, e il gate T3 diventerebbe un regalo.
+    """
+    try:
+        sql = applica_guardrail(body.sql)
+        righe = esegui_query(dal.data_dir, sql)
+    except InterrogaError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not righe:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "la query non restituisce righe: come riferimento non "
+                "distinguerebbe un modello bravo da uno muto"
+            ),
+        )
+    caso = dal.crea_golden_domanda(
+        body.domanda, sql, run_id=body.run_id, validato_da=admin.username
+    )
+    return {**caso, "righe": len(righe)}
 
 
 @router.delete("/golden/{golden_id}")

@@ -279,6 +279,20 @@ class Tracer:
         )
         self._appendi(self.dataset_path, riga_dataset)
 
+    def query(self, domanda: str, sql: str, righe: int, fingerprint: str) -> None:
+        """Una domanda tradotta in SQL ed eseguita (``/ask``, workflow ``interroga``).
+
+        Non è una ``tool_call``: il modello non *sceglie* un tool, scrive SQL. Per
+        questo non finisce in ``toolcalls.jsonl``, che è il dataset delle decisioni
+        di function calling e non va inquinato con chiamate mai avvenute.
+
+        Attenzione: qui il SQL passa da :func:`sanitizza`, quindi oltre i 400
+        caratteri resta solo l'impronta. La copia **integrale** vive in
+        ``dataset/queries.jsonl`` (``dataset.registra_query``), che è la fonte per
+        il consolidamento (§3.6) e per il dataset delle interrogazioni.
+        """
+        self.evento("query", domanda=domanda, sql=sql, righe=righe, fingerprint=fingerprint)
+
     def validation(self, step: str, esito: str, dettagli: Any = None) -> None:
         self.evento("validation", step=step, esito=esito, dettagli=dettagli)
 

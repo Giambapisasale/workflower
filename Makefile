@@ -1,6 +1,6 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
 .PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
-        seed reseed fixtures samples demo lint
+        seed reseed fixtures samples demo lint testbook-ask
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -37,6 +37,9 @@ test-erp: ## Solo i test dell'integrazione ERP (veloci, con trasporto finto)
 
 erp-smoke: ## Smoke test contro un ERPNext REALE (usa ERP_* dall'ambiente). Aggiungi ARGS=--full
 	$(PY) scripts/erp_smoke.py $(ARGS)
+
+testbook-ask: ## Pone al backend AVVIATO le domande di scripts/testbook_domande.json (costa token). ARGS=--token ...
+	$(PY) scripts/testbook_ask.py $(ARGS)
 
 erp-up: ## Avvia l'ERPNext di sviluppo (docker). La prima volta crea il sito: qualche minuto.
 	docker compose -f docker-compose.erpnext.yml up -d

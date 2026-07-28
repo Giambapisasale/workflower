@@ -26,6 +26,9 @@ FILE_DERIVAZIONI = "derivazioni.jsonl"
 # tentativo (ok/errore) con il backref al documento contabile a valle. Audit + base
 # per il re-sync manuale (M28).
 FILE_ERP_SYNC = "erp_sync.jsonl"
+# Il workflow di ``/ask``: i suoi run non elaborano documenti, quindi il loro
+# costo va tenuto fuori dal "costo per documento" (vedi :func:`statistiche`).
+WORKFLOW_INTERROGA = "interroga"
 
 
 def fingerprint(sql: str) -> str:
@@ -40,8 +43,13 @@ def fingerprint(sql: str) -> str:
     return re.sub(r"\s+", " ", testo).strip()
 
 
-def registra_query(dal: DAL, domanda: str, sql: str) -> None:
-    """Appende la query generata al log del dataset e committa (mutazione = commit)."""
+def registra_query(dal: DAL, domanda: str, sql: str, *, committa: bool = True) -> Path:
+    """Appende la query generata al log del dataset. Ritorna il percorso scritto.
+
+    ``committa=False`` serve a chi ha altri file da mettere nello **stesso** commit:
+    un'interrogazione scrive qui e sul proprio trace, ed è un solo fatto — due
+    commit separati per lo stesso ``/ask`` sarebbero solo rumore nella storia.
+    """
     percorso = dal.data_dir / "dataset" / FILE_QUERY
     percorso.parent.mkdir(parents=True, exist_ok=True)
     record = {
@@ -52,7 +60,9 @@ def registra_query(dal: DAL, domanda: str, sql: str) -> None:
     }
     with percorso.open("a", encoding="utf-8") as file:
         file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    dal.commit_paths([percorso], "dataset: registra query di interroga [ask]")
+    if committa:
+        dal.commit_paths([percorso], "dataset: registra query di interroga [ask]")
+    return percorso
 
 
 def conteggio_fingerprint(data_dir: Path | str) -> list[dict[str, Any]]:
@@ -274,10 +284,12 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
     costo = 0.0
     per_workflow: Counter[str] = Counter()
     escalation_wf: Counter[str] = Counter()
+    costo_wf: Counter[str] = Counter()
     for trace in (base / "traces").glob("*/*/*.jsonl"):
         avviato = False
         outcome = workflow = None
         escalato = False
+        costo_run = 0.0
         for riga in trace.read_text(encoding="utf-8").splitlines():
             try:
                 ev = json.loads(riga)
@@ -291,7 +303,7 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
                     outcome = ev.get("outcome")
                 case "llm_call":
                     n_llm += 1
-                    costo += float(ev.get("cost_usd") or 0)
+                    costo_run += float(ev.get("cost_usd") or 0)
                 case "tool_call":
                     n_tool += 1
                 case "escalation":
@@ -299,7 +311,9 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         if not avviato:
             continue
         n_run += 1
+        costo += costo_run
         per_workflow[workflow or "?"] += 1
+        costo_wf[workflow or "?"] += costo_run
         if escalato:
             escalation_wf[workflow or "?"] += 1
         if outcome == "ok":
@@ -310,6 +324,12 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
     # i documenti sono partizionati per anno (entities/documenti/AAAA/DOC-…): rglob
     n_documenti = len(list((base / "entities" / "documenti").rglob("DOC-*.json")))
     n_toolcalls = _conta_righe(base / "dataset" / "toolcalls.jsonl")
+    # Da quando ``/ask`` è tracciato, il costo totale comprende anche le
+    # interrogazioni: dividerlo per i documenti darebbe un "costo per documento"
+    # gonfiato da domande che non elaborano documenti. I due costi restano
+    # separati perché rispondono a due domande diverse (§3.1).
+    costo_interrogazioni = costo_wf[WORKFLOW_INTERROGA]
+    costo_documenti = costo - costo_interrogazioni
     return {
         "run": {"totale": n_run, "ok": n_ok, "errore": n_errore},
         "llm_call": n_llm,
@@ -317,7 +337,17 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         "toolcalls_dataset": n_toolcalls,
         "costo_totale_usd": round(costo, 6),
         "documenti": n_documenti,
-        "costo_per_documento_usd": round(costo / n_documenti, 6) if n_documenti else 0.0,
+        "costo_documenti_usd": round(costo_documenti, 6),
+        "costo_interrogazioni_usd": round(costo_interrogazioni, 6),
+        "interrogazioni": per_workflow[WORKFLOW_INTERROGA],
+        "costo_per_documento_usd": (
+            round(costo_documenti / n_documenti, 6) if n_documenti else 0.0
+        ),
+        "costo_per_interrogazione_usd": (
+            round(costo_interrogazioni / per_workflow[WORKFLOW_INTERROGA], 6)
+            if per_workflow[WORKFLOW_INTERROGA]
+            else 0.0
+        ),
         "run_per_workflow": dict(per_workflow),
         "escalation": {
             "totale": sum(escalation_wf.values()),

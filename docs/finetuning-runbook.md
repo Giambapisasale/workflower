@@ -131,6 +131,100 @@ resta altissima anche quando l'estrazione è sbagliata: basta una cifra. Misura
 sempre per generazione, e per *campo*, non per token. La lettura: 216 esempi
 insegnano **quale tool** chiamare, non **cosa estrarre**.
 
+## 2-bis. L'interrogazione è un compito diverso (e più adatto)
+
+I numeri qui sopra dicono che 216 esempi insegnano **quale tool** chiamare. Vale
+la pena chiedersi *su quale compito* conviene spendere quel talento, e la risposta
+non è l'estrazione:
+
+- l'estrazione è legata alla **rappresentazione dell'input**. Passando da immagini
+  a testo pymupdf a un OCR di qualità (docling o simili), il *prompt* di ogni
+  esempio si invalida e va ricostruito: il target sopravvive, l'input no;
+- l'interrogazione ha come input **una domanda in italiano**, che nessun
+  miglioramento dell'OCR tocca. Gli esempi hanno una vita utile molto più lunga.
+
+Attenzione però a *come* si instrada l'interrogazione su un modello piccolo.
+``/ask`` oggi è **text-to-SQL**, non function calling: la skill porta in prompt il
+catalogo di 27 viste con tutte le colonne e si aspetta SQL libero. Per un 270M
+addestrato al function calling è il compito peggiore possibile. Il ciclo §3.6 lo
+converte in quello giusto:
+
+1. porre molte domande vere (``scripts/testbook_domande.json``, 120 domande su 11
+   famiglie — `make testbook-ask ARGS="--token …"`, richiede il backend avviato);
+2. leggere i **fingerprint ricorrenti** (`GET /api/dataset/queries`);
+3. consolidare i gruppi in viste ``v_*`` e tool parametrici ``t_*`` (approvazione
+   umana obbligatoria, `POST /api/dataset/consolida`);
+4. ripetere le domande: ora la risposta giusta è `SELECT * FROM t_nome('CNT-001')`
+   — output corto, vocabolario chiuso, **function calling**.
+
+Solo il dataset del passo 4 ha senso per FunctionGemma. Quello del passo 1 no.
+
+### Misurare l'interrogazione: si giudica la risposta, non l'SQL
+
+Due query diverse possono essere entrambe giuste. Il gate confronta i **risultati**:
+un caso golden-domanda conserva la query **approvata dall'ufficio**
+(`POST /api/golden/domande`), non le righe — le righe invecchiano alla prima
+fattura in più. Alla misura si eseguono riferimento e candidato sugli stessi dati
+e si confrontano le righe (alias e ordine delle righe non contano; l'ordine delle
+colonne sì). Il report `GET /api/dataset/eval-t3` lo espone in `interrogazione`, e
+`interroga` entra in `pronti`/`regressioni` come qualunque workflow.
+
+Un caso il cui riferimento non gira più o **non restituisce righe** è dichiarato
+`degenere` ed escluso: lo pareggerebbe qualunque modello muto.
+
+### Cosa ha detto il testbook (T2, 120 domande, repo dati reale)
+
+| | |
+|---|---|
+| query prodotte | 119/120 |
+| rifiutate dai guardrail | 1 — **bug nostro**, ora corretto (vedi sotto) |
+| con righe | 95 |
+| senza righe | 24 |
+
+I 24 vuoti non sono 24 errori. Classificati a mano, uno per uno:
+
+| causa | n | esempio |
+|---|---|---|
+| correttamente vuote (il dato non c'è) | 14 | «fatture pagate»: `v_pagamenti` ha 0 righe |
+| **valore inventato** | 4 | `provincia = 'catania'` (nei dati è `'CT'`) |
+| **match esatto invece di parziale** | 2 | `ragione_sociale = 'Calcestruzzi Etna'` (è `'… S.p.A.'`) |
+| **vista sbagliata** | 1 | avanzamento preso da `v_cronoprogramma` (copre 1 cantiere su 3) invece che da `v_sal` |
+| catalogo sbagliato (cantiere inesistente) | 3 | corretto nel catalogo |
+
+Quindi **7 errori veri su 119**, e 6 dei 7 sono colpa del **prompt**, non del modello:
+
+- il catalogo in prompt dà **nomi e tipi** delle colonne, non i **valori ammessi**.
+  Nessun fine-tuning su un centinaio di esempi insegna a un modello che la provincia
+  è una sigla. La buona notizia: i domini sono **già dato dichiarato** negli schemi
+  (`data/schemas/mezzo.schema.json` → `proprieta: [proprio, noleggio]`, che è
+  esattamente il valore sbagliato dal modello). Iniettarli nella skill è lettura di
+  file piccoli, nessuna query;
+- niente nella skill dice che sui nomi liberi (ragioni sociali, nomi di cantiere)
+  si usa il confronto parziale e non `=`.
+
+Vanno tolti *prima* di misurare un tier, altrimenti si attribuisce al modello una
+colpa del prompt — e si "corregge" col fine-tuning un problema che il fine-tuning
+non tocca.
+
+### Il fingerprint non trova famiglie in un catalogo
+
+Atteso: porre 120 domande e leggere i gruppi ricorrenti. Misurato: **119 query
+testualmente distinte su 119**, zero fingerprint ripetuti. Ovvio a posteriori — il
+fingerprint normalizza i *letterali*, quindi riconosce la **stessa domanda
+ripetuta** (l'uso reale), non domande diverse della stessa famiglia.
+
+Per decidere cosa consolidare da un catalogo serve un altro raggruppamento:
+l'**insieme di viste** che la query attraversa. Su questi 119:
+
+    9 domande  v_fatture
+    5 domande  v_cantieri
+    4 domande  v_cantiere_scostamento + v_cantieri
+    3 domande  v_dipendenti + v_rapportini_righe
+    2 domande  v_fatture + v_fornitori + v_pagamenti
+
+e 17 domande incrociano 3 o più viste — quelle sono le costose da riscrivere ogni
+volta, e i candidati migliori a diventare `t_*`.
+
 ## 3. Servi il modello in locale
 
 ```bash

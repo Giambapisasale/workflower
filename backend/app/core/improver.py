@@ -272,7 +272,10 @@ class Improver:
     # -------------------------------------------------------------- replay
 
     def _replay(self, workflow: str, skill_file: str, skill_nuova: str) -> list[dict[str, Any]]:
-        golden = carica_golden(self.data_dir, workflow)[:MAX_GOLDEN]
+        # solo casi-documento: il replay passa dal runtime, che elabora un blob.
+        # Un caso-domanda (workflow ``interroga``) si misura altrove, per
+        # equivalenza dei risultati (``eval_interroga``), non rigiocando un run.
+        golden = carica_golden(self.data_dir, workflow, tipo="documento")[:MAX_GOLDEN]
         if not golden:
             return []
         sandbox = self._crea_sandbox()
