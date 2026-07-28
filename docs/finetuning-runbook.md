@@ -151,10 +151,12 @@ converte in quello giusto:
 
 1. porre molte domande vere (``scripts/testbook_domande.json``, 120 domande su 11
    famiglie — `make testbook-ask ARGS="--token …"`, richiede il backend avviato);
-2. leggere i **fingerprint ricorrenti** (`GET /api/dataset/queries`);
-3. consolidare i gruppi in viste ``v_*`` e tool parametrici ``t_*`` (approvazione
-   umana obbligatoria, `POST /api/dataset/consolida`);
-4. ripetere le domande: ora la risposta giusta è `SELECT * FROM t_nome('CNT-001')`
+2. raggrupparle per **insieme di viste attraversate** — *non* per fingerprint, che in
+   un catalogo non ricorre mai (vedi sotto);
+3. consolidare i concetti ricorrenti in viste ``v_*`` e tool parametrici ``t_*``
+   (approvazione umana obbligatoria, `POST /api/dataset/consolida`, che accetta un
+   `fingerprint`, un `golden_id` o direttamente il `sql` disegnato);
+4. ripetere le domande: ora la risposta giusta è `SELECT * FROM t_nome('Manzoni')`
    — output corto, vocabolario chiuso, **function calling**.
 
 Solo il dataset del passo 4 ha senso per FunctionGemma. Quello del passo 1 no.
@@ -298,6 +300,69 @@ candidato che sceglie un'interpretazione **diversa ma legittima** («cantieri ap
 = validati con fine prevista futura, e non un'altra definizione). Una decina dei 90
 casi ha questa natura. È un altro argomento per il consolidamento in `t_*`: quando
 l'interpretazione è dentro una vista approvata, la risposta giusta è una sola.
+
+### Passo 3: cosa è stato consolidato, e cosa ha insegnato
+
+Quattro artefatti, disegnati leggendo i 90 casi golden raggruppati per insieme di
+viste (56 query su 90 toccano una vista sola: lì non c'è niente da consolidare).
+
+| artefatto | serve | perché non era una query qualunque |
+|---|---|---|
+| `v_cantiere_costi` | 7 domande | fissa **una** definizione di costo per natura: `mezzi` = righe imputate a un mezzo, `materiali_e_servizi` = tutto il resto. Il modello la reinventava a ogni domanda, e su «materiali» dava 0 |
+| `v_cantiere_situazione` | 4 domande | budget, previsto, consuntivo, margine, % consumata. Quattro casi golden facevano la stessa join solo per arrivare al nome del cantiere |
+| `v_fatture_saldo` | 3 domande | aggrega i pagamenti **prima** della join. Fatto dopo, duplica il totale della fattura per ogni pagamento |
+| `t_costi_cantiere(nome_cantiere)` | «quanto è costato il cantiere X» | confronto parziale sul nome: chi chiede dice «la scuola», non «Ristrutturazione Scuola Manzoni» |
+
+Riposte le 14 domande che questi quattro servono: **13 usano l'artefatto**. E la
+forma della risposta è quella che serve al modello piccolo — da una join a tre vie a:
+
+```sql
+SELECT * FROM t_costi_cantiere('Manzoni')
+```
+
+#### L'ingresso del §3.6 andava cambiato
+
+Gli endpoint di consolidamento accettavano solo un `fingerprint`, cioè presupponevano
+che un candidato si scopra perché una query **si ripete**. Ma un catalogo di domande
+diverse non ripete niente, e soprattutto: la vista giusta **non è** nessuna delle
+query prodotte dal modello — va disegnata. Ora la sorgente può essere un
+`fingerprint`, un `golden_id` (query già approvata) o il `sql` esplicito. Le garanzie
+non cambiano: guardrail di `/ask` e compilazione+chiamata reali su DuckDB prima di
+scrivere in `views.sql`.
+
+#### Tre cose imparate misurando
+
+**Un tool che c'è viene usato anche dove non serve.** `t_ore_periodo(dal, al)`
+sembrava ovvio — quattro domande sono «ore in un periodo» — ma la grana era
+sbagliata: restituiva il dettaglio per lavoratore, e alla domanda «quante ore abbiamo
+fatto questo mese?» il modello ha preferito il tool a un `SUM`, peggiorando la
+risposta (7 righe di dettaglio invece di un totale). **Rimosso**: `v_rapportini_righe`
+già bastava, e la skill dice di preferire i tool. Un tool va disegnato sulla *forma*
+della domanda, non solo sui dati che tocca.
+
+**La vista toglie una trappola dallo spazio delle risposte possibili.** «Quanto
+abbiamo ancora da pagare?» era `SUM(f.totale) - SUM(p.importo_pagato)` su una LEFT
+JOIN: sbagliata, e invisibile perché oggi i pagamenti sono zero. Ora è
+`SUM(residuo) FROM v_fatture_saldo` e l'errore non è più esprimibile.
+
+**Il fan-out resta il pericolo peggiore quando la vista non viene usata.** «Costo
+totale sommando fatture e manodopera» ha ignorato `v_cantiere_costi` (la domanda
+nomina le fonti, e il modello le ha seguite) e ha scritto
+`SUM(DISTINCT f.totale) + SUM(r.costo)` su una doppia LEFT JOIN: il `DISTINCT`
+perde le fatture di pari importo, la join gonfia la manodopera, e il totale usciva
+259 776 invece di 226 160. Il caso golden `GOLD-0162` — che conserva la versione con
+le CTE — lo intercetta: è esattamente il lavoro per cui esiste.
+
+#### Una scelta di definizione da confermare
+
+`v_cantiere_costi` somma le **righe** di fattura, che riconciliano all'euro con
+l'`imponibile` (verificato: scarto 0,00 su tutti e tre i cantieri, nessuna fattura
+senza righe). Quindi i costi sono **al netto dell'IVA**, mentre `v_fatture.totale` è
+lordo: due domande formulate quasi uguali possono dare numeri diversi del 22%.
+Per il controllo costi il netto è la base giusta, ed è anche l'unica che permette lo
+spacco per natura (solo le righe hanno `mezzo_id`) — ma `v_cantiere_situazione`
+calcola `margine_residuo = budget - costo_totale`, quindi assume che anche il budget
+sia netto. Va confermato.
 
 ## 3. Servi il modello in locale
 

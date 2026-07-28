@@ -37,10 +37,12 @@ from app.core.dataset import (
     conteggio_fingerprint,
     conteggio_tool,
     esempi_finetuning,
+    fingerprint,
     statistiche,
 )
 from app.core.eval_interroga import EvalInterroga, unisci
 from app.core.eval_t3 import EvalT3
+from app.core.golden import casi_domanda
 from app.core.tools import Toolset
 
 
@@ -84,8 +86,64 @@ def queries(
     return {"gruppi": _candidati(data_dir)}
 
 
-class ConsolidaRichiesta(BaseModel):
-    fingerprint: str
+class Sorgente(BaseModel):
+    """Da dove viene la query da consolidare: una delle tre, non due.
+
+    ``fingerprint`` era l'unica via, e nasceva dall'idea che i candidati si
+    scoprano perché una query **si ripete**. Vale nell'uso quotidiano, non quando
+    si consolida partendo da un catalogo di domande: 120 domande diverse danno 119
+    fingerprint distinti, nessuno ricorrente (vedi ``docs/finetuning-runbook.md``).
+
+    Le altre due vie servono a questo. ``golden_id`` prende la query di un caso
+    golden, che è già passata da un'approvazione umana. ``sql`` la prende dal corpo
+    della richiesta, per il caso più importante: la vista giusta spesso **non è**
+    nessuna delle query prodotte dal modello, va disegnata — è il senso di
+    «l'umano conferma sempre» del §3.6. In tutti i casi valgono gli stessi
+    guardrail di ``/ask`` e la stessa compilazione reale su DuckDB.
+    """
+
+    fingerprint: str | None = None
+    golden_id: str | None = None
+    sql: str | None = None
+
+    def scelte(self) -> int:
+        return sum(1 for v in (self.fingerprint, self.golden_id, self.sql) if v)
+
+
+def _esempio(dal: DAL, sorgente: Sorgente) -> tuple[str, str]:
+    """La query da consolidare e il fingerprint con cui registrarla.
+
+    Il fingerprint finisce nel ledger anche quando la query arriva da ``sql`` o da
+    un caso golden: serve a ``consolidati_per_fingerprint`` per marcare il candidato
+    quando quella stessa query ricompare fra le domande.
+    """
+    if sorgente.scelte() != 1:
+        raise HTTPException(
+            status_code=400,
+            detail="indica una sola sorgente: fingerprint, golden_id oppure sql",
+        )
+    if sorgente.sql:
+        return sorgente.sql, fingerprint(sorgente.sql)
+    if sorgente.golden_id:
+        caso = next(
+            (c for c in casi_domanda(dal.data_dir) if c.id == sorgente.golden_id), None
+        )
+        if caso is None or not caso.sql_riferimento:
+            raise HTTPException(
+                status_code=404,
+                detail=f"nessun caso golden-domanda con id {sorgente.golden_id}",
+            )
+        return caso.sql_riferimento, fingerprint(caso.sql_riferimento)
+    gruppi = conteggio_fingerprint(dal.data_dir)
+    gruppo = next((g for g in gruppi if g["fingerprint"] == sorgente.fingerprint), None)
+    if gruppo is None:
+        raise HTTPException(
+            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
+        )
+    return gruppo["esempio"], sorgente.fingerprint or ""
+
+
+class ConsolidaRichiesta(Sorgente):
     nome: str
 
 
@@ -95,30 +153,23 @@ def consolida(
     admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
 ) -> dict[str, Any]:
-    """Promuove un candidato ricorrente a vista ``v_<nome>`` (§3.6, branca "vista SQL").
+    """Promuove una query a vista ``v_<nome>`` (§3.6, branca "vista SQL").
 
     Non genera codice: la vista vive in ``config/views.sql`` (dato). L'umano
     sceglie il nome; i guardrail di ``/ask`` e una compilazione reale su DuckDB
     garantiscono che la vista sia sicura ed eseguibile prima del commit.
     """
-    gruppo = next(
-        (g for g in conteggio_fingerprint(dal.data_dir) if g["fingerprint"] == body.fingerprint),
-        None,
-    )
-    if gruppo is None:
-        raise HTTPException(
-            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
-        )
+    esempio, impronta = _esempio(dal, body)
     try:
-        preparata = prepara(dal.data_dir, body.nome, gruppo["esempio"])
+        preparata = prepara(dal.data_dir, body.nome, esempio)
     except ConsolidaError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     voce = dal.consolida_vista(
         nome=body.nome,
         vista=preparata["vista"],
         corpo=preparata["corpo"],
-        fingerprint=body.fingerprint,
-        esempio=gruppo["esempio"],
+        fingerprint=impronta,
+        esempio=esempio,
         creato_da=admin.username,
     )
     return {
@@ -134,8 +185,7 @@ class Parametro(BaseModel):
     nome: str  # il nome del parametro nella macro (es. "cantiere")
 
 
-class ConsolidaToolRichiesta(BaseModel):
-    fingerprint: str
+class ConsolidaToolRichiesta(Sorgente):
     nome: str
     parametri: list[Parametro]
 
@@ -146,24 +196,17 @@ def consolida_tool(
     admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
 ) -> dict[str, Any]:
-    """Promuove un candidato parametrico a tool ``t_<nome>`` (§3.6, branca "query parametrica").
+    """Promuove una query parametrica a tool ``t_<nome>`` (§3.6, branca "parametrica").
 
     Non genera codice Python (Toolsmith automatico = non-goal §5): il tool è una
     **macro tabellare** in ``config/macros.sql`` (dato). L'ufficio nomina i
     parametri; i guardrail di ``/ask`` e una compilazione+chiamata reali su DuckDB
     garantiscono che il tool sia sicuro ed eseguibile prima del commit.
     """
-    gruppo = next(
-        (g for g in conteggio_fingerprint(dal.data_dir) if g["fingerprint"] == body.fingerprint),
-        None,
-    )
-    if gruppo is None:
-        raise HTTPException(
-            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
-        )
+    esempio, impronta = _esempio(dal, body)
     parametri = [p.model_dump() for p in body.parametri]
     try:
-        preparata = prepara_tool(dal.data_dir, body.nome, gruppo["esempio"], parametri)
+        preparata = prepara_tool(dal.data_dir, body.nome, esempio, parametri)
     except ConsolidaError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     voce = dal.consolida_tool(
@@ -171,8 +214,8 @@ def consolida_tool(
         macro=preparata["macro"],
         corpo=preparata["corpo"],
         parametri=preparata["parametri"],
-        fingerprint=body.fingerprint,
-        esempio=gruppo["esempio"],
+        fingerprint=impronta,
+        esempio=esempio,
         creato_da=admin.username,
     )
     return {
