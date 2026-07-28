@@ -178,6 +178,13 @@ def test_i_due_tipi_di_caso_convivono_e_si_filtrano(
     assert voce["doc"] is None
     assert voce["originale_presente"] is True
     assert {v["tipo"] for v in elenco} == {"domanda", "documento"}
+    # i due tipi si rivedono separatamente: un documento si giudica guardando il
+    # PDF, una domanda rileggendo la query
+    solo_domande = client.get("/api/golden?tipo=domanda", headers=admin).json()["golden"]
+    assert [v["id"] for v in solo_domande] == [nuovo["id"]]
+    solo_documenti = client.get("/api/golden?tipo=documento", headers=admin).json()["golden"]
+    assert len(solo_documenti) == len(documenti_del_seed)
+    assert client.get("/api/golden?tipo=inventato", headers=admin).status_code == 422
 
 
 # ------------------------------------------------------------------ la misura

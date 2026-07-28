@@ -206,6 +206,51 @@ Vanno tolti *prima* di misurare un tier, altrimenti si attribuisce al modello un
 colpa del prompt — e si "corregge" col fine-tuning un problema che il fine-tuning
 non tocca.
 
+### Tolti: cosa è cambiato riponendo le domande
+
+La skill ha ora una sezione «Valori ammessi» riempita da
+`app/core/vocabolari.py`, che ricava gli elenchi chiusi e i formati dagli `enum` e
+dai `pattern` degli schemi delle entità, più due regole: sui testi liberi si
+confronta con `ILIKE` sulla **radice**, sugli elenchi chiusi con `=` e uno dei
+valori elencati. Riposte le 30 domande delle due famiglie coinvolte:
+
+| domanda | prima | dopo |
+|---|---|---|
+| «cantieri aperti?» | `stato = 'aperto'` → 0 righe | `stato = 'validato' AND data_fine_prevista >= today` → 3 |
+| «in provincia di Catania?» | `provincia = 'catania'` → 0 | `provincia = 'CT'` → 3 |
+| «fornitori di calcestruzzo» | `LIKE '%calcestruzzo%'` → 0 | `ILIKE '%calcestruzz%'` → 1 |
+| «partita IVA di Calcestruzzi Etna» | `= 'Calcestruzzi Etna'` → 0 | `ILIKE '%calcestruzz%etn%'` → 1 |
+| «costo orario dei mezzi di proprietà» | `proprieta = 'proprietà'` → 0 | `proprieta = 'proprio'` → 1 |
+
+Cinque su cinque, e le altre 25 non peggiorano. Attenzione a come si legge un
+confronto così: **27 query su 30 sono riscritte** anche dove l'esito è identico,
+perché il modello campiona. Una domanda che cambia vista fra due esecuzioni (D015
+oscilla fra `v_allocazioni` e `v_rapportini_righe`) non è una regressione del
+prompt: verificato riponendola tre volte.
+
+#### L'errore che non si vedeva: enum annidati
+
+`tipo_costo` è dichiarato dentro `fattura.righe[].items`, non fra le proprietà di
+primo livello, e la prima versione dell'estrattore lo saltava. Conseguenza sui
+dati veri: il modello scriveva `tipo_costo = 'materiale'` — valore inesistente,
+query legittima, **somma zero**. Nessun errore da nessuna parte, e uno zero sembra
+un dato: «come si dividono i costi fra materiali, manodopera e noleggi» rispondeva
+`materiali: 0`, cioè il 0% di 500 mila euro di fatture.
+
+Questi non erano fra i 7 errori contati sopra, proprio perché avevano restituito
+righe. **Il conto degli errori veri è quindi un minimo, non un totale**: una query
+che torna numeri sbagliati non si distingue da una giusta senza rileggerla.
+
+Con l'elenco iniettato il modello ha smesso di inventare il valore, ma il caso ha
+mostrato un limite che il prompt non può colmare: nel modello dati **non esiste**
+un modo di dire «questa riga di fattura è materiale» (`tipo_costo` classifica i
+costi dei *mezzi*). La regola aggiunta — «se nessun valore dell'elenco corrisponde,
+quella distinzione non esiste nei dati: non scrivere un filtro che darà zero» — lo
+porta a usare `mezzo_id IS NULL` come proxy, e la voce materiali passa da 0 a
+498 mila. È una definizione ragionevole scelta al volo dal modello: **è esattamente
+il genere di cosa che va cristallizzata in una vista** (§3.6), non lasciata a un
+campionamento.
+
 ### Il fingerprint non trova famiglie in un catalogo
 
 Atteso: porre 120 domande e leggere i gruppi ricorrenti. Misurato: **119 query
@@ -224,6 +269,35 @@ l'**insieme di viste** che la query attraversa. Su questi 119:
 
 e 17 domande incrociano 3 o più viste — quelle sono le costose da riscrivere ogni
 volta, e i candidati migliori a diventare `t_*`.
+
+### I 90 casi golden sull'interrogazione
+
+Delle 120 domande, 90 sono state fissate come casi di regressione
+(`POST /api/golden/domande`, `GOLD-0075`…`GOLD-0164`), con copertura su tutte le
+11 famiglie. Le 30 escluse: 20 senza righe — il server le rifiuta comunque, un
+riferimento vuoto lo pareggia qualunque candidato muto — e **10 scartate rileggendo
+la query**, cioè girano e restituiscono numeri, ma non quelli che la domanda chiede:
+
+| caso | perché |
+|---|---|
+| «su quanti cantieri lavora ogni dipendente» | conta da `v_rapportini_righe`, dove `dipendente_id` è sempre NULL |
+| «quanta IVA abbiamo pagato» | `v_pagamenti` è vuota: la somma è NULL, e un NULL non discrimina |
+| «come si dividono i costi» / «manodopera vs materiali» | `tipo_costo = 'materiale'`, valore inesistente |
+| «ore di persone che non sono dipendenti» | `tipo NOT IN ('dipendente','interno')`: valori inventati, la condizione è vera per tutti e le 9 righe sembrano tutte di estranei |
+| «conviene tenere o noleggiare l'escavatore» | deriva `'tenere'/'noleggiare'` da `proprieta`: risponde alla domanda con la domanda |
+| «a che punto siamo col cantiere della scuola» | la scuola è CNT-002, `v_cronoprogramma` ha solo CNT-001 |
+| «quanto resta da pagare» | `SUM(f.totale)` su una LEFT JOIN con i pagamenti: duplica il totale per ogni pagamento. Oggi torna giusto solo perché i pagamenti sono zero |
+| «quale cantiere è il più redditizio» | ordina per budget: il budget è quanto vale il lavoro, non quanto ci si guadagna |
+
+Il criterio non è «la query ha restituito righe» ma «la query risponde alla
+domanda». Vale la pena dirlo perché il primo criterio è automatizzabile e il secondo
+no: quelle 10 sono passate tutte dai guardrail e dall'esecuzione.
+
+Un limite da tenere presente: la misura per equivalenza dei risultati penalizza un
+candidato che sceglie un'interpretazione **diversa ma legittima** («cantieri aperti»
+= validati con fine prevista futura, e non un'altra definizione). Una decina dei 90
+casi ha questa natura. È un altro argomento per il consolidamento in `t_*`: quando
+l'interpretazione è dentro una vista approvata, la risposta giusta è una sola.
 
 ## 3. Servi il modello in locale
 

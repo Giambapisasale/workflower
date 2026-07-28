@@ -37,6 +37,7 @@ from app.core.dataset import fingerprint, registra_query
 from app.core.gateway import Gateway
 from app.core.tracer import Tracer
 from app.core.views import connect
+from app.core.vocabolari import blocco as blocco_vocabolari
 
 logger = logging.getLogger("workflower.interroga")
 
@@ -310,6 +311,7 @@ class Interroga:
         manifest = self._manifest()
         skill = (self.wf_dir / manifest["skills"]["sql"]).read_text(encoding="utf-8")
         skill = skill.replace("{schema_viste}", self._schema_viste())
+        skill = skill.replace("{vocabolari}", self._vocabolari())
         skill = skill.replace("{schema_tool}", self._schema_tool())
         contesto = f"Domanda: {domanda}"
         if cantieri:
@@ -367,6 +369,20 @@ class Interroga:
             return "\n".join(righe)
         finally:
             conn.close()
+
+    def _vocabolari(self) -> str:
+        """I valori che le colonne accettano, per il prompt (:mod:`app.core.vocabolari`).
+
+        Il catalogo delle viste dà nomi e tipi; senza il dominio dei valori il modello
+        lo inventa. Il blocco non è mai fatale: se gli schemi o il catalogo non si
+        leggono, il prompt torna a essere quello di prima invece di far fallire la
+        domanda.
+        """
+        try:
+            return blocco_vocabolari(self.data_dir)
+        except Exception as exc:
+            logger.warning("vocabolari non disponibili: %s", exc)
+            return "(non disponibili)"
 
     def _schema_tool(self) -> str:
         """Il catalogo dei tool parametrici per il prompt: nome e parametri.

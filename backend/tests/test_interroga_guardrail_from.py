@@ -18,7 +18,6 @@ import pytest
 
 from app.core.interroga import InterrogaError, scheletro, valida_lettura
 
-
 # ------------------------------------------------- ciò che prima era rifiutato
 
 

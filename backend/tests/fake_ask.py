@@ -14,6 +14,9 @@ class FakeCompleterInterroga:
         self.frase = frase
         self.contesto_sql: str | None = None
         self.contesto_frase: str | None = None
+        # il prompt di sistema, cioè la skill già riempita: serve ai test che
+        # verificano *cosa* sa il modello (catalogo delle viste, vocabolari, tool)
+        self.prompt_sql: str | None = None
 
     def __call__(
         self, *, model: str, messages: list[dict[str, Any]], **_ignorati: Any
@@ -22,6 +25,7 @@ class FakeCompleterInterroga:
         utente = str(messages[-1]["content"])
         if "Generazione SQL" in sistema:
             self.contesto_sql = utente
+            self.prompt_sql = sistema
             contenuto = f"Ecco la query:\n```sql\n{self.sql}\n```"
         else:
             self.contesto_frase = utente

@@ -36,16 +36,20 @@ class DomandaGolden(BaseModel):
 @router.get("/golden")
 def elenco(
     workflow: str | None = Query(default=None),
+    tipo: str | None = Query(default=None, pattern="^(documento|domanda)$"),
     _admin: Utente = Depends(richiedi_admin),
     data_dir: Path = Depends(get_data_dir),
 ) -> dict[str, Any]:
-    """I casi golden, opzionalmente di un solo workflow (senza l'atteso completo).
+    """I casi golden, opzionalmente di un workflow o di un tipo (senza l'atteso).
 
     L'``atteso`` integrale è il dato validato dell'entità e in elenco sarebbe
     rumore: qui bastano l'origine del caso e quanti campi copre.
+
+    Il filtro per ``tipo`` serve perché i due tipi si rivedono separatamente: un
+    caso-documento si giudica guardando il PDF, un caso-domanda rileggendo la query.
     """
     casi = []
-    for caso in carica_golden(data_dir, workflow):
+    for caso in carica_golden(data_dir, workflow, tipo=tipo):
         casi.append(
             {
                 "id": caso.id,
