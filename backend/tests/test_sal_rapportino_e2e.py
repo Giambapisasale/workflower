@@ -99,6 +99,39 @@ def test_rapportino_e2e_ore_manodopera(banco) -> None:
     assert prima["costo_orario"] == 32.0
 
 
+def test_rapportino_collega_i_dipendenti_e_lascia_stare_i_terzi(banco) -> None:
+    """`cerca_dipendente` per riga: il nostro si collega, l'estraneo no.
+
+    Senza il collegamento la tariffa resta quella scritta sul foglio e ogni
+    domanda su un dipendente ("quante ore ha fatto Torrisi?") non trova niente.
+    Il rapportino di fixture ha i tre casi in fila: un dipendente, un lavoratore
+    di terzi, una squadra.
+    """
+    dal, runtime, doc = banco("rapportino")
+    esito = runtime.esegui("carica-rapportino", doc, run_id="run-rap-dip")
+    righe = dal.read("rapportino", esito.entity_id).dati["righe"]
+
+    per_nome = {r["nominativo"]: r for r in righe}
+    assert per_nome["Salvo Torrisi"]["dipendente_id"] == "DIP-001"
+    assert per_nome["Mario Rossi"]["dipendente_id"] is None
+    assert per_nome["Squadra carpentieri"]["dipendente_id"] is None
+    # il collegamento non cancella ciò che c'è scritto sul documento: la tariffa
+    # del foglio (32) resta leggibile accanto a quella dell'anagrafica (28)
+    assert per_nome["Salvo Torrisi"]["costo_orario"] == 32.0
+
+    costi = {
+        r["nominativo"]: r
+        for r in query(
+            dal.data_dir,
+            "SELECT nominativo, lavoratore, tariffa_applicata, costo "
+            f"FROM v_rapportini_righe WHERE rapportino_id = '{esito.entity_id}'",
+        )
+    }
+    assert costi["Salvo Torrisi"]["tariffa_applicata"] == 28.0  # dall'anagrafica
+    assert costi["Salvo Torrisi"]["lavoratore"] == "Salvo Torrisi"
+    assert costi["Mario Rossi"]["tariffa_applicata"] == 26.5  # dal documento
+
+
 # ----------------------------------------------------------------- viste
 
 
@@ -116,7 +149,9 @@ def test_viste_sal_e_rapportini_dal_seed(dati_rw: Path) -> None:
         "WHERE rapportino_id = 'RAP-2026-0001' ORDER BY nominativo",
     )
     costi = {r["nominativo"]: r["costo"] for r in righe}
-    assert costi["Salvo Torrisi"] == 8 * 32.0
+    # Torrisi è collegato a DIP-001: vale la tariffa in anagrafica (28), non le
+    # 32 scritte sul foglio. Rossi è di terzi: non ha profilo, vale il foglio.
+    assert costi["Salvo Torrisi"] == 8 * 28.0
     assert costi["Mario Rossi"] == 8 * 26.5
 
 

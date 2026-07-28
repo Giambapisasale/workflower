@@ -1,7 +1,9 @@
 # Workflow carica-rapportino — manodopera (Fase 2, M8). Stesso runtime.
-# Usa solo cerca_cantiere: un rapportino non ha un fornitore.
+# Niente cerca_fornitore: un rapportino non ha un fornitore. In compenso ha i
+# lavoratori, e cerca_dipendente collega quelli interni all'anagrafica: è da lì
+# che v_rapportini_righe prende la tariffa.
 name: carica-rapportino
-version: "1.0"
+version: "1.1"
 tier: T1
 ingest:
   label: rapportino
@@ -11,7 +13,7 @@ ingest:
 steps:
   - id: estrai
     skill: skills/estrazione-rapportino.md
-    tools: [ocr_pdf, cerca_cantiere]
+    tools: [ocr_pdf, cerca_cantiere, cerca_dipendente]
     output_schema: schemas/rapportino.schema.json
   - id: valida
     rules:

@@ -358,9 +358,26 @@ SAL: list[dict[str, Any]] = [
     },
 ]
 
-def _ora(nominativo: str, mansione: str, ore: float, costo: float) -> dict[str, Any]:
-    """Una riga di rapportino, per tenere il seed compatto e leggibile."""
-    return {"nominativo": nominativo, "mansione": mansione, "ore": ore, "costo_orario": costo}
+def _ora(
+    nominativo: str,
+    mansione: str,
+    ore: float,
+    costo: float,
+    dipendente_id: str | None = None,
+) -> dict[str, Any]:
+    """Una riga di rapportino, per tenere il seed compatto e leggibile.
+
+    ``dipendente_id`` c'è quando il lavoratore è dei nostri (lo risolve
+    ``cerca_dipendente`` in estrazione): da lì la tariffa arriva dall'anagrafica e
+    non dal foglio. ``None`` per i terzi e le squadre, che è il caso normale.
+    """
+    return {
+        "nominativo": nominativo,
+        "dipendente_id": dipendente_id,
+        "mansione": mansione,
+        "ore": ore,
+        "costo_orario": costo,
+    }
 
 
 RAPPORTINI: list[dict[str, Any]] = [
@@ -370,7 +387,7 @@ RAPPORTINI: list[dict[str, Any]] = [
             "cantiere_id": "CNT-001",
             "data": "2026-07-14",
             "righe": [
-                _ora("Salvo Torrisi", "Capocantiere", 8, 32.0),
+                _ora("Salvo Torrisi", "Capocantiere", 8, 32.0, "DIP-001"),
                 _ora("Mario Rossi", "Muratore", 8, 26.5),
                 _ora("Antonio Greco", "Manovale", 8, 22.0),
             ],
@@ -382,7 +399,7 @@ RAPPORTINI: list[dict[str, Any]] = [
             "cantiere_id": "CNT-002",
             "data": "2026-07-15",
             "righe": [
-                _ora("Giuseppe Leotta", "Capocantiere", 8, 30.0),
+                _ora("Giuseppe Leotta", "Capocantiere", 8, 30.0, "DIP-002"),
                 _ora("Squadra edile", "Muratura", 16, 24.0),
             ],
         },

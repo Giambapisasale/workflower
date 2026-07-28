@@ -60,6 +60,29 @@ def test_cerca_cantiere_match_parziale(toolset: Toolset) -> None:
     assert risultato["risultati"][0]["punteggio"] >= 0.9  # contenimento
 
 
+def test_cerca_dipendente_nome_intero_cognome_e_ordine_invertito(toolset: Toolset) -> None:
+    """Il nominativo sul rapportino è un solo testo; in anagrafica sono due campi."""
+    for query in ("Giuseppe Leotta", "LEOTTA GIUSEPPE", "Leotta"):
+        risultato = toolset.esegui("cerca_dipendente", {"query": query})
+        migliore = risultato["risultati"][0]
+        assert migliore["id"] == "DIP-002", query
+        assert migliore["punteggio"] >= 0.75, query
+    # il riassunto serve all'ufficio in revisione: chi è, e se è dei nostri
+    assert migliore["cognome"] == "Leotta" and migliore["tipo"] == "operaio"
+
+
+def test_cerca_dipendente_non_promuove_gli_estranei(toolset: Toolset) -> None:
+    """Terzi e squadre non stanno in anagrafica: meglio nessun collegamento.
+
+    È il caso che conta davvero. Un collegamento sbagliato non dà errore: mette
+    ore e costi in capo a un'altra persona, e il totale del cantiere resta
+    plausibile. Qui si verifica il margine, non solo l'esito.
+    """
+    for query in ("Mario Rossi", "Squadra carpentieri", "Antonio Cavallaro", "Rossi M."):
+        migliore = toolset.esegui("cerca_dipendente", {"query": query})["risultati"][0]
+        assert migliore["punteggio"] < 0.75, f"{query} → {migliore}"
+
+
 # ---------------------------------------------------------------- salva_bozza
 
 DATI_FATTURA = {

@@ -23,6 +23,11 @@ from typing import Any
 
 import pymupdf
 
+# La soglia con cui le skill accettano un candidato delle anagrafiche. Vive qui
+# perché il fake deve *rifiutare* come il reale: sotto questo punteggio non si
+# collega niente.
+SOGLIA_RIFERIMENTO = 0.75
+
 
 def _importo(testo: str) -> float:
     """'8.330,00' → 8330.0 (dal formato italiano stampato nei documenti)."""
@@ -177,6 +182,7 @@ def _leggi_rapportino(percorso: Path) -> dict[str, Any]:
         righe.append(
             {
                 "nominativo": match.group(1).strip(),
+                "dipendente_id": None,  # lo risolve cerca_dipendente, riga per riga
                 "mansione": None if mansione == "-" else mansione,
                 "ore": _importo(match.group(3).strip()),
                 "costo_orario": None if costo == "-" else _importo(costo),
@@ -186,6 +192,7 @@ def _leggi_rapportino(percorso: Path) -> dict[str, Any]:
     cantiere = re.search(r"Cantiere: (.+)", testo)
     return {
         "query_cantiere": cantiere.group(1).strip() if cantiere else "",
+        "query_dipendenti": list(dict.fromkeys(r["nominativo"] for r in righe)),
         "dati": {
             "cantiere_id": None,
             "data": _data_iso(testata.group(1), testata.group(2), testata.group(3)),
@@ -283,12 +290,23 @@ class FakeCompleter:
             return self._risposta_tool(model, "cerca_fornitore", {"query": query_forn})
         if "cerca_cantiere" in offerti and "cerca_cantiere" not in gia_chiamati and query_cant:
             return self._risposta_tool(model, "cerca_cantiere", {"query": query_cant})
+        # Un nominativo per riga, tutte le chiamate in un giro solo: è quello che
+        # dice la skill, e il runtime esegue più tool_calls nella stessa risposta.
+        query_dip = lettura.get("query_dipendenti") or []
+        if "cerca_dipendente" in offerti and "cerca_dipendente" not in gia_chiamati and query_dip:
+            return self._risposta_tools(
+                model, [("cerca_dipendente", {"query": q}) for q in query_dip]
+            )
 
         dati = dict(lettura["dati"])
         if "fornitore_id" in dati:
             dati["fornitore_id"] = self._miglior_id(messages, "cerca_fornitore")
         if "cantiere_id" in dati:
             dati["cantiere_id"] = self._miglior_id(messages, "cerca_cantiere")
+        if query_dip:
+            risolti = self._risolti(messages, "cerca_dipendente")
+            for riga in dati["righe"]:
+                riga["dipendente_id"] = risolti.get(riga["nominativo"])
         self.risposte_finali += 1
         confidence = self.confidence_override or dict.fromkeys(dati, 0.96)
         # Riferimento non trovato (ricerca vuota → id null): registra i dati grezzi.
@@ -447,7 +465,45 @@ class FakeCompleter:
                 return risultati[0]["id"] if risultati else None
         return None
 
+    def _risolti(
+        self, messages: list[dict[str, Any]], nome_tool: str
+    ) -> dict[str, str | None]:
+        """Query → id del miglior candidato, ``None`` sotto soglia.
+
+        Serve quando lo stesso tool è chiamato più volte con argomenti diversi
+        (un `cerca_dipendente` per riga): ``_miglior_id`` guarda l'ultima
+        chiamata e qui non basterebbe.
+
+        La soglia è la stessa della skill, e questo è il punto: un fake che
+        collegasse il meno peggio farebbe passare i test proprio dove il modello
+        vero sbaglierebbe di più — attribuire ore e costi a un altro.
+        """
+        per_id = {}
+        for messaggio in messages:
+            for chiamata in messaggio.get("tool_calls") or []:
+                if chiamata["function"]["name"] == nome_tool:
+                    argomenti = json.loads(chiamata["function"]["arguments"])
+                    per_id[chiamata["id"]] = argomenti.get("query")
+        risolti: dict[str, str | None] = {}
+        for messaggio in messages:
+            query = per_id.get(str(messaggio.get("tool_call_id")))
+            if messaggio.get("role") != "tool" or query is None:
+                continue
+            risultati = json.loads(messaggio["content"]).get("risultati") or []
+            migliore = risultati[0] if risultati else None
+            risolti[query] = (
+                migliore["id"]
+                if migliore and migliore["punteggio"] >= SOGLIA_RIFERIMENTO
+                else None
+            )
+        return risolti
+
     def _risposta_tool(self, model: str, nome: str, argomenti: dict[str, Any]) -> dict[str, Any]:
+        return self._risposta_tools(model, [(nome, argomenti)])
+
+    def _risposta_tools(
+        self, model: str, chiamate: list[tuple[str, dict[str, Any]]]
+    ) -> dict[str, Any]:
         return self._risposta(
             model,
             {
@@ -455,10 +511,11 @@ class FakeCompleter:
                 "content": None,
                 "tool_calls": [
                     {
-                        "id": f"call_{self.chiamate}",
+                        "id": f"call_{self.chiamate}_{indice}",
                         "type": "function",
                         "function": {"name": nome, "arguments": json.dumps(argomenti)},
                     }
+                    for indice, (nome, argomenti) in enumerate(chiamate)
                 ],
             },
         )

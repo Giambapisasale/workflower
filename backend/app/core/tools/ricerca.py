@@ -1,8 +1,15 @@
-"""Tool ``cerca_fornitore`` / ``cerca_cantiere``: match fuzzy sulle anagrafiche.
+"""Tool ``cerca_fornitore`` / ``cerca_cantiere`` / ``cerca_dipendente``: match
+fuzzy sulle anagrafiche.
 
 Punteggio: rapporto di similarità (difflib) sul campo migliore, con boost se
 una stringa contiene l'altra — "Scuola Manzoni" deve trovare "Ristrutturazione
 Scuola Manzoni" anche se il rapporto puro è basso.
+
+Il campo migliore a volte non è **un** campo: sul rapportino il lavoratore è un
+solo testo ("Giuseppe Leotta"), in anagrafica sono due colonne. Confrontarlo con
+`nome` o con `cognome` separatamente dà 0.36 e 0.40 — sotto qualunque soglia
+sensata — mentre col nome intero dà 1.0. Da qui ``combinati``: gruppi di campi
+il cui testo unito entra nel confronto accanto ai singoli.
 """
 
 from difflib import SequenceMatcher
@@ -59,6 +66,30 @@ SCHEMA_CANTIERE = {
 }
 
 
+SCHEMA_DIPENDENTE = {
+    "type": "function",
+    "function": {
+        "name": "cerca_dipendente",
+        "description": (
+            "Cerca un dipendente in anagrafica per nome e/o cognome (match "
+            "approssimato: funziona anche col solo cognome o col nome invertito). "
+            "Restituisce i candidati migliori con punteggio."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Nominativo del lavoratore come scritto sul documento",
+                }
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 def _punteggio(query: str, testo: str) -> float:
     a, b = query.lower().strip(), testo.lower().strip()
     if not a or not b:
@@ -70,12 +101,22 @@ def _punteggio(query: str, testo: str) -> float:
     return round(rapporto, 3)
 
 
-def _cerca(dal: DAL, tipo: str, query: str, campi: list[str], riassunto: list[str]) -> dict:
+def _cerca(
+    dal: DAL,
+    tipo: str,
+    query: str,
+    campi: list[str],
+    riassunto: list[str],
+    combinati: tuple[tuple[str, ...], ...] = (),
+) -> dict:
     candidati: list[dict[str, Any]] = []
     for envelope in dal.list_all(tipo):
-        migliore = max(
-            _punteggio(query, str(envelope.dati.get(campo) or "")) for campo in campi
-        )
+        testi = [str(envelope.dati.get(campo) or "") for campo in campi]
+        testi += [
+            " ".join(str(envelope.dati.get(campo) or "") for campo in gruppo).strip()
+            for gruppo in combinati
+        ]
+        migliore = max(_punteggio(query, testo) for testo in testi)
         voce = {"id": envelope.id, "punteggio": migliore}
         voce.update({campo: envelope.dati.get(campo) for campo in riassunto})
         candidati.append(voce)
@@ -100,4 +141,21 @@ def cerca_cantiere(dal: DAL, query: str) -> dict:
         query,
         campi=["nome", "indirizzo", "comune", "committente"],
         riassunto=["nome", "comune", "committente"],
+    )
+
+
+def cerca_dipendente(dal: DAL, query: str) -> dict:
+    """I dipendenti che somigliano al nominativo letto su un rapportino.
+
+    Il cognome da solo deve bastare ("Torrisi") e l'ordine invertito è comune
+    sui documenti ("LEOTTA GIUSEPPE"), quindi il confronto vede quattro testi
+    per ogni dipendente: nome, cognome, "nome cognome", "cognome nome".
+    """
+    return _cerca(
+        dal,
+        "dipendente",
+        query,
+        campi=["nome", "cognome"],
+        riassunto=["nome", "cognome", "tipo"],
+        combinati=(("nome", "cognome"), ("cognome", "nome")),
     )

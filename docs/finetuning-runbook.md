@@ -427,6 +427,53 @@ sul computo, dove due sforano). Tre erano difetti veri, tutti corretti nella ski
 L'ultimo è il rischio generale delle viste aggregate: rendono facile la domanda
 tipica e invisibile la dimensione che hanno collassato.
 
+### Il collegamento che non c'era: rapportini → dipendenti
+
+Misurando le domande sulla manodopera è venuto fuori un buco che non era
+dell'interrogazione: `v_rapportini_righe.dipendente_id` era **null su tutte le 33
+righe** del repo. Lo schema del rapportino prevedeva il campo dal primo giorno e la
+vista lo usa già (`COALESCE(d.tariffa_oraria, r.costo_orario, 0)`), ma la skill di
+estrazione non ne parlava e il tool per risolverlo non esisteva. Un campo dichiarato,
+usato a valle, e mai riempito: il tipo di buco che nessun test coglie, perché tutto
+gira e i totali sembrano plausibili.
+
+Conseguenze, entrambe silenziose:
+
+- la manodopera costava quanto dice il **foglio** invece che quanto dice l'anagrafica
+  — su 13 righe collegabili, 2810 € contro 2690 €;
+- ogni join `rapportini → dipendenti` cadeva nel vuoto, quindi «quante ore ha fatto
+  Torrisi?» tornava zero righe. Non un errore: un vuoto, che sembra una risposta.
+
+Cosa è stato fatto: un tool nativo `cerca_dipendente` (le anagrafiche hanno `nome` e
+`cognome` in due colonne mentre il rapportino scrive un solo testo, quindi il
+confronto vede anche `"nome cognome"` e `"cognome nome"` — col solo cognome dà 0.40,
+col nome intero 1.0), la skill che lo chiama **per riga** con la soglia 0.75 delle
+altre anagrafiche, e il workflow a v1.1.
+
+Verificato su un modello vero (`gpt-5.5`, un rapportino da 4 righe: 2 dipendenti, 1
+lavoratore di terzi, 1 squadra): collega i due, lascia `null` gli altri due, e
+tiene `nominativo` e `costo_orario` come li ha letti. Le 4 ricerche stanno **nello
+stesso giro** della ricerca del cantiere, quindi il collegamento non costa un round
+trip in più: 3 chiamate LLM prima, 3 dopo.
+
+Due cose valgono oltre il caso specifico:
+
+- **la separazione conta più della soglia**. I tre dipendenti veri danno 1.00, tutti
+  gli estranei stanno sotto 0.50 (`"Rossi M."` contro Giovanna Russo: 0.46). Il test
+  verifica il margine, non l'esito: un collegamento sbagliato non dà errore, sposta
+  ore e costi su un'altra persona e il totale del cantiere resta credibile.
+- **il golden set va migrato con i dati**. I 9 casi golden dei rapportini avevano
+  `dipendente_id: null` nell'`atteso`: lasciarli così avrebbe conservato come
+  «giusto» ciò che si stava correggendo, e al primo replay l'Improver avrebbe letto
+  la correzione come uno scostamento dal golden. La rete di sicurezza avrebbe
+  suonato contro la correzione. `scripts/collega_dipendenti.py` fa entrambe le cose,
+  in sola lettura per default.
+
+Nota per il dataset: i 33 esempi di function calling in più (una `cerca_dipendente`
+per riga) **non** esistono ancora. Il dataset nasce dai trace, e i trace dei
+rapportini già caricati non contengono chiamate che al tempo non c'erano: arriveranno
+coi documenti nuovi.
+
 ## 3. Servi il modello in locale
 
 ```bash
