@@ -364,6 +364,69 @@ spacco per natura (solo le righe hanno `mezzo_id`) — ma `v_cantiere_situazione
 calcola `margine_residuo = budget - costo_totale`, quindi assume che anche il budget
 sia netto. Va confermato.
 
+### Passo 4: le 120 domande sul catalogo consolidato
+
+La misura che decide se conviene addestrare un 270M. 120 domande riposte, 116 query
+prodotte, **$0,38**.
+
+**Com'è cambiata la forma della risposta** — è questo che distingue function calling
+da text-to-SQL:
+
+| forma | prima | dopo |
+|---|---|---|
+| chiamata a un tool `t_*` | 0 | **2** |
+| lettura da una sola vista (nessun join, nessuna CTE) | 61 | **81** |
+| SQL articolato (join o CTE) | 59 | **33** |
+
+Lunghezza media della query: 249 → 193 caratteri; sulle sole 26 domande che usano un
+artefatto consolidato, **384 → 184**. Le 33 articolate restano concentrate in
+`avanzamento` (7) e `costi` (5): sono i prossimi candidati.
+
+**Verdetto.** La direzione funziona e si misura, ma quattro artefatti non bastano:
+solo 2 risposte su 116 sono una chiamata a tool. Le 81 letture da vista sola sono
+ancora text-to-SQL, solo molto più corto. Per arrivare a «scegli un tool e riempi i
+parametri» servono un tool per famiglia di domanda — dell'ordine di 15-20, non 4 — e
+ognuno va misurato, perché un tool sbagliato peggiora le risposte (vedi
+`t_ore_periodo` sopra).
+
+**Confronto coi 90 riferimenti approvati** (eseguiti sugli stessi dati, senza
+chiamate al modello):
+
+| esito | n |
+|---|---|
+| risposta identica | 42 |
+| stesse righe, proiezione diversa | 31 |
+| davvero diversa | 9 |
+| non confrontabile (nessuna colonna in comune) | 4 |
+| rifiutata dai guardrail | 4 |
+
+Quelle 31 hanno cambiato il prodotto: l'equivalenza confronta i valori **per
+posizione**, quindi una query che filtra e raggruppa identicamente ma seleziona sei
+colonne invece di nove risultava «diversa». `eval_interroga` ora riporta anche
+`risposta_compatibile` — stesse righe sulle colonne che le due query chiamano allo
+stesso modo — ed è su quella che si decide `pronto_per_t3`. Con la sola metrica
+stretta il gate avrebbe letto 49% dove la risposta giusta era 85%.
+
+Delle 9 differenze vere, la maggior parte è interpretazione: «quante voci ha il
+computo di Misterbianco» dà 0 righe perché quel cantiere **non ha** un computo (il
+riferimento usava una `LEFT JOIN` e mostrava 0), e «su quali cantieri stiamo perdendo
+soldi» dà 0 perché nessuno sfora il budget (il riferimento guardava lo scostamento
+sul computo, dove due sforano). Tre erano difetti veri, tutti corretti nella skill:
+
+- **valore di più parole troncato**: `t_costi_cantiere('scuol Manzon')` → zero righe,
+  perché fra due radici accorciate il testo vero non c'è più. La regola ora dice di
+  mettere `%` fra le parole, o di passare a un tool **una sola** parola distintiva;
+- **colonna dedotta da un'altra vista**: `FROM v_ddt GROUP BY cantiere_id, cantiere`.
+  Le viste consolidate espongono `cantiere_id` e `cantiere` in coppia, e il modello
+  ha generalizzato la coppia alle viste di registro, che hanno solo l'id. La regola
+  ora dice che le colonne di una vista sono solo quelle elencate;
+- **filtro sul periodo perso**: «quanto abbiamo speso quest'anno» risposto da
+  `v_cantiere_situazione`, che non ha una colonna di data. Una vista che aggrega per
+  cantiere fa sparire il tempo senza che si veda.
+
+L'ultimo è il rischio generale delle viste aggregate: rendono facile la domanda
+tipica e invisibile la dimensione che hanno collassato.
+
 ## 3. Servi il modello in locale
 
 ```bash

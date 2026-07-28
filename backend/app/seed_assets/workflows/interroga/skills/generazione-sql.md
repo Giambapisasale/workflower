@@ -15,7 +15,17 @@ sola lettura che la risponda.
   categorie) **non** usare `=`: il valore registrato può essere più lungo di
   quello della domanda («Calcestruzzi Etna S.r.l.» per «Calcestruzzi Etna») o
   avere un'altra desinenza (categoria `calcestruzzi` per «calcestruzzo»).
-  Confronta con `ILIKE '%radice%'`, usando la radice della parola.
+  Confronta con `ILIKE '%radice%'`, usando la radice della parola. Se il valore ha
+  più parole non troncarle tutte, perché fra due radici accorciate il testo vero
+  non c'è più: usa `ILIKE '%scuol%manzon%'` con `%` fra le parole, oppure la
+  radice della sola parola distintiva (`'%manzon%'`).
+- Le colonne di una vista sono **solo** quelle elencate accanto al suo nome. Se
+  una vista ha `cantiere_id` ma non il nome del cantiere, fai la join su
+  `v_cantieri`: non dare per scontato che la colonna ci sia perché c'è in un'altra
+  vista.
+- Se la domanda restringe un periodo («questo mese», «quest'anno»), scegli una
+  vista che abbia una colonna di data. Le viste che aggregano per cantiere non
+  l'hanno, e il filtro sul periodo andrebbe perso senza che si veda.
 - I campi che ammettono solo certi valori sono elencati in «Valori ammessi»:
   su quelli usa `=` con uno dei valori elencati, **non** `ILIKE`. Non inventarne
   altri e non tradurli in italiano corrente.
@@ -47,5 +57,9 @@ come una tabella passando gli argomenti (stringhe fra apici singoli), nell'ordin
 dei parametri:
 
     SELECT * FROM t_nome(argomento1, argomento2)
+
+Se un parametro è il nome di qualcosa, il tool fa già il confronto parziale:
+passagli **una sola parola** distintiva (`t_costi_cantiere('Manzoni')`), non la
+frase della domanda e non più radici accorciate di fila.
 
 {schema_tool}

@@ -19,8 +19,13 @@ Cosa si conta e cosa no:
   non restituisce **nessuna riga** è **degenere** e va escluso, non contato come
   successo: un riferimento vuoto lo pareggerebbe qualunque candidato muto;
 - ``eseguibile`` misura se il candidato ha prodotto SQL che passa i guardrail e
-  gira; ``risposta_uguale`` se ha risposto la stessa cosa. Il secondo è quello
-  che conta, il primo dice *dove* si rompe.
+  gira; ``risposta_uguale`` se ha risposto la stessa cosa, valori per posizione;
+  ``risposta_compatibile`` se ha risposto la stessa cosa **sulle colonne che le due
+  query hanno in comune**. Il gate si decide su quest'ultima (:data:`METRICA_GATE`)
+  perché la stretta boccia anche chi ha ragione: sulle 120 domande del testbook 31
+  differenze su 44 erano solo proiezioni diverse — sei colonne invece di nove, stesse
+  righe. ``eseguibile`` dice *dove* si rompe, ``risposta_uguale`` quanto si discosta
+  anche nella forma.
 """
 
 from typing import Any
@@ -39,6 +44,15 @@ SOGLIA_PRONTO = 0.9
 # possono differire di 1e-10 secondo l'ordine di aggregazione. Non è una
 # differenza di risposta, è aritmetica in virgola mobile.
 DECIMALI = 6
+
+METRICHE = ("eseguibile", "risposta_uguale", "risposta_compatibile")
+# Su quale metrica si decide se instradare su T3. È la più larga delle due sulle
+# risposte, e la ragione è misurata: sulle 120 domande del testbook 31 differenze
+# su 44 erano solo proiezioni diverse. Un gate che le conta come errori boccia un
+# modello che ha risposto giusto — e `risposta_uguale` resta nel report per vedere
+# quanto il candidato si discosta anche nella forma.
+METRICA_GATE = "risposta_compatibile"
+FALLITO = {"eseguibile": 0, "risposta_uguale": 0, "risposta_compatibile": 0}
 
 _log = ottieni_logger("eval_interroga")
 
@@ -71,6 +85,46 @@ def normalizza(righe: list[dict[str, Any]]) -> list[tuple[Any, ...]]:
 def risposte_equivalenti(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> bool:
     """Vero se le due query hanno risposto la stessa cosa (vedi :func:`normalizza`)."""
     return normalizza(a) == normalizza(b)
+
+
+def _proietta(righe: list[dict[str, Any]], colonne: set[str]) -> list[tuple[Any, ...]]:
+    canoniche = [
+        tuple(_valore(v) for k, v in sorted(riga.items()) if k.lower() in colonne)
+        for riga in righe
+    ]
+    return sorted(canoniche, key=repr)
+
+
+def risposte_compatibili(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> bool:
+    """Vero se le due query dicono la stessa cosa **sulle colonne che hanno in comune**.
+
+    :func:`risposte_equivalenti` confronta i valori per posizione, quindi conta come
+    "diversa" anche una query che filtra e raggruppa identicamente ma seleziona sei
+    colonne dove il riferimento ne seleziona nove. Misurato sulle 120 domande del
+    testbook: di 44 risposte "diverse", **31 erano solo proiezioni diverse** — la
+    metrica stretta da sola bocciava un candidato che aveva risposto bene.
+
+    Qui si tengono le colonne che le due query chiamano allo stesso modo e si
+    confrontano quelle. Se non c'è nessun nome in comune il confronto non conclude
+    niente e si ricade sulla metrica stretta: meglio un no prudente di un sì dedotto
+    dal nulla.
+
+    Il prezzo della larghezza, da tenere in mente leggendo il report: un candidato
+    che risponde **a metà** della domanda passa. Se il riferimento espone
+    ``previsto`` e ``consuntivo`` e il candidato solo ``previsto``, le colonne in
+    comune sono una e combaciano. Non è distinguibile da fuori dal caso legittimo
+    (una lista con meno colonne), quindi si accetta e si guarda l'altro numero:
+    ``risposta_uguale`` molto più bassa di ``risposta_compatibile`` significa che il
+    candidato risponde in una forma sistematicamente diversa da quella approvata.
+    """
+    if risposte_equivalenti(a, b):
+        return True
+    if not a or not b:
+        return False
+    comuni = {k.lower() for k in a[0]} & {k.lower() for k in b[0]}
+    if not comuni:
+        return False
+    return _proietta(a, comuni) == _proietta(b, comuni)
 
 
 class EvalInterroga:
@@ -141,7 +195,7 @@ class EvalInterroga:
         n = len(attesi)
         cand = _quote(dettaglio, "candidato", n)
         rif = _quote(dettaglio, "riferimento", n)
-        regressione = cand["risposta_uguale"] < rif["risposta_uguale"]
+        regressione = cand[METRICA_GATE] < rif[METRICA_GATE]
         return {
             "casi": n,
             # Dichiarati, non taciuti: se metà dei casi è degenere, il verdetto
@@ -151,9 +205,7 @@ class EvalInterroga:
             "candidato": cand,
             "riferimento": rif,
             "regressione": regressione,
-            "pronto_per_t3": bool(
-                n and cand["risposta_uguale"] >= soglia and not regressione
-            ),
+            "pronto_per_t3": bool(n and cand[METRICA_GATE] >= soglia and not regressione),
             "dettaglio": dettaglio,
         }
 
@@ -169,17 +221,18 @@ class EvalInterroga:
         try:
             sql = self.interroga.genera_sql(caso.domanda or "", tier=tier)
         except (GatewayError, InterrogaError) as exc:
-            return {"eseguibile": 0, "risposta_uguale": 0, "errore": str(exc)}
+            return {**FALLITO, "errore": str(exc)}
         except Exception as exc:  # provider, rete, quota…
             _log.warning("caso %s non rigiocabile su %s: %s", caso.id, tier, exc)
-            return {"eseguibile": 0, "risposta_uguale": 0, "errore": str(exc)}
+            return {**FALLITO, "errore": str(exc)}
         try:
             righe = esegui_query(self.dal.data_dir, sql)
         except InterrogaError as exc:
-            return {"eseguibile": 0, "risposta_uguale": 0, "sql": sql, "errore": str(exc)}
+            return {**FALLITO, "sql": sql, "errore": str(exc)}
         return {
             "eseguibile": 1,
             "risposta_uguale": int(risposte_equivalenti(righe_attese, righe)),
+            "risposta_compatibile": int(risposte_compatibili(righe_attese, righe)),
             "sql": sql,
             "righe": len(righe),
         }
@@ -204,8 +257,8 @@ def unisci(documenti: dict[str, Any], interrogazione: dict[str, Any]) -> dict[st
 
 def _quote(dettaglio: list[dict[str, Any]], chi: str, totale: int) -> dict[str, float]:
     if not totale:
-        return {"eseguibile": 0.0, "risposta_uguale": 0.0}
+        return dict.fromkeys(METRICHE, 0.0)
     return {
         metrica: round(sum(d[chi][metrica] for d in dettaglio) / totale, 4)
-        for metrica in ("eseguibile", "risposta_uguale")
+        for metrica in METRICHE
     }

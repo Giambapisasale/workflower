@@ -21,7 +21,13 @@ from fake_ask import FakeCompleterInterroga
 from fastapi.testclient import TestClient
 
 from app.core.dal import DAL
-from app.core.eval_interroga import EvalInterroga, normalizza, risposte_equivalenti, unisci
+from app.core.eval_interroga import (
+    EvalInterroga,
+    normalizza,
+    risposte_compatibili,
+    risposte_equivalenti,
+    unisci,
+)
 from app.core.gateway import Gateway
 from app.core.golden import carica_golden, casi_domanda
 
@@ -29,8 +35,11 @@ T3 = "test/finto-t3"
 CANTIERI = "SELECT id, nome FROM v_cantieri ORDER BY id LIMIT 10"
 # stessa risposta, scritta in un altro modo: alias diversi, ordine righe diverso
 CANTIERI_ALIAS = "SELECT id AS codice, nome AS titolo FROM v_cantieri ORDER BY nome DESC LIMIT 10"
-# risposta diversa: le colonne sono scambiate di ruolo
+# stesse colonne in ordine invertito: per la metrica stretta è diversa, per quella
+# larga no — e la larga ha ragione, perché i nomi restano al loro posto
 CANTIERI_SCAMBIATI = "SELECT nome, id FROM v_cantieri ORDER BY id LIMIT 10"
+# risposta diversa per davvero: un cantiere invece di tre
+CANTIERI_INCOMPLETI = "SELECT id, nome FROM v_cantieri ORDER BY id LIMIT 1"
 
 
 class FakePerTier:
@@ -100,6 +109,45 @@ def test_righe_in_piu_o_in_meno_sono_una_risposta_diversa() -> None:
 
 def test_normalizza_ignora_i_nomi_ma_non_i_valori() -> None:
     assert normalizza([{"a": 1, "b": "x"}]) == [(1.0, "x")]
+
+
+# ------------------------------------- la metrica larga: le colonne in comune
+
+
+def test_una_proiezione_piu_corta_non_e_una_risposta_diversa() -> None:
+    """Sei colonne invece di nove, stesse righe: il candidato ha risposto bene.
+
+    Sulle 120 domande del testbook, 31 delle 44 risposte «diverse» erano di questa
+    specie. Un gate che le conta come errori boccia chi ha ragione.
+    """
+    riferimento = [
+        {"id": "CNT-001", "nome": "Le Palme", "comune": "Catania", "budget": 1850000.0},
+        {"id": "CNT-002", "nome": "Scuola", "comune": "Acireale", "budget": 640000.0},
+    ]
+    piu_corta = [
+        {"nome": "Scuola", "comune": "Acireale"},
+        {"nome": "Le Palme", "comune": "Catania"},
+    ]
+    assert not risposte_equivalenti(riferimento, piu_corta)
+    assert risposte_compatibili(riferimento, piu_corta)
+
+
+def test_righe_diverse_restano_diverse_anche_sulle_colonne_comuni() -> None:
+    riferimento = [{"nome": "Le Palme", "comune": "Catania"}]
+    altro_comune = [{"nome": "Le Palme", "comune": "Acireale"}]
+    assert not risposte_compatibili(riferimento, altro_comune)
+    in_meno = [{"nome": "Le Palme", "comune": "Catania"}, {"nome": "Scuola", "comune": "Acireale"}]
+    assert not risposte_compatibili(riferimento, in_meno)
+
+
+def test_senza_nomi_in_comune_il_confronto_non_conclude() -> None:
+    """Meglio un no prudente che un sì dedotto dal nulla: si ricade sulla stretta."""
+    riferimento = [{"totale_speso": 1000.0}]
+    alias_diverso = [{"speso": 1000.0}]
+    # nessun nome in comune, ma per posizione sono identiche: la stretta basta
+    assert risposte_compatibili(riferimento, alias_diverso)
+    alias_diverso_e_valore_diverso = [{"speso": 999.0}]
+    assert not risposte_compatibili(riferimento, alias_diverso_e_valore_diverso)
 
 
 # --------------------------------------------------- creazione dei casi golden
@@ -201,8 +249,9 @@ def test_stesso_modello_sui_due_tier_nessuna_regressione(
 
     assert report["casi"] == 1
     assert report["degeneri"] == 0
-    assert report["candidato"] == {"eseguibile": 1.0, "risposta_uguale": 1.0}
-    assert report["riferimento"] == {"eseguibile": 1.0, "risposta_uguale": 1.0}
+    tutto_giusto = {"eseguibile": 1.0, "risposta_uguale": 1.0, "risposta_compatibile": 1.0}
+    assert report["candidato"] == tutto_giusto
+    assert report["riferimento"] == tutto_giusto
     assert report["regressione"] is False
     assert report["pronto_per_t3"] is True
 
@@ -228,13 +277,39 @@ def test_un_candidato_che_risponde_altro_e_una_regressione(
     _crea_caso(client, "quali cantieri abbiamo?", CANTIERI)
     monkeypatch.setenv("LLM_T3_MODEL", T3)
 
-    report = _valutatore(dati_rw, FakePerTier({T3: CANTIERI_SCAMBIATI}, CANTIERI)).valuta()
+    report = _valutatore(dati_rw, FakePerTier({T3: CANTIERI_INCOMPLETI}, CANTIERI)).valuta()
 
-    # la query gira (è SQL valido) ma la risposta è un'altra: i due numeri divergono
-    assert report["candidato"] == {"eseguibile": 1.0, "risposta_uguale": 0.0}
-    assert report["riferimento"]["risposta_uguale"] == 1.0
+    # la query gira (è SQL valido) ma trova un cantiere su tre: nessuna delle due
+    # metriche la salva
+    assert report["candidato"] == {
+        "eseguibile": 1.0,
+        "risposta_uguale": 0.0,
+        "risposta_compatibile": 0.0,
+    }
+    assert report["riferimento"]["risposta_compatibile"] == 1.0
     assert report["regressione"] is True
     assert report["pronto_per_t3"] is False
+
+
+def test_le_colonne_in_altro_ordine_non_sono_una_regressione(
+    crea_client: Callable[..., TestClient], dati_rw: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Con i nomi al loro posto, l'ordine delle colonne non cambia la risposta.
+
+    Chi legge il risultato lo legge per nome. La metrica stretta lo segnala comunque
+    — resta nel report, e serve a vedere quanto il candidato si discosta nella forma —
+    ma il gate non deve bocciare per questo.
+    """
+    client = crea_client(FakeCompleterInterroga(CANTIERI))
+    _crea_caso(client, "quali cantieri abbiamo?", CANTIERI)
+    monkeypatch.setenv("LLM_T3_MODEL", T3)
+
+    report = _valutatore(dati_rw, FakePerTier({T3: CANTIERI_SCAMBIATI}, CANTIERI)).valuta()
+
+    assert report["candidato"]["risposta_uguale"] == 0.0
+    assert report["candidato"]["risposta_compatibile"] == 1.0
+    assert report["regressione"] is False
+    assert report["pronto_per_t3"] is True
 
 
 def test_un_candidato_che_non_produce_sql_valido(
@@ -286,8 +361,12 @@ def test_senza_casi_non_si_promuove_niente(
         "casi": 0,
         "casi_totali": 0,
         "degeneri": 0,
-        "candidato": {"eseguibile": 0.0, "risposta_uguale": 0.0},
-        "riferimento": {"eseguibile": 0.0, "risposta_uguale": 0.0},
+        "candidato": {"eseguibile": 0.0, "risposta_uguale": 0.0, "risposta_compatibile": 0.0},
+        "riferimento": {
+            "eseguibile": 0.0,
+            "risposta_uguale": 0.0,
+            "risposta_compatibile": 0.0,
+        },
         "regressione": False,
         "pronto_per_t3": False,
         "dettaglio": [],
