@@ -77,6 +77,6 @@ demo: ## Prepara la demo: seed (se serve) + fixtures + giro guidato
 	$(PY) -m app.fixtures_docs
 	@$(PY) -c "print('\n== Demo pronta ==\n- Utenti: salvo/1111 (operatore, cantiere Le Palme), giovanna/9999 (ufficio/admin)\n- Avvia tutto con:  make dev\n- Operatore: http://localhost:5173/op   Admin: http://localhost:5173/admin\n- Carica fixtures/fattura-studio-bianchi.pdf (ha la ritenuta): la v1.0 non la estrae.\n- Il giro completo (segnala -> Improver -> approva v1.1 -> ritenuta estratta) e in README.md\n')"
 
-lint: ## Ruff (backend) + ESLint (frontend)
-	$(PY) -m ruff check backend
+lint: ## Ruff (backend, scripts, training) + ESLint (frontend)
+	$(PY) -m ruff check backend scripts training
 	npm --prefix frontend run lint
