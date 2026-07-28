@@ -1,4 +1,10 @@
-"""Tool ``ocr_pdf``: pagine del documento → immagini PNG per l'LLM multimodale."""
+"""Tool ``ocr_pdf``: pagine del documento → immagini PNG per l'LLM multimodale.
+
+Accanto al tool vive :func:`testo_pagine`, che rende le stesse pagine come
+**testo**: non è un tool (l'LLM non la chiama), serve all'harness T3 per valutare
+un modello locale che non ha una torre visiva. Sta qui perché qui vivono già
+pymupdf e la validazione del percorso.
+"""
 
 import base64
 from pathlib import Path
@@ -37,7 +43,7 @@ SCHEMA = {
 }
 
 
-def esegui(data_dir: Path, path: str) -> dict:
+def _percorso_valido(data_dir: Path, path: str) -> Path:
     base = Path(data_dir).resolve()
     file = (base / path).resolve()
     if not file.is_relative_to(base):
@@ -46,7 +52,11 @@ def esegui(data_dir: Path, path: str) -> dict:
         raise ToolError(f"formato non supportato: {file.suffix} (attesi pdf/png/jpg)")
     if not file.is_file():
         raise ToolError(f"documento non trovato: {path}")
+    return file
 
+
+def esegui(data_dir: Path, path: str) -> dict:
+    file = _percorso_valido(data_dir, path)
     try:
         documento = pymupdf.open(file)
     except Exception as exc:
@@ -59,3 +69,24 @@ def esegui(data_dir: Path, path: str) -> dict:
             for pagina in documento
         ]
     return {"pagine": len(immagini), "immagini_png_base64": immagini}
+
+
+def testo_pagine(data_dir: Path, path: str) -> list[str]:
+    """Lo strato testuale delle pagine, una stringa per pagina.
+
+    Non è un tool: è la controparte testuale di :func:`esegui`, per valutare un
+    modello T3 che non legge immagini. Attenzione a cosa si perde: il **layout**
+    (su una fattura, "Ritenuta d'acconto" in calce è riconoscibile perché è in
+    calce) e le tabelle, che arrivano appiattite. Su un documento *scansionato* lo
+    strato testuale non esiste: la pagina torna stringa vuota, e chi chiama deve
+    trattarlo come "non disponibile", non come "pagina vuota".
+    """
+    file = _percorso_valido(data_dir, path)
+    try:
+        documento = pymupdf.open(file)
+    except Exception as exc:
+        raise ToolError(f"documento illeggibile: {exc}") from exc
+    with documento:
+        if documento.page_count > MAX_PAGINE:
+            raise ToolError(f"troppe pagine ({documento.page_count} > {MAX_PAGINE})")
+        return [pagina.get_text().strip() for pagina in documento]
