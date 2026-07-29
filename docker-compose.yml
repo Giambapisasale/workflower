@@ -5,6 +5,11 @@
 # (es. demo.miosito.it). Per una prova senza dominio lascia SITE_ADDRESS=:80
 # e usa http://IP-del-server.
 
+# Nome progetto esplicito: senza questo entrambi i compose di questa cartella
+# ricadrebbero sullo stesso progetto (il nome della directory) e si vedrebbero a
+# vicenda come "orphan containers" — con `down --remove-orphans` uno cancella l'altro.
+name: workflower
+
 services:
   app:
     build: .
@@ -19,6 +24,20 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DIAGNOSTICA_AUTO: ${DIAGNOSTICA_AUTO:-0}
+      # Integrazione ERP (opzionale): se le tre obbligatorie non sono tutte
+      # valorizzate la sincronizzazione è spenta e l'app funziona come prima.
+      # Attenzione: dentro al container "localhost" è il container stesso — per un
+      # ERPNext sullo stesso host usa host.docker.internal o l'IP raggiungibile.
+      ERP_BASE_URL: ${ERP_BASE_URL:-}
+      ERP_API_KEY: ${ERP_API_KEY:-}
+      ERP_API_SECRET: ${ERP_API_SECRET:-}
+      ERP_COMPANY: ${ERP_COMPANY:-}
+      ERP_CONTO_RITENUTA: ${ERP_CONTO_RITENUTA:-}
+      ERP_CONTO_IVA: ${ERP_CONTO_IVA:-}
+      ERP_CONTO_COSTO: ${ERP_CONTO_COSTO:-}
+      ERP_PARENT_COST_CENTER: ${ERP_PARENT_COST_CENTER:-}
+      ERP_ITEM_DDT: ${ERP_ITEM_DDT:-}
+      ERP_SUPPLIER_GROUP: ${ERP_SUPPLIER_GROUP:-}
     volumes:
       - workflower-data:/data
     expose:

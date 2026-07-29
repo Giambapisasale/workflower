@@ -1,9 +1,148 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { ErroreApi } from "../shared/api";
 import { admin, type EsitoApprovazione, type Patch } from "./api";
 import DiffView from "./DiffView";
 import { dataBreve, euro, useCarica } from "./formato";
 import MiglioraWorkflow from "./MiglioraWorkflow";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+
+/** "blobs/golden/fattura-edil-sud.pdf" → "fattura-edil-sud.pdf"
+ *
+ *  Accetta il vuoto: un caso-domanda non ha un documento, e un campo assente non
+ *  deve poter spegnere la pagina mentre la si disegna. */
+function nomeFile(percorso: string | null | undefined): string {
+  if (!percorso) return "—";
+  return percorso.split("/").pop() || percorso;
+}
+
+/** I casi golden: la rete contro cui si misura ogni patch, finalmente visibile.
+ *
+ *  Serve poterla guardare e correggere: un caso costruito su un dato poi ripudiato
+ *  fa sembrare regressione ogni miglioramento vero. (Lo scarto di un documento
+ *  validato lo toglie già da sé — qui si interviene sui casi rimasti indietro.) */
+function CasiGolden() {
+  const { dati, errore, inCorso, ricarica } = useCarica(() => admin.golden());
+  const [conferma, setConferma] = useState<string | null>(null);
+  const [inAzione, setInAzione] = useState(false);
+  const [erroreRim, setErroreRim] = useState<string | null>(null);
+
+  async function rimuovi(id: string) {
+    setInAzione(true);
+    setErroreRim(null);
+    try {
+      await admin.eliminaGolden(id);
+      setConferma(null);
+      ricarica();
+    } catch (e) {
+      setErroreRim(e instanceof ErroreApi ? e.message : "Rimozione non riuscita.");
+    } finally {
+      setInAzione(false);
+    }
+  }
+
+  const casi = dati ?? [];
+
+  return (
+    <Card titolo={`Casi golden — la rete di regressione (${casi.length})`}>
+      <p className="mb-3 text-sm text-slate-600">
+        Ogni caso è un documento già validato dall'ufficio con la sua trascrizione corretta.
+        Quando l'Improver propone una nuova versione, la riesegue su tutti questi e confronta:
+        è ciò che impedisce di correggere un errore introducendone tre. Un caso si aggiunge
+        validando una bozza in <Link className="underline" to="/admin/revisione">Revisione</Link>.
+      </p>
+
+      {inCorso ? (
+        <Stato>Carico i casi golden…</Stato>
+      ) : errore ? (
+        <Errore>{errore}</Errore>
+      ) : casi.length === 0 ? (
+        <Stato>
+          Nessun caso golden: senza rete, il replay di una patch non dimostra niente. Valida
+          qualche documento in Revisione.
+        </Stato>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
+              <th className="pb-2">Caso</th>
+              <th className="pb-2">Workflow</th>
+              <th className="pb-2">Documento o domanda</th>
+              <th className="pb-2">Origine</th>
+              <th className="pb-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {casi.map((c) => (
+              <tr key={c.id} className="border-b border-slate-50 align-top">
+                <td className="py-2 pr-3 font-mono text-xs text-slate-700">{c.id}</td>
+                <td className="py-2 pr-3">
+                  <Badge tono="blu">{c.workflow}</Badge>
+                  <span className="ml-2 text-xs text-slate-400">v{c.version}</span>
+                </td>
+                {/* Le due forme del caso: un documento si giudica guardando il PDF,
+                    una domanda rileggendo il testo posto. Mostrare "—" su una
+                    domanda perderebbe l'unica cosa che la identifica. */}
+                <td className="py-2 pr-3 text-slate-600">
+                  {c.tipo === "domanda" ? (
+                    <span className="italic">{c.domanda || "—"}</span>
+                  ) : (
+                    <>
+                      {nomeFile(c.doc)}
+                      {!c.originale_presente ? (
+                        <div className="mt-1">
+                          <Badge tono="rosso">originale mancante</Badge>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </td>
+                <td className="py-2 pr-3 text-xs text-slate-500">
+                  {c.entity_id ? (
+                    <Link className="font-mono hover:underline" to={`/admin/revisione/${c.entity_id}`}>
+                      {c.entity_id}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                  <div>
+                    {c.validato_da ?? "—"} · {dataBreve(c.creato)}
+                  </div>
+                </td>
+                <td className="py-2 text-right">
+                  {conferma === c.id ? (
+                    <span className="flex items-center justify-end gap-2">
+                      <Bottone variante="pericolo" onClick={() => rimuovi(c.id)} disabled={inAzione}>
+                        {inAzione ? "Rimuovo…" : "Sì, rimuovi"}
+                      </Bottone>
+                      <Bottone onClick={() => setConferma(null)}>Annulla</Bottone>
+                    </span>
+                  ) : (
+                    <Bottone
+                      variante="pericolo"
+                      onClick={() => {
+                        setConferma(c.id);
+                        setErroreRim(null);
+                      }}
+                    >
+                      Rimuovi
+                    </Bottone>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {erroreRim ? (
+        <div className="mt-3">
+          <Errore>{erroreRim}</Errore>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
 
 function PatchCard({ patch, onFatto }: { patch: Patch; onFatto: () => void }) {
   const [azione, setAzione] = useState<string | null>(null);
@@ -137,23 +276,30 @@ export default function Workflows() {
                     ))}
                   </div>
                 ) : null}
-                <div className="mt-3 flex flex-wrap gap-6 text-sm text-slate-600">
-                  <span><span className="font-semibold text-slate-800">{w.stats.totale}</span> run</span>
+                <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-slate-600">
+                  <Link to={`/admin/run?workflow=${encodeURIComponent(w.name)}`} className="hover:underline">
+                    <span className="font-semibold text-slate-800">{w.stats.totale}</span> run
+                  </Link>
                   <span className="text-green-700">{w.stats.ok} ok</span>
-                  <span className="text-red-600">{w.stats.errore} errore</span>
+                  {w.stats.errore > 0 ? (
+                    <Link
+                      to={`/admin/run?workflow=${encodeURIComponent(w.name)}&esito=errore`}
+                      className="text-red-600 hover:underline"
+                    >
+                      {w.stats.errore} errore
+                    </Link>
+                  ) : (
+                    <span className="text-slate-400">0 errori</span>
+                  )}
                   <span><span className="font-semibold text-slate-800">{w.golden}</span> casi golden</span>
                   {w.confidence_threshold !== null ? (
                     <span className="text-slate-400">soglia confidenza {w.confidence_threshold}</span>
                   ) : null}
                 </div>
                 <div className="mt-3 border-t border-slate-100 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setApri(apri === w.name ? null : w.name)}
-                    className="text-sm font-medium text-sky-700 hover:underline"
-                  >
-                    {apri === w.name ? "▾ chiudi" : "✎ Migliora con un'istruzione"}
-                  </button>
+                  <Bottone onClick={() => setApri(apri === w.name ? null : w.name)}>
+                    {apri === w.name ? "Chiudi" : "Migliora con un'istruzione"}
+                  </Bottone>
                   {apri === w.name ? (
                     <div className="mt-3">
                       <MiglioraWorkflow workflow={w.name} onFatto={reload} />
@@ -165,6 +311,8 @@ export default function Workflows() {
           </div>
         )}
       </Card>
+
+      <CasiGolden />
     </>
   );
 }

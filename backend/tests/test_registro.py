@@ -13,9 +13,10 @@ def test_registro_consolida_tutte_le_entita(client: TestClient) -> None:
     # fatture del cantiere: FT-2026-0001 (10162.60) + FT-2026-0004 (4880.00)
     assert t["n_fatture"] == 2
     assert round(t["speso_fatture"], 2) == 15042.60
-    # manodopera dal rapportino RAP-2026-0001 (24 ore, 644 €)
+    # manodopera dal rapportino RAP-2026-0001 (24 ore, 612 €): Torrisi è collegato
+    # a DIP-001, quindi valgono le 28 €/h dell'anagrafica e non le 32 del foglio
     assert t["ore_totali"] == 24.0
-    assert t["costo_manodopera"] == 644.0
+    assert t["costo_manodopera"] == 612.0
     # avanzamento dall'ultimo SAL del cantiere
     assert t["avanzamento"] == 32.6
     # scostamento sul computo (previsto vs abbinato)

@@ -117,16 +117,83 @@ def leggi_eventi(
     return eventi
 
 
+def _eventi_di(percorso: Path) -> list[dict[str, Any]]:
+    """Gli eventi di un file di trace, righe corrotte ignorate."""
+    eventi = []
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            eventi.append(json.loads(riga))
+        except json.JSONDecodeError:
+            continue
+    return eventi
+
+
+def _riassunto(percorso: Path) -> dict[str, Any] | None:
+    """Un run in una riga: cosa ha elaborato, com'è finito, quanto è costato.
+
+    ``None`` se il file non contiene un ``run_start``: senza quello non è un run
+    ma un frammento, e in elenco confonderebbe più di quanto informi.
+    """
+    eventi = _eventi_di(percorso)
+    inizio = next((e for e in eventi if e.get("evento") == "run_start"), None)
+    if inizio is None:
+        return None
+    fine = next((e for e in eventi if e.get("evento") == "run_end"), None)
+    chiamate = [e for e in eventi if e.get("evento") == "llm_call"]
+    return {
+        "run_id": percorso.stem,
+        "workflow": inizio.get("workflow"),
+        "version": inizio.get("version"),
+        "input": inizio.get("input"),
+        "ts": inizio.get("ts"),
+        "esito": (fine or {}).get("outcome") or "in_corso",
+        "entity_id": (fine or {}).get("entity_id"),
+        "errore": (fine or {}).get("errore"),
+        "costo_usd": round(sum(float(e.get("cost_usd") or 0) for e in chiamate), 6),
+        "tokens": sum(
+            int(e.get("tokens_in") or 0) + int(e.get("tokens_out") or 0) for e in chiamate
+        ),
+        "durata_ms": sum(int(e.get("latency_ms") or 0) for e in chiamate),
+        "n_llm": len(chiamate),
+        "n_tool": sum(1 for e in eventi if e.get("evento") == "tool_call"),
+        "escalation": sum(1 for e in eventi if e.get("evento") == "escalation"),
+    }
+
+
+def elenco_run(
+    data_dir: Path | str,
+    *,
+    workflow: str | None = None,
+    esito: str | None = None,
+    limite: int = 100,
+) -> list[dict[str, Any]]:
+    """I run più recenti, riassunti per l'elenco admin (dal più nuovo).
+
+    Scandisce i trace come :func:`statistiche_run`: la fonte di verità è sempre
+    ``data/traces/``, non un indice da tenere in sincronia.
+    """
+    riassunti = []
+    for percorso in (Path(data_dir) / "traces").glob("*/*/*.jsonl"):
+        riga = _riassunto(percorso)
+        if riga is None:
+            continue
+        if workflow and riga["workflow"] != workflow:
+            continue
+        if esito and riga["esito"] != esito:
+            continue
+        riassunti.append(riga)
+    riassunti.sort(key=lambda r: r.get("ts") or "", reverse=True)
+    return riassunti[: max(1, limite)]
+
+
 def statistiche_run(data_dir: Path | str) -> dict[str, dict[str, int]]:
     """Conteggio run per workflow (totale, ok, errore) scandendo i trace."""
     stats: dict[str, dict[str, int]] = {}
     for percorso in (Path(data_dir) / "traces").glob("*/*/*.jsonl"):
         workflow, outcome = None, None
-        for riga in percorso.read_text(encoding="utf-8").splitlines():
-            try:
-                record = json.loads(riga)
-            except json.JSONDecodeError:
-                continue
+        for record in _eventi_di(percorso):
             if record.get("evento") == "run_start":
                 workflow = record.get("workflow")
             elif record.get("evento") == "run_end":
@@ -211,6 +278,20 @@ class Tracer:
             }
         )
         self._appendi(self.dataset_path, riga_dataset)
+
+    def query(self, domanda: str, sql: str, righe: int, fingerprint: str) -> None:
+        """Una domanda tradotta in SQL ed eseguita (``/ask``, workflow ``interroga``).
+
+        Non è una ``tool_call``: il modello non *sceglie* un tool, scrive SQL. Per
+        questo non finisce in ``toolcalls.jsonl``, che è il dataset delle decisioni
+        di function calling e non va inquinato con chiamate mai avvenute.
+
+        Attenzione: qui il SQL passa da :func:`sanitizza`, quindi oltre i 400
+        caratteri resta solo l'impronta. La copia **integrale** vive in
+        ``dataset/queries.jsonl`` (``dataset.registra_query``), che è la fonte per
+        il consolidamento (§3.6) e per il dataset delle interrogazioni.
+        """
+        self.evento("query", domanda=domanda, sql=sql, righe=righe, fingerprint=fingerprint)
 
     def validation(self, step: str, esito: str, dettagli: Any = None) -> None:
         self.evento("validation", step=step, esito=esito, dettagli=dettagli)

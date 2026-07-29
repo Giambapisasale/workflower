@@ -299,6 +299,10 @@ def _vista_operatore(dal: DAL, doc: Envelope) -> dict[str, Any]:
 def _semaforo(dati: dict[str, Any], entita: Envelope | None) -> tuple[str, str]:
     if dati.get("esito") == "in_corso":
         return "giallo", "Lo sto ancora leggendo…"
+    # Lo scarto va prima dell'errore e del verde: senza questo ramo un documento
+    # la cui fattura l'ufficio ha ripudiato resterebbe "Tutto a posto".
+    if dati.get("esito") == "scartato":
+        return "rosso", "L'ufficio ha scartato questo documento. Se serve, ricaricalo."
     if dati.get("esito") == "errore" or (entita and entita.stato == "errore"):
         return "rosso", "Serve una mano: se ne occupa l'ufficio, ti avvisiamo noi."
     if dati.get("segnalazione"):

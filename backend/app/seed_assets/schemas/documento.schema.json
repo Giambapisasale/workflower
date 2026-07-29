@@ -20,8 +20,8 @@
     },
     "run_id": { "type": "string" },
     "esito": {
-      "enum": ["in_corso", "ok", "errore"],
-      "description": "Esito del run; in_corso finché l'elaborazione non termina"
+      "enum": ["in_corso", "ok", "errore", "scartato"],
+      "description": "Esito del run; in_corso finché l'elaborazione non termina; scartato quando l'ufficio ripudia l'inserimento che ne è nato"
     },
     "entity_tipo": { "type": ["string", "null"] },
     "entity_id": {

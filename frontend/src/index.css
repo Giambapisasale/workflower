@@ -1,14 +1,55 @@
+/* Il design system Aitho viene prima di tutto: font e token. */
+@import "./ds/styles.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Vincolo M3 "a prova di cantiere": corpo del testo mai sotto i 17px. */
+@layer components {
+  /* I bottoni giganti dell'Operatore contengono nomi di cantiere lunghi: il
+     design system tiene il contenuto su una riga, qui deve andare a capo.
+     Chi usa questa classe passa anche "aitho-btn", perché il className del
+     design system viene sostituito, non unito. */
+  .wf-btn-largo .aitho-btn__content {
+    white-space: normal;
+    justify-content: flex-start;
+    text-align: left;
+    width: 100%;
+  }
+
+  /* Righe elenco toccabili (documenti dell'Operatore, liste dell'Admin). */
+  .wf-riga-documento:hover {
+    background: var(--background-secondary) !important;
+  }
+
+  /* I riquadri dell'Admin si accendono sul bordo, non sul fondo. */
+  .wf-riquadro:hover {
+    border-color: var(--color-primary) !important;
+  }
+
+  .wf-chip:hover {
+    background: var(--background-secondary);
+  }
+}
+
 @layer base {
   html {
-    font-size: 17px;
+    /* Radice a 16px: i token del design system sono in rem e sono disegnati
+       così. Il vincolo M3 "a prova di cantiere" (corpo mai sotto i 17px) vale
+       per la UI Operatore e vive sul suo contenitore, come nel design. */
     -webkit-font-smoothing: antialiased;
+    font-family: var(--font-custom), sans-serif;
   }
   body {
-    @apply text-neutral-900;
+    margin: 0;
+    color: var(--text-primary);
+    background: var(--background-secondary);
+    font-family: var(--font-custom), sans-serif;
+  }
+  a {
+    color: var(--color-primary);
+  }
+  a:hover {
+    color: var(--color-primary-hover);
   }
 }

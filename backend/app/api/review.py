@@ -12,11 +12,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, richiedi_admin
+from app.api.deps import get_dal, get_erp, richiedi_admin
 from app.core.auth import Utente
 from app.core.collega import Collega
 from app.core.dal import DAL, TIPI_INGRESSO, DalError, tipo_da_id
 from app.core.dataset import estratto_del_run, registra_derivazione
+from app.core.erp import ErpClient, applica_sincronizzazione
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
 from app.models.envelope import Envelope
 
@@ -209,6 +210,7 @@ def valida(
     entity_id: str,
     admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
+    erp: ErpClient = Depends(get_erp),
 ) -> dict[str, Any]:
     """Bozza → validato + copia del run nel golden set (piano §3.4)."""
     tipo, entita = _entita(dal, entity_id)
@@ -231,8 +233,13 @@ def valida(
             validato=aggiornata.dati,
             validato_da=admin.username,
         )
+    golden_id = _forse_golden(dal, tipo, aggiornata)
+    # Sincronizzazione a valle verso l'ERP (best-effort, come il golden): può
+    # aggiornare meta.erp_id su `aggiornata`, quindi va dopo il golden.
+    esito_erp = applica_sincronizzazione(dal, aggiornata, erp)
     return {
         "stato": aggiornata.stato,
         "validato_da": admin.username,
-        "golden_id": _forse_golden(dal, tipo, aggiornata),
+        "golden_id": golden_id,
+        "erp": esito_erp,
     }

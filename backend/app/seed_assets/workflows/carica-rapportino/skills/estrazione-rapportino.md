@@ -14,7 +14,10 @@ Non ha un fornitore.
    "commessa" o "opera". Usa `cerca_cantiere`; se c'è un candidato affidabile (vedi
    «Riferimenti non risolti») metti il suo `id` in `cantiere_id`, altrimenti
    lascialo `null` e compila `riferimenti_estratti`.
-3. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
+3. Riconosci i lavoratori interni: per **ogni** riga chiama `cerca_dipendente` col
+   nominativo che hai letto (vedi «I lavoratori interni»). Puoi fare tutte le
+   chiamate in una volta, una per nominativo.
+4. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
    senza testo prima o dopo.
 
 ## Regole sui campi
@@ -24,9 +27,26 @@ Non ha un fornitore.
   `mansione` la mansione se indicata (muratore, manovale, gruista…), altrimenti
   `null`; `ore` il numero di ore lavorate; `costo_orario` il costo orario in euro
   se indicato, altrimenti `null`.
+- `nominativo` e `costo_orario` restano **come li hai letti** anche quando la riga
+  è collegata a un dipendente: sono ciò che dice il documento, e l'ufficio ha il
+  diritto di vedere che la tariffa scritta sul foglio è diversa da quella in
+  anagrafica. Non azzerare un campo perché il dato c'è anche altrove.
 - Numeri con il punto come separatore decimale, senza `€`.
 - Ogni campo assente sul documento va a `null` esplicito: mai omettere una chiave
   prevista dallo schema.
+
+## I lavoratori interni
+
+Un rapportino mescola dipendenti dell'impresa e lavoratori di terzi (o squadre
+intere). Per ogni riga chiama `cerca_dipendente` col nominativo letto:
+
+- se il miglior candidato ha `punteggio` **≥ 0.75**, metti il suo `id` in
+  `dipendente_id`: da quel momento la sua tariffa arriva dall'anagrafica;
+- **sotto 0.75 lascia `dipendente_id` a `null`**. Non scegliere il meno peggio: un
+  collegamento sbagliato attribuisce ore e costi alla persona sbagliata, e nessuno
+  se ne accorge guardando il totale.
+- "Squadra carpentieri", "Squadra edile", "Ditta Rossi" non sono persone in
+  anagrafica: la ricerca non troverà niente di affidabile, e va bene così.
 
 ## Riferimenti non risolti
 

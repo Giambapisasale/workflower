@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, type DocumentoVista } from "../shared/api";
 import { CardGrazie, PannelloVerdetto, RigheRiepilogo } from "./RiepilogoCard";
-import { PALLINO, quandoLeggibile, TESTI } from "./testi";
-import { Card, Indietro, Titolo } from "./ui";
+import { quandoLeggibile, TESTI } from "./testi";
+import { Card, Indietro, Pallino, Titolo } from "./ui";
 
 const RITMO_ATTESA_MS = 2000;
 
@@ -40,24 +40,24 @@ export default function Dettaglio() {
 
   return (
     <div>
-      <Indietro a="/op/documenti" />
+      <Indietro onClick={() => naviga("/op/documenti")} />
       {avviso ? (
         <Card>
           <b>{avviso}</b>
         </Card>
       ) : doc === null ? (
-        <p className="text-neutral-500">{TESTI.caricamento}</p>
+        <p style={{ color: "var(--text-secondary)" }}>{TESTI.caricamento}</p>
       ) : grazie ? (
         <CardGrazie onHome={() => naviga("/op/documenti")} />
       ) : (
         <div>
           <Titolo>{doc.titolo}</Titolo>
           <Card>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{PALLINO[doc.semaforo]}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Pallino semaforo={doc.semaforo} />
               <b>{doc.messaggio}</b>
             </div>
-            <p className="mt-1 text-neutral-500">
+            <p style={{ margin: "6px 0 0", color: "var(--text-secondary)" }}>
               Caricato {quandoLeggibile(doc.quando)}
             </p>
             {doc.riepilogo ? <RigheRiepilogo riepilogo={doc.riepilogo} /> : null}

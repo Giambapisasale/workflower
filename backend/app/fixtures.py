@@ -14,9 +14,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
+# reportlab è una dipendenza di SVILUPPO: nell'immagine di produzione non c'è.
+# L'import vive dentro ``disegna`` perché questo modulo sia importabile comunque:
+# ``FIXTURES`` e ``dati_attesi`` sono dato puro e servono al seed (golden set) e
+# ai test anche dove non si disegna nessun PDF.
 
 DESTINATARIO = "Costruzioni Aitho S.r.l. - Viale Africa 31, Catania"
 
@@ -142,6 +143,10 @@ def dati_attesi(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def disegna(percorso: Path, spec: dict[str, Any]) -> None:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
     foglio = canvas.Canvas(str(percorso), pagesize=A4)
     _, altezza = A4
     y = altezza - 25 * mm

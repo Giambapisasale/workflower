@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/colors.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/typography.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/radii.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/styles.css">
+<script src="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-custom), sans-serif; color: var(--text-primary); background: var(--background-secondary); }
+  a { color: var(--color-primary); }
+  a:hover { color: var(--color-primary-hover); }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; justify-content: center; background: var(--background-secondary); padding: 24px 0; font-size: 17px">
+  <div style="width: 100%; max-width: 430px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 24px 20px; min-height: 780px; height: fit-content">
+
+    <sc-if value="{{ isLogin }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <sc-if value="{{ loginPassoNome }}" hint-placeholder-val="{{ true }}">
+          <form onSubmit="{{ avantiNome }}">
+            <div style="font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 28px">Workflower</div>
+            <h1 style="font-size: 23px; font-weight: 700; margin: 0 0 20px">Ciao! Chi sei?</h1>
+            <div style="margin-bottom: 20px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" placeholder="Il tuo nome utente" value="{{ nome }}" onChange="{{ setNome }}" dc-props="{{ campoLargo }}" hint-size="100%,44px"></x-import>
+            </div>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" type="submit" disabled="{{ nomeVuoto }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">Avanti</x-import>
+          </form>
+        </sc-if>
+        <sc-if value="{{ loginPassoCodice }}" hint-placeholder-val="{{ false }}">
+          <form onSubmit="{{ entra }}">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ tornaNome }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+            <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">{{ titoloCodice }}</h1>
+            <div style="margin-bottom: 20px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" type="password" placeholder="Il codice che ti ha dato l'ufficio" value="{{ codice }}" onChange="{{ setCodice }}" dc-props="{{ campoLargo }}" hint-size="100%,44px"></x-import>
+            </div>
+            <sc-if value="{{ avvisoLogin }}" hint-placeholder-val="{{ false }}">
+              <p style="color: var(--color-error); font-weight: 700; margin: 0 0 16px">Nome o codice non giusti. Riprova.</p>
+            </sc-if>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" type="submit" disabled="{{ codiceVuoto }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">Entra</x-import>
+          </form>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isHome }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 24px">
+          <div>
+            <div style="font-size: 18px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase">Workflower</div>
+            <div style="color: var(--text-secondary); margin-top: 2px">{{ salutoHome }}</div>
+          </div>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ esci }}" compact="{{ vero }}" hint-size="auto,32px">esci</x-import>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ vaiCarica }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.ArrowUpIcon" width="22" height="22" hint-size="22px,22px"></x-import>Carica un documento</span></x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ vaiOre }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.CalendarIcon" width="22" height="22" hint-size="22px,22px"></x-import>Le mie ore</span></x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ vaiDocumenti }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.FileIcon" width="22" height="22" hint-size="22px,22px"></x-import>I miei documenti</span></x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ vaiChiedi }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.ChatBubbleIcon" width="22" height="22" hint-size="22px,22px"></x-import>Chiedi qualcosa</span></x-import>
+        </div>
+
+        <p style="margin-top: 36px; text-align: center; color: var(--text-secondary); text-wrap: pretty">Fotografa bolle, fatture, rapportini. Al resto ci pensiamo noi.</p>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isCarica }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ vaiHome }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+        <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">Carica un documento</h1>
+
+        <sc-if value="{{ caricaScegli }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ scegliFoto }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.ArrowUpIcon" width="22" height="22" hint-size="22px,22px"></x-import>Fotografa</span></x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ scegliFile }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.FileIcon" width="22" height="22" hint-size="22px,22px"></x-import>Scegli dal telefono</span></x-import>
+
+            <sc-if value="{{ mostraEsempi }}" hint-placeholder-val="{{ true }}">
+              <div style="padding-top: 12px">
+                <p style="font-size: 17px; font-weight: 700; margin: 0">Non hai un documento? Scarica un esempio</p>
+                <p style="color: var(--text-secondary); margin: 4px 0 14px">Scaricalo, poi caricalo qui sopra per provare.</p>
+                <div style="display: flex; flex-direction: column; gap: 12px">
+                  <sc-for list="{{ esempi }}" as="e" hint-placeholder-count="3">
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="md" dc-props="{{ btnGrande }}" hint-size="100%,56px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.ArrowDownIcon" width="20" height="20" hint-size="20px,20px"></x-import>{{ e.titolo }}</span></x-import>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ caricaCantiere }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">Di quale cantiere è?</p>
+            <sc-for list="{{ cantieri }}" as="c" hint-placeholder-count="3">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ c.scegli }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.HomeIcon" width="22" height="22" hint-size="22px,22px"></x-import>{{ c.nome }}</span></x-import>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ caricaAttesa }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Spinner" hint-size="24px,24px"></x-import>
+              <b>Sto leggendo il documento…</b>
+            </div>
+            <p style="margin: 8px 0 0; color: var(--text-secondary)">Puoi anche uscire: lo trovi tra poco in “I miei documenti”.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ caricaEsito }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+            <div style="display: flex; align-items: center; gap: 8px; color: var(--color-success)">
+              <span style="display: flex; flex: 0 0 18px; color: var(--color-success)"><x-import component-from-global-scope="AithoDesignSystem_c0878f.CheckCircledIcon" width="18" height="18" hint-size="18px,18px"></x-import></span>
+              <b style="flex: 1; color: var(--text-primary)">Ho letto: fattura!</b>
+            </div>
+            <div style="margin: 14px 0; display: flex; flex-direction: column; gap: 4px">
+              <sc-for list="{{ righeRiepilogo }}" as="r" hint-placeholder-count="5">
+                <div>{{ r.etichetta }}: <b>{{ r.valore }}</b></div>
+              </sc-for>
+            </div>
+            <div style="font-size: 19px; font-weight: 700; margin-top: 14px">È tutto giusto?</div>
+            <sc-if value="{{ verdettoDomanda }}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; gap: 12px; margin-top: 12px">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ conferma }}" icon="{{ icoCheck }}" dc-props="{{ btnMezzo }}" hint-size="50%,56px">Sì</x-import>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ apriSegnala }}" icon="{{ icoCross }}" dc-props="{{ btnMezzo }}" hint-size="50%,56px">Non torna</x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ verdettoScrivi }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top: 12px">
+                <b>Dimmi cosa non torna</b>
+                <div style="margin-top: 8px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.TextArea" type="inputForm" placeholder="Scrivi qui, come lo diresti a voce" value="{{ testoSegnala }}" onChange="{{ setTestoSegnala }}" dc-props="{{ areaLarga }}" hint-size="100%,96px"></x-import>
+                </div>
+                <div style="margin-top: 12px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ inviaSegnala }}" disabled="{{ segnalaVuoto }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">Invia</x-import>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ caricaGrazie }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+            <b>Grazie! Ci pensiamo noi.</b>
+            <p style="margin: 6px 0 0; color: var(--text-secondary)">L'ufficio controlla e ti avvisa qui. Non devi fare altro.</p>
+            <div style="margin-top: 16px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ vaiHome }}" dc-props="{{ btnGrande }}" hint-size="100%,56px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.HomeIcon" width="20" height="20" hint-size="20px,20px"></x-import>Torna alla home</span></x-import>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isOre }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ vaiHome }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+        <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">Le mie ore</h1>
+
+        <div style="margin-bottom: 24px">
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Stepper" index="{{ passoOre }}" hint-size="100%,60px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Step" hint-size="auto,40px">Giorno</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Step" hint-size="auto,40px">Cantiere</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Step" hint-size="auto,40px">Ore</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Step" hint-size="auto,40px">Attività</x-import>
+          </x-import>
+        </div>
+
+        <sc-if value="{{ oreGiorno }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">Di che giorno sono le ore?</p>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ giornoOggi }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.CalendarIcon" width="22" height="22" hint-size="22px,22px"></x-import>Oggi</span></x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ giornoIeri }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.CalendarIcon" width="22" height="22" hint-size="22px,22px"></x-import>Ieri</span></x-import>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ oreCantiere }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">In quale cantiere hai lavorato?</p>
+            <sc-for list="{{ cantieri }}" as="c" hint-placeholder-count="3">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ c.scegliOre }}" dc-props="{{ btnGrande }}" hint-size="100%,64px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.HomeIcon" width="22" height="22" hint-size="22px,22px"></x-import>{{ c.nome }}</span></x-import>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ oreQuante }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 20px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">Quante ore hai fatto?</p>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xl" onClick="{{ oreMeno }}" disabled="{{ oreAlMinimo }}" dc-props="{{ btnPasso }}" hint-size="80px,64px">−</x-import>
+              <div style="font-size: 30px; font-weight: 700">{{ oreTesto }}</div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xl" onClick="{{ orePiu }}" disabled="{{ oreAlMassimo }}" dc-props="{{ btnPasso }}" hint-size="80px,64px">+</x-import>
+            </div>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ vaiAttivita }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">Avanti</x-import>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ oreAttivita }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">Cosa hai fatto?</p>
+            <p style="color: var(--text-secondary); margin: 0">Tocca le attività, oppure scrivile tu. Puoi anche saltare.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{ attivita }}" as="a" hint-placeholder-count="5">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="{{ a.variante }}" size="md" borderRadius="pills" onClick="{{ a.alterna }}" compact="{{ vero }}" dc-props="{{ btnChip }}" hint-size="auto,44px">{{ a.descrizione }}</x-import>
+              </sc-for>
+            </div>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" placeholder="Altro: scrivilo tu" value="{{ notaOre }}" onChange="{{ setNotaOre }}" dc-props="{{ campoLargo }}" hint-size="100%,44px"></x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ vaiConferma }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">{{ etichettaAvanti }}</x-import>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ oreConferma }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 16px">
+            <p style="font-size: 19px; font-weight: 700; margin: 0">Va bene così?</p>
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+              <div style="font-size: 18px; font-weight: 700">{{ cantiereScelto }}</div>
+              <div style="margin-top: 4px; color: var(--text-secondary)">{{ riepilogoOre }}</div>
+              <sc-if value="{{ haAttivita }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top: 8px; color: var(--text-secondary)">{{ attivitaScelte }}</div>
+              </sc-if>
+            </div>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ inviaOre }}" dc-props="{{ btnGrande }}" hint-size="100%,56px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.CheckIcon" width="20" height="20" hint-size="20px,20px"></x-import>Invia le ore</span></x-import>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ oreInviato }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+            <b>Grazie! Ho segnato le tue ore.</b>
+            <p style="margin: 6px 0 0; color: var(--text-secondary)">L'ufficio controlla e conferma. Non devi fare altro.</p>
+            <div style="margin-top: 16px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ vaiHome }}" dc-props="{{ btnGrande }}" hint-size="100%,56px"><span style="display: flex; align-items: center; gap: 14px"><x-import component-from-global-scope="AithoDesignSystem_c0878f.HomeIcon" width="20" height="20" hint-size="20px,20px"></x-import>Torna alla home</span></x-import>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDocumenti }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ vaiHome }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+        <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">I miei documenti</h1>
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <sc-for list="{{ documenti }}" as="d" hint-placeholder-count="4">
+            <button type="button" onClick="{{ d.apri }}" style="display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 64px; text-align: left; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 14px; cursor: pointer; font: inherit; color: inherit" style-hover="background: var(--background-secondary)">
+              <span style="width: 14px; height: 14px; border-radius: 999px; margin-top: 5px; flex-shrink: 0; background: {{ d.colore }}"></span>
+              <span>
+                <b>{{ d.titolo }}</b> · {{ d.quando }}
+                <span style="display: block; color: var(--text-secondary)">{{ d.messaggio }}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDettaglio }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ vaiDocumenti }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+        <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">{{ docTitolo }}</h1>
+        <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+          <div style="display: flex; align-items: center; gap: 10px">
+            <span style="width: 14px; height: 14px; border-radius: 999px; flex-shrink: 0; background: {{ docColore }}"></span>
+            <b>{{ docMessaggio }}</b>
+          </div>
+          <p style="margin: 6px 0 0; color: var(--text-secondary)">{{ docQuando }}</p>
+          <div style="margin: 14px 0; display: flex; flex-direction: column; gap: 4px">
+            <sc-for list="{{ docRighe }}" as="r" hint-placeholder-count="5">
+              <div>{{ r.etichetta }}: <b>{{ r.valore }}</b></div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ docApribile }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="font-size: 19px; font-weight: 700; margin-top: 14px">È tutto giusto?</div>
+              <div style="display: flex; gap: 12px; margin-top: 12px">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" onClick="{{ confermaDoc }}" icon="{{ icoCheck }}" dc-props="{{ btnMezzo }}" hint-size="50%,56px">Sì</x-import>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="lg" onClick="{{ segnalaDoc }}" icon="{{ icoCross }}" dc-props="{{ btnMezzo }}" hint-size="50%,56px">Non torna</x-import>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ docConfermato }}" hint-placeholder-val="{{ false }}">
+            <p style="margin: 14px 0 0; color: var(--color-success); font-weight: 700">Grazie! Ci pensiamo noi.</p>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isChiedi }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="transparent" size="sm" onClick="{{ vaiHome }}" icon="{{ icoIndietro }}" compact="{{ vero }}" hint-size="auto,32px">indietro</x-import>
+        <h1 style="font-size: 23px; font-weight: 700; margin: 12px 0 20px">Chiedi qualcosa</h1>
+        <form onSubmit="{{ chiedi }}">
+          <div style="margin-bottom: 16px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" placeholder="Es. Quanto abbiamo speso questo mese?" value="{{ domanda }}" onChange="{{ setDomanda }}" dc-props="{{ campoLargo }}" hint-size="100%,44px"></x-import>
+          </div>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="lg" type="submit" disabled="{{ domandaVuota }}" icon="{{ icoChat }}" dc-props="{{ btnPieno }}" hint-size="100%,56px">Chiedi</x-import>
+        </form>
+        <sc-if value="{{ chiedeAttesa }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top: 16px; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px; display: flex; align-items: center; gap: 12px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Spinner" hint-size="24px,24px"></x-import>
+            <span>Ci penso…</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ risposta }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top: 16px; border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px; text-wrap: pretty">{{ risposta }}</div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:480,&quot;height&quot;:880},&quot;nomeUtente&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Giovanna Russo&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;schermataIniziale&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;login&quot;,&quot;home&quot;,&quot;carica&quot;,&quot;ore&quot;,&quot;documenti&quot;,&quot;dettaglio&quot;,&quot;chiedi&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mostraEsempi&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const CANTIERI = [
+  { id: "c1", nome: "Residenza Le Palme" },
+  { id: "c2", nome: "Ristrutturazione Scuola Manzoni" },
+  { id: "c3", nome: "Capannone logistico Etna Sud" },
+];
+
+const ATTIVITA = [
+  { id: "l1", descrizione: "Getto calcestruzzo" },
+  { id: "l2", descrizione: "Posa cavidotti" },
+  { id: "l3", descrizione: "Scavo a sezione obbligata" },
+  { id: "l4", descrizione: "Casseratura" },
+  { id: "l5", descrizione: "Pulizia cantiere" },
+];
+
+const ESEMPI = [
+  { file: "fattura-edil-sud.pdf", titolo: "Fattura Edil Sud S.r.l." },
+  { file: "ddt-edil-sud.pdf", titolo: "DDT Edil Sud S.r.l." },
+  { file: "rapportino-le-palme.pdf", titolo: "Rapportino ore Le Palme" },
+];
+
+const RIGHE_FATTURA = [
+  { etichetta: "Fornitore", valore: "Impianti Elettrici Marino S.r.l." },
+  { etichetta: "Numero", valore: "205/26" },
+  { etichetta: "Data", valore: "25/06/2026" },
+  { etichetta: "Totale", valore: "2881,64 €" },
+  { etichetta: "Cantiere", valore: "Ristrutturazione Scuola Manzoni" },
+];
+
+const COLORI = { verde: "var(--color-success)", giallo: "var(--color-warning)", rosso: "var(--color-error)" };
+
+const DOCUMENTI = [
+  {
+    id: "d1", titolo: "Fattura Impianti Elettrici Marino", quando: "oggi", semaforo: "verde",
+    messaggio: "Tutto a posto: l'ufficio l'ha validata.", chiuso: true, righe: RIGHE_FATTURA,
+  },
+  {
+    id: "d2", titolo: "DDT Edil Sud S.r.l.", quando: "ieri", semaforo: "giallo",
+    messaggio: "L'ufficio la sta controllando.", chiuso: false,
+    righe: [
+      { etichetta: "Fornitore", valore: "Edil Sud S.r.l." },
+      { etichetta: "Numero", valore: "445/T" },
+      { etichetta: "Data", valore: "16/03/2026" },
+      { etichetta: "Righe", valore: "2" },
+      { etichetta: "Cantiere", valore: "Ristrutturazione Scuola Manzoni" },
+    ],
+  },
+  {
+    id: "d3", titolo: "Rapportino ore Le Palme", quando: "martedì", semaforo: "verde",
+    messaggio: "Tutto a posto: 24 ore registrate.", chiuso: true,
+    righe: [
+      { etichetta: "Cantiere", valore: "Residenza Le Palme" },
+      { etichetta: "Giornata", valore: "21/07/2026" },
+      { etichetta: "Ore", valore: "8" },
+      { etichetta: "Costo", valore: "196,00 €" },
+    ],
+  },
+  {
+    id: "d4", titolo: "Fattura Calcestruzzi Etna", quando: "5 luglio", semaforo: "rosso",
+    messaggio: "Non sono riuscito a leggerla bene: ci pensa l'ufficio.", chiuso: true,
+    righe: [{ etichetta: "Fornitore", valore: "Calcestruzzi Etna S.p.A." }],
+  },
+];
+
+class Component extends DCLogic {
+  state = {
+    vista: this.props.schermataIniziale || "home",
+    passoLogin: "nome",
+    nome: "",
+    codice: "",
+    avvisoLogin: false,
+    faseCarica: "scegli",
+    verdetto: "domanda",
+    testoSegnala: "",
+    faseOre: "giorno",
+    giorno: "oggi",
+    cantiereOre: null,
+    ore: 8,
+    scelte: [],
+    notaOre: "",
+    docAperto: null,
+    docConfermato: false,
+    domanda: "",
+    chiedeAttesa: false,
+    risposta: null,
+    pronto: false,
+  };
+
+  componentDidMount() {
+    this.attendiDs();
+  }
+
+  attendiDs = () => {
+    if (window.AithoDesignSystem_c0878f && window.AithoDesignSystem_c0878f.Button) {
+      this.setState({ pronto: true });
+    } else {
+      setTimeout(this.attendiDs, 60);
+    }
+  };
+
+  vai = (vista, extra) => this.setState(Object.assign({ vista: vista }, extra || {}));
+
+  ico(nome) {
+    const ns = window.AithoDesignSystem_c0878f;
+    return ns && ns[nome] ? { data: ns[nome] } : undefined;
+  }
+
+  oreTesto(n) {
+    return n === 1 ? "1 ora" : n.toLocaleString("it-IT") + " ore";
+  }
+
+  renderVals() {
+    const s = this.state;
+    const nomeUtente = this.props.nomeUtente || "Giovanna";
+    const primo = nomeUtente.split(" ")[0];
+    const doc = DOCUMENTI.find((d) => d.id === s.docAperto) || DOCUMENTI[0];
+    const scelteDesc = ATTIVITA.filter((a) => s.scelte.indexOf(a.id) >= 0).map((a) => a.descrizione);
+    if (s.notaOre.trim()) scelteDesc.push(s.notaOre.trim());
+    const passiOre = { giorno: 0, cantiere: 1, ore: 2, attivita: 3, conferma: 3, inviato: 3 };
+
+    return {
+      vero: true,
+      // navigazione
+      isLogin: s.vista === "login",
+      isHome: s.vista === "home",
+      isCarica: s.vista === "carica",
+      isOre: s.vista === "ore",
+      isDocumenti: s.vista === "documenti",
+      isDettaglio: s.vista === "dettaglio",
+      isChiedi: s.vista === "chiedi",
+      vaiHome: () => this.vai("home", { faseCarica: "scegli", verdetto: "domanda", faseOre: "giorno" }),
+      vaiCarica: () => this.vai("carica", { faseCarica: "scegli", verdetto: "domanda", testoSegnala: "" }),
+      vaiOre: () => this.vai("ore", { faseOre: "giorno", scelte: [], notaOre: "", ore: 8 }),
+      vaiDocumenti: () => this.vai("documenti"),
+      vaiChiedi: () => this.vai("chiedi", { risposta: null, domanda: "" }),
+      esci: () => this.vai("login", { passoLogin: "nome", nome: "", codice: "" }),
+
+      // stili condivisi passati ai componenti del design system
+      btnGrande: { style: { width: "100%", minHeight: 64, justifyContent: "flex-start", fontSize: 19, textAlign: "left" } },
+      btnPieno: { style: { width: "100%", minHeight: 56, justifyContent: "center", fontSize: 18 } },
+      btnMezzo: { style: { flex: 1, minHeight: 56, justifyContent: "center", fontSize: 18 } },
+      btnPasso: { style: { width: 80, minHeight: 64, justifyContent: "center", fontSize: 28 } },
+      btnChip: { style: { minHeight: 44, padding: "0 16px" } },
+      campoLargo: { style: { width: "100%", fontSize: 18, padding: "12px 14px" } },
+      areaLarga: { style: { width: "100%", minHeight: 96, fontSize: 18 } },
+
+      // icone
+      icoCarica: this.ico("ArrowUpIcon"),
+      icoOre: this.ico("CalendarIcon"),
+      icoDoc: this.ico("FileIcon"),
+      icoChat: this.ico("ChatBubbleIcon"),
+      icoIndietro: this.ico("ArrowLeftIcon"),
+      icoHome: this.ico("HomeIcon"),
+      icoCheck: this.ico("CheckIcon"),
+      icoCross: this.ico("Cross1Icon"),
+
+      // login
+      loginPassoNome: s.passoLogin === "nome",
+      loginPassoCodice: s.passoLogin === "codice",
+      nome: s.nome,
+      codice: s.codice,
+      nomeVuoto: !s.nome.trim(),
+      codiceVuoto: !s.codice.trim(),
+      avvisoLogin: s.avvisoLogin,
+      titoloCodice: "Ciao " + (s.nome.trim() || primo) + "! Il tuo codice?",
+      setNome: (e) => this.setState({ nome: e.target.value }),
+      setCodice: (e) => this.setState({ codice: e.target.value }),
+      avantiNome: (e) => { e.preventDefault(); if (s.nome.trim()) this.setState({ passoLogin: "codice" }); },
+      tornaNome: () => this.setState({ passoLogin: "nome", avvisoLogin: false }),
+      entra: (e) => { e.preventDefault(); if (s.codice.trim()) this.vai("home", { avvisoLogin: false }); },
+
+      // home
+      salutoHome: "Ciao " + primo + " · " + CANTIERI.length + " cantieri",
+
+      // carica
+      caricaScegli: s.faseCarica === "scegli",
+      caricaCantiere: s.faseCarica === "cantiere",
+      caricaAttesa: s.faseCarica === "attesa",
+      caricaEsito: s.faseCarica === "esito",
+      caricaGrazie: s.faseCarica === "grazie",
+      mostraEsempi: this.props.mostraEsempi !== false,
+      esempi: ESEMPI.map((e) => ({ titolo: e.titolo, icona: this.ico("ArrowDownIcon") })),
+      scegliFoto: () => this.setState({ faseCarica: "cantiere" }),
+      scegliFile: () => this.setState({ faseCarica: "cantiere" }),
+      righeRiepilogo: RIGHE_FATTURA,
+      verdettoDomanda: s.verdetto === "domanda",
+      verdettoScrivi: s.verdetto === "scrivi",
+      testoSegnala: s.testoSegnala,
+      segnalaVuoto: !s.testoSegnala.trim(),
+      setTestoSegnala: (e) => this.setState({ testoSegnala: e.target.value }),
+      apriSegnala: () => this.setState({ verdetto: "scrivi" }),
+      inviaSegnala: () => this.setState({ faseCarica: "grazie" }),
+      conferma: () => this.setState({ faseCarica: "grazie" }),
+
+      // cantieri (usati da carica e ore)
+      cantieri: CANTIERI.map((c) => ({
+        nome: c.nome,
+        icona: this.ico("HomeIcon"),
+        scegli: () => {
+          this.setState({ faseCarica: "attesa" });
+          setTimeout(() => this.setState({ faseCarica: "esito", verdetto: "domanda" }), 1600);
+        },
+        scegliOre: () => this.setState({ cantiereOre: c.id, faseOre: "ore" }),
+      })),
+
+      // ore
+      passoOre: passiOre[s.faseOre] || 0,
+      oreGiorno: s.faseOre === "giorno",
+      oreCantiere: s.faseOre === "cantiere",
+      oreQuante: s.faseOre === "ore",
+      oreAttivita: s.faseOre === "attivita",
+      oreConferma: s.faseOre === "conferma",
+      oreInviato: s.faseOre === "inviato",
+      giornoOggi: () => this.setState({ giorno: "oggi", faseOre: "cantiere" }),
+      giornoIeri: () => this.setState({ giorno: "ieri", faseOre: "cantiere" }),
+      oreTesto: this.oreTesto(s.ore),
+      oreAlMinimo: s.ore <= 0.5,
+      oreAlMassimo: s.ore >= 16,
+      oreMeno: () => this.setState({ ore: Math.max(0.5, s.ore - 0.5) }),
+      orePiu: () => this.setState({ ore: Math.min(16, s.ore + 0.5) }),
+      vaiAttivita: () => this.setState({ faseOre: "attivita" }),
+      attivita: ATTIVITA.map((a) => ({
+        descrizione: a.descrizione,
+        variante: s.scelte.indexOf(a.id) >= 0 ? "primary" : "outline",
+        alterna: () => this.setState({
+          scelte: s.scelte.indexOf(a.id) >= 0 ? s.scelte.filter((x) => x !== a.id) : s.scelte.concat([a.id]),
+        }),
+      })),
+      notaOre: s.notaOre,
+      setNotaOre: (e) => this.setState({ notaOre: e.target.value }),
+      etichettaAvanti: s.scelte.length || s.notaOre.trim() ? "Avanti" : "Salta",
+      vaiConferma: () => this.setState({ faseOre: "conferma" }),
+      cantiereScelto: (CANTIERI.find((c) => c.id === s.cantiereOre) || CANTIERI[0]).nome,
+      riepilogoOre: (s.giorno === "oggi" ? "Oggi" : "Ieri") + " · " + this.oreTesto(s.ore),
+      haAttivita: scelteDesc.length > 0,
+      attivitaScelte: scelteDesc.join(", "),
+      inviaOre: () => this.setState({ faseOre: "inviato" }),
+
+      // documenti
+      documenti: DOCUMENTI.map((d) => ({
+        titolo: d.titolo,
+        quando: d.quando,
+        messaggio: d.messaggio,
+        colore: COLORI[d.semaforo],
+        apri: () => this.vai("dettaglio", { docAperto: d.id, docConfermato: false }),
+      })),
+      docTitolo: doc.titolo,
+      docMessaggio: doc.messaggio,
+      docQuando: "Caricato " + doc.quando,
+      docColore: COLORI[doc.semaforo],
+      docRighe: doc.righe,
+      docApribile: !doc.chiuso && !s.docConfermato,
+      docConfermato: s.docConfermato,
+      confermaDoc: () => this.setState({ docConfermato: true }),
+      segnalaDoc: () => this.setState({ docConfermato: true }),
+
+      // chiedi
+      domanda: s.domanda,
+      domandaVuota: !s.domanda.trim(),
+      chiedeAttesa: s.chiedeAttesa,
+      risposta: s.risposta,
+      setDomanda: (e) => this.setState({ domanda: e.target.value }),
+      chiedi: (e) => {
+        e.preventDefault();
+        if (!s.domanda.trim()) return;
+        this.setState({ chiedeAttesa: true, risposta: null });
+        setTimeout(() => this.setState({
+          chiedeAttesa: false,
+          risposta: "Questo mese avete speso 32.558,84 € in tutto: 15.042,60 € su Residenza Le Palme, 9171,44 € su Ristrutturazione Scuola Manzoni e 8344,80 € su Capannone logistico Etna Sud.",
+        }), 1200);
+      },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

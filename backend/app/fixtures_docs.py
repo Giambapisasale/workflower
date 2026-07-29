@@ -60,7 +60,13 @@ FIXTURES: list[dict[str, Any]] = [
             ("Mario Rossi", "Muratore", "8", "26,50"),
             ("Squadra carpentieri", "Carpenteria", "24", "24,00"),
         ],
-        "atteso": {"cantiere_id": "CNT-001", "data_iso": "2026-07-13"},
+        # `dipendenti`: chi delle tre righe sta in anagrafica (cerca_dipendente).
+        # Torrisi è dei nostri, Rossi è di terzi, la squadra non è una persona.
+        "atteso": {
+            "cantiere_id": "CNT-001",
+            "data_iso": "2026-07-13",
+            "dipendenti": ["DIP-001", None, None],
+        },
     },
 ]
 
@@ -110,14 +116,18 @@ def _attesi_sal(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def _attesi_rapportino(spec: dict[str, Any]) -> dict[str, Any]:
+    dipendenti = spec["atteso"].get("dipendenti") or [None] * len(spec["righe"])
     righe = [
         {
             "nominativo": nominativo,
+            "dipendente_id": dipendente_id,
             "mansione": mansione or None,
             "ore": _num(ore),
             "costo_orario": _num(costo),
         }
-        for nominativo, mansione, ore, costo in spec["righe"]
+        for (nominativo, mansione, ore, costo), dipendente_id in zip(
+            spec["righe"], dipendenti, strict=True
+        )
     ]
     return {
         "cantiere_id": spec["atteso"]["cantiere_id"],

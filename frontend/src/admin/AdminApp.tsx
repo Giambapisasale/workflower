@@ -1,13 +1,30 @@
-/** Guscio della modalità Admin: nav, gate di ruolo, routing delle pagine. */
+/** Guscio della modalità Admin: sidebar, gate di ruolo, routing delle pagine. */
 
 import { useCallback, useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  ArrowUpIcon,
+  BellIcon,
+  CalendarIcon,
+  CheckCircledIcon,
+  ClipboardCopyIcon,
+  DotsHorizontalIcon,
+  FileIcon,
+  GearIcon,
+  HomeIcon,
+  InfoCircledIcon,
+  Link2Icon,
+  MagnifyingGlassIcon,
+  TriangleRightIcon,
+} from "@radix-ui/react-icons";
 import {
   chiudiSessione,
   salvaSessione,
   sessioneCorrente,
   type Sessione,
 } from "../shared/api";
+import { Button, Sidebar } from "../ds";
+import type { Icona } from "../ds";
 import AdminLogin from "./AdminLogin";
 import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
@@ -16,32 +33,55 @@ import Dati from "./Dati";
 import Diagnosi from "./Diagnosi";
 import EntitaForm from "./EntitaForm";
 import EntitaLista from "./EntitaLista";
+import Erp from "./Erp";
 import Interroga from "./Interroga";
 import Log from "./Log";
 import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
+import Run from "./Run";
+import Scartati from "./Scartati";
 import Scostamenti from "./Scostamenti";
 import Segnalazioni from "./Segnalazioni";
 import SkillsTools from "./SkillsTools";
-import { Bottone } from "./ui";
 import Workflows from "./Workflows";
 
-const VOCI = [
-  { a: "/admin", etichetta: "Cruscotto", fine: true },
-  { a: "/admin/dati", etichetta: "Dati", fine: false },
-  { a: "/admin/scostamenti", etichetta: "Scostamenti", fine: false },
-  { a: "/admin/revisione", etichetta: "Revisione", fine: false },
-  { a: "/admin/segnalazioni", etichetta: "Segnalazioni", fine: false },
-  { a: "/admin/interroga", etichetta: "Interroga", fine: false },
-  { a: "/admin/workflows", etichetta: "Workflows", fine: false },
-  { a: "/admin/tools", etichetta: "Skills & Tools", fine: false },
-  { a: "/admin/dataset", etichetta: "Dataset", fine: false },
-  { a: "/admin/log", etichetta: "Log", fine: false },
-  { a: "/admin/diagnosi", etichetta: "Diagnosi", fine: false },
+type Voce = {
+  chiave: string;
+  a: string;
+  etichetta: string;
+  icona: Icona;
+  /** Altre rotte che devono tenere accesa questa voce. */
+  anche?: string[];
+};
+
+const VOCI: Voce[] = [
+  { chiave: "cruscotto", a: "/admin", etichetta: "Cruscotto", icona: HomeIcon, anche: ["/admin/cantiere"] },
+  { chiave: "dati", a: "/admin/dati", etichetta: "Dati", icona: FileIcon },
+  { chiave: "scostamenti", a: "/admin/scostamenti", etichetta: "Scostamenti", icona: ArrowUpIcon },
+  { chiave: "revisione", a: "/admin/revisione", etichetta: "Revisione", icona: CheckCircledIcon },
+  { chiave: "segnalazioni", a: "/admin/segnalazioni", etichetta: "Segnalazioni", icona: BellIcon },
+  { chiave: "interroga", a: "/admin/interroga", etichetta: "Interroga", icona: MagnifyingGlassIcon },
+  { chiave: "workflows", a: "/admin/workflows", etichetta: "Workflows", icona: GearIcon },
+  { chiave: "run", a: "/admin/run", etichetta: "Run", icona: TriangleRightIcon },
+  { chiave: "tools", a: "/admin/tools", etichetta: "Skills & Tools", icona: ClipboardCopyIcon },
+  { chiave: "dataset", a: "/admin/dataset", etichetta: "Dataset", icona: DotsHorizontalIcon },
+  { chiave: "erp", a: "/admin/erp", etichetta: "Contabilità", icona: Link2Icon },
+  { chiave: "log", a: "/admin/log", etichetta: "Log", icona: CalendarIcon },
+  { chiave: "diagnosi", a: "/admin/diagnosi", etichetta: "Diagnosi", icona: InfoCircledIcon },
 ];
+
+/** "/admin" è acceso solo su se stesso; le altre voci anche sui figli. */
+function vociAccese(percorso: string, voce: Voce): boolean {
+  const rotte = [voce.a, ...(voce.anche ?? [])];
+  return rotte.some((r) =>
+    r === "/admin" ? percorso === "/admin" || percorso === "/admin/" : percorso.startsWith(r),
+  );
+}
 
 export default function AdminApp() {
   const [sessione, setSessione] = useState<Sessione | null>(sessioneCorrente);
+  const naviga = useNavigate();
+  const { pathname } = useLocation();
   const esci = useCallback(() => {
     chiudiSessione();
     setSessione(null);
@@ -60,49 +100,99 @@ export default function AdminApp() {
 
   if (sessione.utente.ruolo !== "admin") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-100 p-6 text-center">
-        <p className="text-lg text-slate-700">
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 16,
+          background: "var(--background-secondary)",
+          padding: 24,
+          textAlign: "center",
+        }}
+      >
+        <p style={{ margin: 0, fontSize: 18 }}>
           Questa è l'area dell'ufficio. Il tuo accesso è da operatore.
         </p>
-        <a className="text-sky-700 underline" href="/op">Vai alla tua area →</a>
-        <Bottone onClick={esci}>Esci</Bottone>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            onClick={() => {
+              window.location.href = "/op";
+            }}
+          >
+            Vai alla tua area
+          </Button>
+          <Button variant="outline" size="md" type="button" onClick={esci}>
+            Esci
+          </Button>
+        </div>
       </div>
     );
   }
 
+  const voci = VOCI.map((v) => {
+    const Icona = v.icona;
+    return {
+      key: v.chiave,
+      text: v.etichetta,
+      icon: <Icona width={18} height={18} />,
+      selected: vociAccese(pathname, v),
+      onClick: () => naviga(v.a),
+    };
+  });
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <div className="flex items-center gap-6">
-            <span className="font-bold">Workflower</span>
-            <nav className="flex gap-1">
-              {VOCI.map((v) => (
-                <NavLink
-                  key={v.a}
-                  to={v.a}
-                  end={v.fine}
-                  className={({ isActive }) =>
-                    `rounded-lg px-3 py-1.5 text-sm font-medium ${
-                      isActive ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-slate-100"
-                    }`
-                  }
-                >
-                  {v.etichetta}
-                </NavLink>
-              ))}
-            </nav>
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        minWidth: 1360,
+        background: "var(--background-secondary)",
+      }}
+    >
+      {/* Sempre aperta: la navigazione dell'ufficio è la mappa del lavoro, non
+          un cassetto da riaprire ogni volta. `sticky` perché il guscio scorre
+          e la sidebar è alta una schermata. */}
+      <Sidebar
+        behaviour="permanent"
+        open
+        variant="primary"
+        position="static"
+        items={voci}
+        style={{ position: "sticky", top: 0, alignSelf: "flex-start" }}
+        header={<span style={{ fontSize: 17, fontWeight: 700, whiteSpace: "nowrap" }}>Workflower</span>}
+        footer={
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              fontSize: 13,
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {sessione.utente.nome}
+            </span>
+            <Button variant="outline" size="sm" type="button" onClick={esci}>
+              Esci
+            </Button>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-500">{sessione.utente.nome}</span>
-            <button onClick={esci} className="text-slate-400 hover:text-slate-700">esci</button>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl p-6">
+        }
+      />
+
+      <main style={{ flex: 1, minWidth: 0, padding: "24px 28px 48px" }}>
         <Routes>
           <Route index element={<Cruscotto />} />
           <Route path="dati" element={<Dati />} />
+          {/* prima di dati/:tipo, altrimenti "scartati" sarebbe letto come un tipo */}
+          <Route path="dati/scartati" element={<Scartati />} />
           <Route path="dati/:tipo" element={<EntitaLista />} />
           <Route path="dati/:tipo/nuovo" element={<EntitaForm />} />
           <Route path="dati/:tipo/:id" element={<EntitaForm />} />
@@ -113,8 +203,10 @@ export default function AdminApp() {
           <Route path="segnalazioni" element={<Segnalazioni />} />
           <Route path="interroga" element={<Interroga />} />
           <Route path="workflows" element={<Workflows />} />
+          <Route path="run" element={<Run />} />
           <Route path="tools" element={<SkillsTools />} />
           <Route path="dataset" element={<Dataset />} />
+          <Route path="erp" element={<Erp />} />
           <Route path="log" element={<Log />} />
           <Route path="diagnosi" element={<Diagnosi />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />

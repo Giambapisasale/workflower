@@ -5,7 +5,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Stato = Literal["bozza", "validato", "errore"]
+# ``scartato``: l'ufficio ha ripudiato l'inserimento. L'entità non viene
+# cancellata — esce dai conti spostandosi in ``data/scartati/`` (fuori dal glob
+# delle viste) e resta ripristinabile. Vedi DAL.scarta / DAL.ripristina.
+Stato = Literal["bozza", "validato", "errore", "scartato"]
 
 
 def now_iso() -> str:
@@ -23,6 +26,17 @@ class Meta(BaseModel):
     created: str | None = None
     updated: str | None = None
     validato_da: str | None = None
+    # Scarto (stato ``scartato``): chi, quando e soprattutto *perché*. Il motivo è
+    # obbligatorio lato API: uno scarto senza spiegazione è indistinguibile da un
+    # errore di manovra quando lo si ritrova sei mesi dopo.
+    scartato_da: str | None = None
+    scartato_il: str | None = None
+    motivo_scarto: str | None = None
+    # Integrazione ERP (ciclo passivo): backref al documento contabile a valle e
+    # timestamp della sincronizzazione. Valorizzati solo dopo un push riuscito
+    # verso ERPNext (Meta è extra="forbid": vanno dichiarati qui, non ad-hoc).
+    erp_id: str | None = None
+    erp_synced: str | None = None
 
 
 class Envelope(BaseModel):

@@ -32,6 +32,10 @@ class Toolset:
                 ricerca.SCHEMA_CANTIERE,
                 lambda a: ricerca.cerca_cantiere(dal, **a),
             ),
+            "cerca_dipendente": (
+                ricerca.SCHEMA_DIPENDENTE,
+                lambda a: ricerca.cerca_dipendente(dal, **a),
+            ),
             "cerca_voce_computo": (
                 computo.SCHEMA,
                 lambda a: computo.cerca_voce_computo(dal, **a),

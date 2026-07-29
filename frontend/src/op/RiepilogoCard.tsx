@@ -1,14 +1,17 @@
-/** Pezzi condivisi tra Carica e Dettaglio: le tre righe e il 👍/👎. */
+/** Pezzi condivisi tra Carica e Dettaglio: le righe lette e il "È tutto giusto?". */
 
 import { useState } from "react";
+import { CheckIcon, Cross1Icon, HomeIcon } from "@radix-ui/react-icons";
 import { api, type DocumentoVista, type Riepilogo, type RigaRiepilogo } from "../shared/api";
+import { TextArea } from "../ds";
 import { dataBreve, euro, percentuale, TESTI } from "./testi";
+import { Avviso, BottoneGrande, BottoneMezzo, BottonePieno } from "./ui";
 
 /** Le righe arrivano già scelte dal backend (una per entità): qui le mostriamo
  * e basta. Così SAL, rapportino e ogni entità futura parlano da sé. */
 export function RigheRiepilogo({ riepilogo }: { riepilogo: Riepilogo }) {
   return (
-    <div className="my-3 space-y-1">
+    <div style={{ margin: "14px 0", display: "flex", flexDirection: "column", gap: 4 }}>
       {riepilogo.righe.map((riga, i) => (
         <Riga key={i} etichetta={riga.etichetta} valore={mostra(riga)} />
       ))}
@@ -39,7 +42,7 @@ function Riga({ etichetta, valore }: { etichetta: string; valore: string }) {
 }
 
 /**
- * "È tutto giusto?" → 👍 conferma / 👎 testo libero → segnalazione.
+ * "È tutto giusto?" → Sì conferma / "Non torna" apre il testo libero.
  * Una domanda alla volta; su rete assente, un avviso gentile e si riprova.
  */
 export function PannelloVerdetto({
@@ -70,49 +73,51 @@ export function PannelloVerdetto({
 
   if (fase === "scrivi") {
     return (
-      <div className="mt-3">
+      <div style={{ marginTop: 12 }}>
         <b>{TESTI.dimmiCosa}</b>
-        <textarea
-          className="mt-2 min-h-[96px] w-full rounded-2xl border-2 border-neutral-300 p-3 focus:border-neutral-900 focus:outline-none"
-          value={testo}
-          onChange={(e) => setTesto(e.target.value)}
-          placeholder={TESTI.scriviQui}
-          autoFocus
-        />
-        {avviso ? <p className="my-2 font-bold text-red-700">{avviso}</p> : null}
-        <button
-          type="button"
-          className="mt-2 min-h-[56px] w-full rounded-2xl border-2 border-green-700 bg-green-700 px-4 text-[18px] font-bold text-white disabled:opacity-40"
-          disabled={!testo.trim() || attesa}
-          onClick={() => void prova(() => api.segnala(doc.id, testo.trim()))}
-        >
-          {attesa ? TESTI.caricamento : TESTI.invia}
-        </button>
+        <div style={{ marginTop: 8 }}>
+          <TextArea
+            type="inputForm"
+            value={testo}
+            onChange={(e) => setTesto(e.target.value)}
+            placeholder={TESTI.scriviQui}
+            style={{ width: "100%", minHeight: 96, fontSize: 18 }}
+            autoFocus
+          />
+        </div>
+        {avviso ? <Avviso>{avviso}</Avviso> : null}
+        <div style={{ marginTop: 12 }}>
+          <BottonePieno
+            disabled={!testo.trim() || attesa}
+            onClick={() => void prova(() => api.segnala(doc.id, testo.trim()))}
+          >
+            {attesa ? TESTI.caricamento : TESTI.invia}
+          </BottonePieno>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mt-3">
-      <div className="text-[19px] font-bold">{TESTI.tuttoGiusto}</div>
-      {avviso ? <p className="my-2 font-bold text-red-700">{avviso}</p> : null}
-      <div className="mt-3 flex gap-3">
-        <button
-          type="button"
-          className="min-h-[60px] flex-1 rounded-2xl border-2 border-green-700 bg-green-700 px-2 text-[18px] font-bold text-white disabled:opacity-40"
+    <div>
+      <div style={{ fontSize: 19, fontWeight: 700, marginTop: 14 }}>{TESTI.tuttoGiusto}</div>
+      {avviso ? (
+        <div style={{ marginTop: 12 }}>
+          <Avviso>{avviso}</Avviso>
+        </div>
+      ) : null}
+      <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+        <BottoneMezzo
+          primario
+          icona={CheckIcon}
           disabled={attesa}
           onClick={() => void prova(() => api.conferma(doc.id))}
         >
           {TESTI.si}
-        </button>
-        <button
-          type="button"
-          className="min-h-[60px] flex-1 rounded-2xl border-2 border-neutral-900 bg-white px-2 text-[18px] font-bold disabled:opacity-40"
-          disabled={attesa}
-          onClick={() => setFase("scrivi")}
-        >
+        </BottoneMezzo>
+        <BottoneMezzo icona={Cross1Icon} disabled={attesa} onClick={() => setFase("scrivi")}>
           {TESTI.nonTorna}
-        </button>
+        </BottoneMezzo>
       </div>
     </div>
   );
@@ -120,17 +125,21 @@ export function PannelloVerdetto({
 
 export function CardGrazie({ onHome }: { onHome?: () => void }) {
   return (
-    <div className="rounded-2xl border-2 border-neutral-300 p-4">
+    <div
+      style={{
+        border: "1px solid var(--border-color)",
+        borderRadius: "var(--radius)",
+        padding: 16,
+      }}
+    >
       <b>{TESTI.grazie}</b>
-      <p className="mt-1 text-neutral-600">{TESTI.sottoGrazie}</p>
+      <p style={{ margin: "6px 0 0", color: "var(--text-secondary)" }}>{TESTI.sottoGrazie}</p>
       {onHome ? (
-        <button
-          type="button"
-          className="mt-4 flex min-h-[56px] w-full items-center gap-3 rounded-2xl border-2 border-neutral-900 px-4 text-[18px] font-bold"
-          onClick={onHome}
-        >
-          <span className="text-2xl">🏠</span> {TESTI.tornaHome}
-        </button>
+        <div style={{ marginTop: 16 }}>
+          <BottoneGrande icona={HomeIcon} onClick={onHome}>
+            {TESTI.tornaHome}
+          </BottoneGrande>
+        </div>
       ) : null}
     </div>
   );

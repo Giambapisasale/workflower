@@ -147,6 +147,133 @@ export type Workflow = {
 
 export type EventoTrace = Record<string, unknown> & { evento: string; ts?: string };
 
+/** Un'esecuzione riassunta (elenco Run): il trace completo si carica a parte. */
+export type RigaRun = {
+  run_id: string;
+  workflow: string | null;
+  version: string | null;
+  input: string | null;
+  ts: string | null;
+  esito: string;
+  entity_id: string | null;
+  errore: string | null;
+  costo_usd: number;
+  tokens: number;
+  durata_ms: number;
+  n_llm: number;
+  n_tool: number;
+  escalation: number;
+};
+
+/** Un caso golden ha **due forme** e l'elenco le mescola (backend: core/golden.py):
+ *  un caso-`documento` ha `doc` (il blob da rieseguire), un caso-`domanda` ha
+ *  `domanda` (il testo posto a /ask) e lascia vuoti `doc`/`entity_tipo`/`entity_id`.
+ *  I nullable qui non sono prudenza: nei dati reali sono la maggior parte. */
+export type CasoGolden = {
+  id: string;
+  tipo: "documento" | "domanda";
+  workflow: string;
+  version: string;
+  doc: string | null;
+  domanda: string | null;
+  entity_tipo: string | null;
+  entity_id: string | null;
+  run_id: string | null;
+  validato_da: string | null;
+  creato: string | null;
+  n_campi: number;
+  originale_presente: boolean;
+};
+
+export type Scartato = {
+  id: string;
+  tipo: string;
+  etichetta: string;
+  titolo: string | null;
+  motivo: string | null;
+  scartato_da: string | null;
+  scartato_il: string | null;
+  era_validato: boolean;
+  erp_id: string | null;
+};
+
+/** Un campo che l'ufficio corregge spesso: dove vale la pena un tool. */
+export type CandidatoToolsmith = {
+  workflow: string | null;
+  tipo: string | null;
+  campo: string;
+  occorrenze: number;
+  valori: unknown[];
+};
+
+export type CasoTest = {
+  argomenti: Record<string, unknown>;
+  atteso: Record<string, unknown>;
+  ottenuto?: Record<string, unknown> | null;
+  ok?: boolean;
+  errore?: string;
+};
+
+export type PropostaTool = {
+  id: string;
+  nome: string;
+  candidato: {
+    nome: string;
+    tipo: string;
+    campi_input: string[];
+    campo_output: string;
+    workflow: string | null;
+  };
+  codice: string;
+  schema: Record<string, unknown>;
+  test: CasoTest[];
+  esito_test: { totale: number; ok: number; casi: CasoTest[] };
+  esempi: number;
+  stato: "proposta" | "approvata" | "rifiutata";
+  creato: string | null;
+  deciso_da: string | null;
+  pytool?: string | null;
+  patch_skill?: string | null;
+};
+
+export type EsitoApprovaProposta = {
+  proposta: string;
+  stato: string;
+  pytool: string;
+  patch_skill: { id: string; replay: { totale: number; ok: number }; diff_skill: string } | null;
+};
+
+/** Idoneità di un modello locale (T3) misurata contro il tier di riferimento. */
+export type QuotaT3 = { tool: number; args: number };
+
+export type EvalT3 = {
+  modello_candidato: string | null;
+  modello_riferimento: string | null;
+  tier_candidato: string;
+  tier_riferimento: string;
+  soglia: number;
+  esempi: number;
+  /** Esempi validati di cui non si è potuta ricostruire l'immagine originale. */
+  non_rigiocabili: number;
+  /** Prompt che il trace ha troncato: abbassano l'accuratezza assoluta di entrambi i tier. */
+  prompt_troncati: number;
+  /** Falso se `LLM_T3_MODEL` non è impostato: T3 ricade su T1 e la misura si confronta con sé. */
+  t3_configurato: boolean;
+  totale: { candidato: QuotaT3; riferimento: QuotaT3 };
+  workflow: Record<
+    string,
+    {
+      esempi: number;
+      candidato: QuotaT3;
+      riferimento: QuotaT3;
+      regressione: boolean;
+      pronto_per_t3: boolean;
+    }
+  >;
+  pronti: string[];
+  regressioni: string[];
+};
+
 export type EsitoAsk = { sql: string; rows: Record<string, unknown>[] };
 
 export type RigaReplay = {
@@ -271,7 +398,14 @@ export type GruppoQuery = {
   letterali: string[]; // letterali dell'esempio, candidati a diventare parametri di un tool
 };
 
-export type ToolRegistry = { name: string; descrizione: string; usi: number; ciclo: string };
+export type ToolRegistry = {
+  name: string;
+  descrizione: string;
+  usi: number;
+  ciclo: string;
+  /** "nativa" = inclusa nell'app; "pytool" = consolidata dal Toolsmith (rimovibile). */
+  origine?: string;
+};
 
 export type VistaConsolidata = {
   creato: string;
@@ -328,6 +462,53 @@ export type EsitoCollega = {
   totali: number;
   senza_computo?: boolean;
   dettaglio: { riga: number; voce_id: string | null; punteggio: number }[];
+};
+
+/** Un tentativo di sincronizzazione ERP dal ledger `dataset/erp_sync.jsonl`. */
+export type ErpTentativo = {
+  ts: string;
+  entity_id: string;
+  esito: string; // "ok" | "errore"
+  erp_id: string | null;
+  errore: string | null;
+  run_id: string | null;
+};
+
+export type ErpContatori = {
+  validate: number;
+  sincronizzate: number;
+  da_sincronizzare: number;
+};
+
+/** Stato dell'integrazione ERP (M28): contatori, arretrati, ultimi tentativi. */
+export type ErpStato = {
+  erp_attivo: boolean;
+  per_tipo: Record<string, ErpContatori>;
+  da_sincronizzare: { id: string; tipo: string }[];
+  ultimi_tentativi: ErpTentativo[];
+};
+
+export type ErpEsitoBatch = {
+  esito: string;
+  tentate: number;
+  ok: number;
+  errori: number;
+  interrotto: boolean;
+};
+
+export type ErpEsitoSingolo = {
+  esito: string;
+  erp_id?: string;
+  doctype?: string;
+  errore?: string;
+  motivo?: string;
+};
+
+export type ErpEsitoPagamenti = {
+  esito: string;
+  creati: number;
+  aggiornati: number;
+  errori: number;
 };
 
 /** Schema JSON (sottoinsieme che ci serve per generare i form). */
@@ -394,6 +575,71 @@ export const admin = {
 
   trace: (runId: string) =>
     richiesta<{ eventi: EventoTrace[] }>(`/runs/${runId}/trace`).then((r) => r.eventi),
+
+  // Run: le esecuzioni riassunte, porta d'ingresso ai trace.
+  run: (filtro: { workflow?: string; esito?: string; limite?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (filtro.workflow) q.set("workflow", filtro.workflow);
+    if (filtro.esito) q.set("esito", filtro.esito);
+    if (filtro.limite) q.set("limite", String(filtro.limite));
+    const qs = q.toString();
+    return richiesta<{ run: RigaRun[] }>(`/runs${qs ? `?${qs}` : ""}`).then((r) => r.run);
+  },
+
+  // Golden set: la rete di regressione dell'Improver, ispezionabile e correggibile.
+  golden: (workflow?: string) =>
+    richiesta<{ golden: CasoGolden[] }>(
+      `/golden${workflow ? `?workflow=${encodeURIComponent(workflow)}` : ""}`,
+    ).then((r) => r.golden),
+
+  eliminaGolden: (id: string) =>
+    richiesta<{ rimosso: string }>(`/golden/${encodeURIComponent(id)}`, metodoJson("DELETE")),
+
+  // Scarto di un inserimento sbagliato, e ripristino.
+  scarta: (id: string, motivo: string) =>
+    richiesta<{ stato: string; golden_rimossi: string[]; segnalazioni_chiuse: string[] }>(
+      `/review/${id}/scarta`,
+      corpo({ motivo }),
+    ),
+
+  scartati: () => richiesta<{ scartati: Scartato[] }>("/scartati").then((r) => r.scartati),
+
+  ripristina: (id: string) =>
+    richiesta<{ id: string; stato: string }>(`/scartati/${id}/ripristina`, metodoJson("POST")),
+
+  // Toolsmith (F3): consolidamento di un calcolo ricorrente in un tool Python.
+  toolsmithCandidati: () =>
+    richiesta<{ candidati: CandidatoToolsmith[] }>("/toolsmith/candidati").then(
+      (r) => r.candidati,
+    ),
+
+  toolsmithProponi: (body: {
+    nome: string;
+    tipo: string;
+    campi_input: string[];
+    campo_output: string;
+    workflow?: string | null;
+  }) => richiesta<PropostaTool>("/toolsmith/proponi", corpo(body)),
+
+  toolsmithProposte: () =>
+    richiesta<{ proposte: PropostaTool[] }>("/toolsmith/proposte").then((r) => r.proposte),
+
+  toolsmithApprova: (id: string) =>
+    richiesta<EsitoApprovaProposta>(`/toolsmith/proposte/${id}/approve`, metodoJson("POST")),
+
+  toolsmithRifiuta: (id: string) =>
+    richiesta<{ id: string; stato: string }>(
+      `/toolsmith/proposte/${id}/reject`,
+      metodoJson("POST"),
+    ),
+
+  eliminaPytool: (nome: string) =>
+    richiesta<{ rimosso: string }>(`/dataset/pytool/${encodeURIComponent(nome)}`, {
+      method: "DELETE",
+    }),
+
+  // Idoneità T3: misura sul set validato. Costa token — solo su richiesta esplicita.
+  evalT3: () => richiesta<EvalT3>("/dataset/eval-t3"),
 
   chiediSql: (question: string) =>
     richiesta<EsitoAsk>("/ask", corpo({ question, mode: "admin" })),
@@ -505,6 +751,17 @@ export const admin = {
 
   archiviaDiagnosi: (id: string) =>
     richiesta<Diagnosi>(`/diagnoses/${id}/archive`, metodoJson("POST")),
+
+  // Integrazione ERP (M28): registro delle sincronizzazioni e recupero manuale.
+  erpStato: () => richiesta<ErpStato>("/erp/stato"),
+
+  erpRisincronizza: () => richiesta<ErpEsitoBatch>("/erp/risincronizza", metodoJson("POST")),
+
+  erpRisincronizzaUno: (entityId: string) =>
+    richiesta<ErpEsitoSingolo>(`/erp/risincronizza/${entityId}`, metodoJson("POST")),
+
+  erpRileggiPagamenti: () =>
+    richiesta<ErpEsitoPagamenti>("/erp/rileggi-pagamenti", metodoJson("POST")),
 
   // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
   entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),

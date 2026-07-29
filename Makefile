@@ -1,14 +1,17 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
-.PHONY: setup dev dev-api dev-web test seed fixtures samples demo lint
+.PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
+        seed reseed fixtures samples demo lint testbook-ask
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
 .SHELLFLAGS := /C
 PY := backend\.venv\Scripts\python.exe
 PYBOOT := py -3.12
+RMDATA := rmdir /s /q data
 else
 PY := backend/.venv/bin/python
 PYBOOT := python3.12
+RMDATA := rm -rf data
 endif
 
 setup: ## Prima installazione: venv backend + dipendenze frontend
@@ -29,7 +32,36 @@ dev-web:
 test: ## Test backend (pytest)
 	$(PY) -m pytest backend/tests
 
+test-erp: ## Solo i test dell'integrazione ERP (veloci, con trasporto finto)
+	$(PY) -m pytest backend/tests -m erp -v
+
+erp-smoke: ## Smoke test contro un ERPNext REALE (usa ERP_* dall'ambiente). Aggiungi ARGS=--full
+	$(PY) scripts/erp_smoke.py $(ARGS)
+
+testbook-ask: ## Pone al backend AVVIATO le domande di scripts/testbook_domande.json (costa token). ARGS=--token ...
+	$(PY) scripts/testbook_ask.py $(ARGS)
+
+erp-up: ## Avvia l'ERPNext di sviluppo (docker). La prima volta crea il sito: qualche minuto.
+	docker compose -f docker-compose.erpnext.yml up -d
+
+erp-down: ## Ferma l'ERPNext di sviluppo (mantiene i dati; aggiungi ARGS=-v per azzerare)
+	docker compose -f docker-compose.erpnext.yml down $(ARGS)
+
+erp-dev-setup: ## Prepara l'ERPNext di sviluppo (company, conti, articolo, API key) e stampa le ERP_*
+	docker compose -f docker-compose.erpnext.yml cp scripts/erp_dev_setup.py backend:/tmp/erp_dev_setup.py
+	docker compose -f docker-compose.erpnext.yml exec -T backend bash -lc "cd /home/frappe/frappe-bench/sites && ../env/bin/python /tmp/erp_dev_setup.py"
+
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
+	$(PY) -m app.seed
+
+# Ambiente da zero. Il `-` davanti alla rimozione è voluto: su Windows un handle
+# residuo (git.exe di GitPython, una connessione DuckDB, una shell col cwd dentro
+# data/) impedisce di togliere la *directory radice* anche a contenuto già
+# cancellato — e va bene, perché app.seed accetta una directory esistente vuota e
+# rifiuta solo quelle non vuote. ATTENZIONE: cancella il repo dati, storia git
+# inclusa.
+reseed: ## AZZERA ./data e lo ricrea dal seed (perde i dati e la loro storia)
+	-$(RMDATA)
 	$(PY) -m app.seed
 
 fixtures: ## Genera i PDF sintetici in ./fixtures (3 fatture + DDT/SAL/rapportino)
@@ -45,6 +77,6 @@ demo: ## Prepara la demo: seed (se serve) + fixtures + giro guidato
 	$(PY) -m app.fixtures_docs
 	@$(PY) -c "print('\n== Demo pronta ==\n- Utenti: salvo/1111 (operatore, cantiere Le Palme), giovanna/9999 (ufficio/admin)\n- Avvia tutto con:  make dev\n- Operatore: http://localhost:5173/op   Admin: http://localhost:5173/admin\n- Carica fixtures/fattura-studio-bianchi.pdf (ha la ritenuta): la v1.0 non la estrae.\n- Il giro completo (segnala -> Improver -> approva v1.1 -> ritenuta estratta) e in README.md\n')"
 
-lint: ## Ruff (backend) + ESLint (frontend)
-	$(PY) -m ruff check backend
+lint: ## Ruff (backend, scripts, training) + ESLint (frontend)
+	$(PY) -m ruff check backend scripts training
 	npm --prefix frontend run lint

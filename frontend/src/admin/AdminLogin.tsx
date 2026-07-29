@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { api, ErroreApi, type Sessione } from "../shared/api";
-import { Bottone, Errore } from "./ui";
+import { Button, Input } from "../ds";
+import { Errore } from "./ui";
 
 export default function AdminLogin({ onEntra }: { onEntra: (s: Sessione) => void }) {
   const [username, setUsername] = useState("");
@@ -22,28 +23,56 @@ export default function AdminLogin({ onEntra }: { onEntra: (s: Sessione) => void
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <form onSubmit={entra} className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-bold text-slate-800">Workflower · Ufficio</h1>
-        <p className="mb-6 mt-1 text-sm text-slate-500">Console di amministrazione</p>
-        <label className="mb-1 block text-sm font-medium text-slate-600">Nome utente</label>
-        <input
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          value={username}
-          autoFocus
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <label className="mb-1 block text-sm font-medium text-slate-600">Codice</label>
-        <input
-          type="password"
-          className="mb-5 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-        />
-        {errore ? <div className="mb-4"><Errore>{errore}</Errore></div> : null}
-        <Bottone variante="primario" type="submit" disabled={inCorso} style={{ width: "100%" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--background-secondary)",
+        padding: 24,
+      }}
+    >
+      <form
+        onSubmit={entra}
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          background: "var(--background-primary)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "var(--radius-lg)",
+          padding: 32,
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Workflower · Ufficio</h1>
+        <p style={{ margin: "4px 0 24px", fontSize: 14, color: "var(--text-secondary)" }}>
+          Console di amministrazione
+        </p>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            marginBottom: 24,
+          }}
+        >
+          <Input
+            label="Nome utente"
+            value={username}
+            autoFocus
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <Input
+            label="Codice"
+            type="password"
+            value={pin}
+            onChange={(e) => setPin(e.target.value)}
+          />
+        </div>
+        {errore ? <div style={{ marginBottom: 16 }}><Errore>{errore}</Errore></div> : null}
+        <Button variant="primary" size="md" type="submit" disabled={inCorso} style={{ width: "100%", justifyContent: "center" }}>
           {inCorso ? "Un attimo…" : "Entra"}
-        </Bottone>
+        </Button>
       </form>
     </div>
   );

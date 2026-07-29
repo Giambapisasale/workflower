@@ -22,6 +22,13 @@ FILE_TOOLCALLS = "toolcalls.jsonl"
 # Delta fra la bozza estratta e il dato validato dall'ufficio (§3.6 / M16): la
 # base minabile da cui il Toolsmith individua i calcoli/normalizzazioni ricorrenti.
 FILE_DERIVAZIONI = "derivazioni.jsonl"
+# Log append-only delle sincronizzazioni verso l'ERP (integrazione ERP, M25): ogni
+# tentativo (ok/errore) con il backref al documento contabile a valle. Audit + base
+# per il re-sync manuale (M28).
+FILE_ERP_SYNC = "erp_sync.jsonl"
+# Il workflow di ``/ask``: i suoi run non elaborano documenti, quindi il loro
+# costo va tenuto fuori dal "costo per documento" (vedi :func:`statistiche`).
+WORKFLOW_INTERROGA = "interroga"
 
 
 def fingerprint(sql: str) -> str:
@@ -36,8 +43,13 @@ def fingerprint(sql: str) -> str:
     return re.sub(r"\s+", " ", testo).strip()
 
 
-def registra_query(dal: DAL, domanda: str, sql: str) -> None:
-    """Appende la query generata al log del dataset e committa (mutazione = commit)."""
+def registra_query(dal: DAL, domanda: str, sql: str, *, committa: bool = True) -> Path:
+    """Appende la query generata al log del dataset. Ritorna il percorso scritto.
+
+    ``committa=False`` serve a chi ha altri file da mettere nello **stesso** commit:
+    un'interrogazione scrive qui e sul proprio trace, ed è un solo fatto — due
+    commit separati per lo stesso ``/ask`` sarebbero solo rumore nella storia.
+    """
     percorso = dal.data_dir / "dataset" / FILE_QUERY
     percorso.parent.mkdir(parents=True, exist_ok=True)
     record = {
@@ -48,7 +60,9 @@ def registra_query(dal: DAL, domanda: str, sql: str) -> None:
     }
     with percorso.open("a", encoding="utf-8") as file:
         file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    dal.commit_paths([percorso], "dataset: registra query di interroga [ask]")
+    if committa:
+        dal.commit_paths([percorso], "dataset: registra query di interroga [ask]")
+    return percorso
 
 
 def conteggio_fingerprint(data_dir: Path | str) -> list[dict[str, Any]]:
@@ -108,16 +122,30 @@ def run_id_validati(dal: DAL) -> set[str]:
     return validi
 
 
-def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
-    """Le tool call dei run validati, riformattate come esempi per il fine-tuning.
+def toolcalls_validati(dal: DAL) -> Iterator[dict[str, Any]]:
+    """Le tool call **integrali** dei run validati, provenienza compresa.
 
     ADR-5 (log-everything): solo i run la cui bozza è stata validata da un umano
-    diventano esempi (``validated_by_user``), per non insegnare al modello gli errori.
+    contano, per non insegnare al modello gli errori.
+
+    Sorgente unica di "quali tool call valgono": la usano l'export per il
+    fine-tuning (che ne proietta i soli campi utili al training) e l'harness T3,
+    che invece ha bisogno del ``run_id`` per risalire al documento originale.
     """
     validi = run_id_validati(dal)
     for record in _righe_toolcalls(dal.data_dir):
         if record.get("outcome") != "success" or record.get("run_id") not in validi:
             continue
+        yield record
+
+
+def esempi_finetuning(dal: DAL) -> Iterator[dict[str, Any]]:
+    """Le tool call dei run validati, riformattate come esempi per il fine-tuning.
+
+    La proiezione è volutamente stretta: nel file di training la provenienza
+    (``run_id``, esito, timestamp) sarebbe rumore.
+    """
+    for record in toolcalls_validati(dal):
         yield {
             "workflow": record.get("workflow"),
             "tools": record.get("tools"),
@@ -202,6 +230,53 @@ def leggi_derivazioni(data_dir: Path | str) -> list[dict[str, Any]]:
     return voci
 
 
+def registra_sync_erp(
+    dal: DAL,
+    *,
+    entity_id: str,
+    esito: str,
+    erp_id: str | None = None,
+    errore: str | None = None,
+    run_id: str | None = None,
+) -> None:
+    """Appende al ledger un tentativo di sincronizzazione ERP e committa.
+
+    Stesso pattern di :func:`registra_query`/:func:`registra_derivazione`: file
+    append-only in ``dataset/`` + commit via il DAL (mutazione = commit). Registra
+    sia i successi (con ``erp_id``) sia i fallimenti (con ``errore``), così il
+    re-sync manuale (M28) sa cosa è rimasto indietro.
+    """
+    percorso = dal.data_dir / "dataset" / FILE_ERP_SYNC
+    percorso.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "ts": now_iso(),
+        "entity_id": entity_id,
+        "esito": esito,
+        "erp_id": erp_id,
+        "errore": errore,
+        "run_id": run_id,
+    }
+    with percorso.open("a", encoding="utf-8") as file:
+        file.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    dal.commit_paths([percorso], f"erp: sync {entity_id} {esito} [{run_id or 'manual'}]")
+
+
+def leggi_sync_erp(data_dir: Path | str) -> list[dict[str, Any]]:
+    """Le righe del ledger di sincronizzazione ERP (audit + input del re-sync)."""
+    percorso = Path(data_dir) / "dataset" / FILE_ERP_SYNC
+    if not percorso.is_file():
+        return []
+    voci: list[dict[str, Any]] = []
+    for riga in percorso.read_text(encoding="utf-8").splitlines():
+        if not riga.strip():
+            continue
+        try:
+            voci.append(json.loads(riga))
+        except json.JSONDecodeError:
+            continue
+    return voci
+
+
 def statistiche(data_dir: Path | str) -> dict[str, Any]:
     """Aggregati dai trace: run, tool call, costo LLM, costo per documento."""
     base = Path(data_dir)
@@ -209,10 +284,12 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
     costo = 0.0
     per_workflow: Counter[str] = Counter()
     escalation_wf: Counter[str] = Counter()
+    costo_wf: Counter[str] = Counter()
     for trace in (base / "traces").glob("*/*/*.jsonl"):
         avviato = False
         outcome = workflow = None
         escalato = False
+        costo_run = 0.0
         for riga in trace.read_text(encoding="utf-8").splitlines():
             try:
                 ev = json.loads(riga)
@@ -226,7 +303,7 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
                     outcome = ev.get("outcome")
                 case "llm_call":
                     n_llm += 1
-                    costo += float(ev.get("cost_usd") or 0)
+                    costo_run += float(ev.get("cost_usd") or 0)
                 case "tool_call":
                     n_tool += 1
                 case "escalation":
@@ -234,7 +311,9 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         if not avviato:
             continue
         n_run += 1
+        costo += costo_run
         per_workflow[workflow or "?"] += 1
+        costo_wf[workflow or "?"] += costo_run
         if escalato:
             escalation_wf[workflow or "?"] += 1
         if outcome == "ok":
@@ -245,6 +324,12 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
     # i documenti sono partizionati per anno (entities/documenti/AAAA/DOC-…): rglob
     n_documenti = len(list((base / "entities" / "documenti").rglob("DOC-*.json")))
     n_toolcalls = _conta_righe(base / "dataset" / "toolcalls.jsonl")
+    # Da quando ``/ask`` è tracciato, il costo totale comprende anche le
+    # interrogazioni: dividerlo per i documenti darebbe un "costo per documento"
+    # gonfiato da domande che non elaborano documenti. I due costi restano
+    # separati perché rispondono a due domande diverse (§3.1).
+    costo_interrogazioni = costo_wf[WORKFLOW_INTERROGA]
+    costo_documenti = costo - costo_interrogazioni
     return {
         "run": {"totale": n_run, "ok": n_ok, "errore": n_errore},
         "llm_call": n_llm,
@@ -252,7 +337,17 @@ def statistiche(data_dir: Path | str) -> dict[str, Any]:
         "toolcalls_dataset": n_toolcalls,
         "costo_totale_usd": round(costo, 6),
         "documenti": n_documenti,
-        "costo_per_documento_usd": round(costo / n_documenti, 6) if n_documenti else 0.0,
+        "costo_documenti_usd": round(costo_documenti, 6),
+        "costo_interrogazioni_usd": round(costo_interrogazioni, 6),
+        "interrogazioni": per_workflow[WORKFLOW_INTERROGA],
+        "costo_per_documento_usd": (
+            round(costo_documenti / n_documenti, 6) if n_documenti else 0.0
+        ),
+        "costo_per_interrogazione_usd": (
+            round(costo_interrogazioni / per_workflow[WORKFLOW_INTERROGA], 6)
+            if per_workflow[WORKFLOW_INTERROGA]
+            else 0.0
+        ),
         "run_per_workflow": dict(per_workflow),
         "escalation": {
             "totale": sum(escalation_wf.values()),

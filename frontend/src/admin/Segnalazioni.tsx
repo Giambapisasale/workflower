@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { admin } from "./api";
 import { dataBreve, euro, useCarica } from "./formato";
 import TracePanel from "./TracePanel";
-import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+import { Badge, Bottone, BottoneVerso, Card, Errore, MONO, Stato } from "./ui";
 
 // v1: unico workflow d'ingresso documenti (vedi documents.WORKFLOW_UPLOAD)
 const WORKFLOW_DOC = "carica-fattura";
@@ -43,40 +43,61 @@ export default function Segnalazioni() {
       {issues.length === 0 ? (
         <Stato>Nessuna segnalazione. Tutto tranquillo.</Stato>
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {issues.map((i) => (
             <div
               key={i.id}
-              className={`rounded-lg border p-4 ${
-                i.stato === "aperta" ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-70"
-              }`}
+              style={{
+                border: "1px solid var(--border-color)",
+                borderRadius: "var(--radius)",
+                padding: 16,
+                opacity: i.stato === "aperta" ? 1 : 0.7,
+              }}
             >
-              <div className="mb-1 flex items-center gap-2 text-xs">
-                <span className="font-mono text-slate-400">{i.id}</span>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                  fontSize: 12,
+                }}
+              >
+                <span style={{ ...MONO, whiteSpace: "nowrap", color: "var(--text-secondary)" }}>
+                  {i.id}
+                </span>
                 <Badge tono={i.origine === "operatore" ? "blu" : "grigio"}>{i.origine}</Badge>
                 <Badge tono={i.stato === "aperta" ? "giallo" : "verde"}>{i.stato}</Badge>
-                <span className="text-slate-400">{dataBreve(i.created)}</span>
+                <span style={{ color: "var(--text-secondary)" }}>{dataBreve(i.created)}</span>
               </div>
-              <p className="text-sm text-slate-800">{i.testo}</p>
+              <p style={{ margin: 0, fontSize: 14 }}>{i.testo}</p>
               {i.entita ? (
-                <div className="mt-1 text-xs text-slate-500">
+                <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>
                   {i.entita.fornitore ? `${i.entita.fornitore} · ` : ""}
                   {i.entita.totale !== undefined ? euro(i.entita.totale) : ""}
                 </div>
               ) : null}
-              <div className="mt-3 flex items-center gap-3 text-sm">
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
                 {i.entity_id ? (
-                  <Link className="font-medium text-sky-700 hover:underline" to={`/admin/revisione/${i.entity_id}`}>
+                  <BottoneVerso a={`/admin/revisione/${i.entity_id}`} variante="primario">
                     Rivedi
-                  </Link>
+                  </BottoneVerso>
                 ) : null}
                 {i.run_id ? (
-                  <button
-                    className="text-sky-700 hover:underline"
+                  <Bottone
                     onClick={() => setTraceAperto(traceAperto === i.run_id ? null : i.run_id)}
                   >
-                    {traceAperto === i.run_id ? "Nascondi trace" : "Trace"}
-                  </button>
+                    {traceAperto === i.run_id ? "Nascondi trace" : "Mostra trace"}
+                  </Bottone>
                 ) : null}
                 {i.stato === "aperta" && i.run_id ? (
                   <Bottone
@@ -94,7 +115,7 @@ export default function Segnalazioni() {
                 ) : null}
               </div>
               {traceAperto === i.run_id && i.run_id ? (
-                <div className="mt-3">
+                <div style={{ marginTop: 14 }}>
                   <TracePanel runId={i.run_id} />
                 </div>
               ) : null}

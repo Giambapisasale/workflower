@@ -18,12 +18,12 @@
         "properties": {
           "nominativo": {
             "type": ["string", "null"],
-            "description": "Nome del lavoratore o della squadra; null se il lavoratore è un dipendente collegato (nome dal profilo)"
+            "description": "Nome del lavoratore o della squadra, come scritto sul documento; null solo se il documento non lo riporta"
           },
           "dipendente_id": {
             "type": ["string", "null"],
             "pattern": "^DIP-\\d{3,}$",
-            "description": "Dipendente interno che ha svolto le ore; se valorizzato, la tariffa arriva dal suo profilo"
+            "description": "Dipendente interno che ha svolto le ore, risolto con cerca_dipendente; se valorizzato, la tariffa arriva dal suo profilo. null per i lavoratori di terzi e le squadre"
           },
           "mansione": {
             "type": ["string", "null"],
@@ -32,7 +32,7 @@
           "ore": { "type": "number", "minimum": 0, "description": "Ore lavorate nella giornata" },
           "costo_orario": {
             "type": ["number", "null"],
-            "description": "Costo orario in euro, se indicato sul documento; null se la tariffa arriva dal profilo del dipendente"
+            "description": "Costo orario in euro come indicato sul documento, anche se il lavoratore è un dipendente collegato; null se il documento non lo riporta"
           },
           "attivita": {
             "type": ["array", "null"],

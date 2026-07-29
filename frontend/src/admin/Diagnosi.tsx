@@ -3,11 +3,10 @@
  * `architettura` = sola analisi sul codice-cornice. Nulla si applica da qui. */
 
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import type { Diagnosi as TDiagnosi } from "./api";
 import { admin } from "./api";
 import { dataBreve } from "./formato";
-import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+import { Badge, Bottone, BottoneVerso, Card, Errore, Stato } from "./ui";
 
 const STATI = [
   { v: "proposta", etichetta: "Aperte" },
@@ -44,9 +43,9 @@ function Azione({ d }: { d: TDiagnosi }) {
   if (a.tipo === "improver" && a.workflow) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <Link to="/admin/workflows">
-          <Bottone variante="primario">Apri nell'Improver ({a.workflow})</Bottone>
-        </Link>
+        <BottoneVerso a="/admin/workflows" variante="primario">
+          Apri nell'Improver ({a.workflow})
+        </BottoneVerso>
         {a.dettaglio ? <span className="text-xs text-slate-500">{a.dettaglio}</span> : null}
       </div>
     );

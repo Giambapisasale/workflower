@@ -1,11 +1,13 @@
-/** Skills & Tools (M12): tool nativi (Python), dataset di fine-tuning, e
- *  consolidamento delle query ricorrenti di “Interroga” in viste (v_*) o in
- *  tool parametrici (t_*) — le due forme del §3.6, entrambe dato, non codice. */
+/** Skills & Tools: il registry dei tool, il dataset di fine-tuning e le **tre
+ *  forme** di consolidamento del §3.6, tutte dato e non codice:
+ *  viste (`v_*`), tool parametrici (`t_*`) e funzioni Python del Toolsmith
+ *  (`data/tools/`, in fondo alla pagina). */
 
 import { useState } from "react";
 import { ErroreApi } from "../shared/api";
 import { admin } from "./api";
 import { dataBreve, useCarica } from "./formato";
+import Toolsmith from "./Toolsmith";
 import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
 type Modo = "vista" | "tool";
@@ -150,9 +152,10 @@ export default function SkillsTools() {
 
       <Card titolo="Tool nativi (Python)">
         <p className="mb-3 text-sm text-slate-600">
-          Funzioni deterministiche di sistema che i workflow di caricamento invocano durante
-          l'estrazione. Sono il set fisso incluso nell'app: non nascono dal consolidamento delle
-          query (quelli sono viste e tool parametrici, qui sotto).
+          Funzioni deterministiche che i workflow di caricamento invocano durante l'estrazione.
+          Quelle marcate <b>nativa</b> sono il set fisso incluso nell'app; quelle{" "}
+          <b>consolidata dal Toolsmith</b> sono nate da un calcolo ricorrente e vivono in{" "}
+          <code>data/tools/</code> — dato versionato, quindi rimovibile.
         </p>
         <table className="w-full text-sm">
           <thead>
@@ -161,6 +164,8 @@ export default function SkillsTools() {
               <th className="pb-2">Cosa fa</th>
               <th className="pb-2 text-right">Usi</th>
               <th className="pb-2">Ciclo di vita</th>
+              <th className="pb-2">Origine</th>
+              <th className="pb-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -172,11 +177,28 @@ export default function SkillsTools() {
                 <td className="py-2">
                   <Badge tono="verde">{t.ciclo}</Badge>
                 </td>
+                <td className="py-2">
+                  {t.origine === "pytool" ? (
+                    <Badge tono="blu">Toolsmith</Badge>
+                  ) : (
+                    <Badge tono="grigio">nativa</Badge>
+                  )}
+                </td>
+                <td className="py-2 text-right">
+                  {t.origine === "pytool" ? azioniRimozione(t.name, admin.eliminaPytool) : null}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {erroreRim && conferma && reg.tools.some((t) => t.name === conferma) ? (
+          <div className="mt-3">
+            <Errore>{erroreRim}</Errore>
+          </div>
+        ) : null}
       </Card>
+
+      <Toolsmith />
 
       <Card titolo="Query ricorrenti — candidate al consolidamento">
         <p className="mb-3 text-sm text-slate-600">

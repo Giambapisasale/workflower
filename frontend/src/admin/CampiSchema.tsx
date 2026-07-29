@@ -7,6 +7,9 @@
  */
 
 import type { JsonSchema, VoceEntita } from "./api";
+import { Input, Select } from "../ds";
+import type { SelectItem } from "../ds";
+import { Bottone, EtichettaCampo } from "./ui";
 
 type Opzioni = Record<string, VoceEntita[]>; // tipo → voci per i picker
 type Etichette = Record<string, string>; // tipo → etichetta
@@ -19,6 +22,8 @@ type Props = {
   opzioni: Opzioni;
   etichette: Etichette;
 };
+
+const LARGO = { width: "100%" } as const;
 
 function tipiDi(schema: JsonSchema): string[] {
   return Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : [];
@@ -52,10 +57,6 @@ function valoreDefault(schema: JsonSchema): unknown {
   return "";
 }
 
-function classeInput(): string {
-  return "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-sky-400 focus:outline-none";
-}
-
 /** Un campo scalare (o riferimento) dello schema. */
 function Campo({
   schema,
@@ -76,31 +77,31 @@ function Campo({
 }) {
   const tipi = tipiDi(schema);
   const puoEsserVuoto = !obbligatorio || nullable(schema);
-  const comune = (
-    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
-      {etichetta}
-      {obbligatorio ? <span className="text-red-500"> *</span> : null}
-    </label>
-  );
+  const intestazione = <EtichettaCampo obbligatorio={obbligatorio}>{etichetta}</EtichettaCampo>;
+
+  /** Il picker del design system non ha la voce vuota: la si aggiunge in testa. */
+  function scelta(voci: SelectItem[], vuoto: string) {
+    return (
+      <Select
+        items={puoEsserVuoto ? [{ value: "", textValue: vuoto }, ...voci] : voci}
+        placeholder={puoEsserVuoto ? vuoto : "— scegli —"}
+        value={(valore as string) ?? ""}
+        onValueChange={(v) => onChange(v || (puoEsserVuoto ? null : ""))}
+        style={LARGO}
+      />
+    );
+  }
 
   // Riferimento a un'altra entità → picker
   if (tipoRiferimento) {
-    const voci = opzioni[tipoRiferimento] ?? [];
+    const voci = (opzioni[tipoRiferimento] ?? []).map((v) => ({
+      value: v.id,
+      textValue: v.titolo ?? v.id,
+    }));
     return (
       <div>
-        {comune}
-        <select
-          className={classeInput()}
-          value={(valore as string) ?? ""}
-          onChange={(e) => onChange(e.target.value || (puoEsserVuoto ? null : ""))}
-        >
-          <option value="">{puoEsserVuoto ? "— nessuno —" : "— scegli —"}</option>
-          {voci.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.titolo ?? v.id}
-            </option>
-          ))}
-        </select>
+        {intestazione}
+        {scelta(voci, "— nessuno —")}
         {schema.description ? <Nota testo={schema.description} /> : null}
       </div>
     );
@@ -108,21 +109,11 @@ function Campo({
 
   // enum → select
   if (schema.enum) {
+    const voci = schema.enum.map((v) => ({ value: String(v), textValue: String(v) }));
     return (
       <div>
-        {comune}
-        <select
-          className={classeInput()}
-          value={(valore as string) ?? ""}
-          onChange={(e) => onChange(e.target.value || (puoEsserVuoto ? null : ""))}
-        >
-          {puoEsserVuoto ? <option value="">— nessuno —</option> : null}
-          {schema.enum.map((v) => (
-            <option key={String(v)} value={String(v)}>
-              {String(v)}
-            </option>
-          ))}
-        </select>
+        {intestazione}
+        {scelta(voci, "— nessuno —")}
       </div>
     );
   }
@@ -131,11 +122,11 @@ function Campo({
   if (tipi.includes("number") || tipi.includes("integer")) {
     return (
       <div>
-        {comune}
-        <input
+        {intestazione}
+        <Input
           type="number"
           step="any"
-          className={classeInput()}
+          style={LARGO}
           value={valore === null || valore === undefined ? "" : String(valore)}
           onChange={(e) => {
             const raw = e.target.value;
@@ -153,10 +144,10 @@ function Campo({
   if (schema.format === "date") {
     return (
       <div>
-        {comune}
-        <input
+        {intestazione}
+        <Input
           type="date"
-          className={classeInput()}
+          style={LARGO}
           value={(valore as string) ?? ""}
           onChange={(e) => onChange(e.target.value || (puoEsserVuoto ? null : ""))}
         />
@@ -167,10 +158,10 @@ function Campo({
   // testo (default)
   return (
     <div>
-      {comune}
-      <input
+      {intestazione}
+      <Input
         type="text"
-        className={classeInput()}
+        style={LARGO}
         value={(valore as string) ?? ""}
         onChange={(e) => onChange(e.target.value === "" && puoEsserVuoto ? null : e.target.value)}
       />
@@ -180,7 +171,9 @@ function Campo({
 }
 
 function Nota({ testo }: { testo: string }) {
-  return <p className="mt-1 text-xs text-slate-400">{testo}</p>;
+  return (
+    <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-secondary)" }}>{testo}</p>
+  );
 }
 
 /** Un array di oggetti (righe di fattura/DDT, voci di computo): sotto-form ripetibili. */
@@ -216,33 +209,59 @@ function CampoArray({
   const rimuovi = (i: number) => onChange(righe.filter((_, j) => j !== i));
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+    <div
+      style={{
+        gridColumn: "1 / -1",
+        border: "1px solid var(--border-color)",
+        borderRadius: "var(--radius)",
+        background: "var(--background-secondary)",
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <EtichettaCampo>
           {etichetta} ({righe.length})
-        </span>
-        <button
-          type="button"
-          onClick={nuovaRiga}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          + Aggiungi
-        </button>
+        </EtichettaCampo>
+        <Bottone onClick={nuovaRiga}>+ Aggiungi</Bottone>
       </div>
-      <div className="space-y-3">
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {righe.map((riga, i) => (
-          <div key={i} className="rounded-lg border border-slate-200 bg-white p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs text-slate-400">#{i + 1}</span>
-              <button
-                type="button"
-                onClick={() => rimuovi(i)}
-                className="text-xs font-medium text-red-600 hover:underline"
-              >
+          <div
+            key={i}
+            style={{
+              border: "1px solid var(--border-color)",
+              borderRadius: "var(--radius)",
+              background: "var(--background-primary)",
+              padding: 16,
+            }}
+          >
+            <div
+              style={{
+                marginBottom: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>#{i + 1}</span>
+              <Bottone variante="pericolo" onClick={() => rimuovi(i)}>
                 Rimuovi
-              </button>
+              </Bottone>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 16,
+              }}
+            >
               {Object.entries(props).map(([k, s]) => (
                 <Campo
                   key={k}
@@ -259,7 +278,9 @@ function CampoArray({
           </div>
         ))}
         {righe.length === 0 ? (
-          <p className="text-sm text-slate-400">Nessuna riga. Usa “+ Aggiungi”.</p>
+          <p style={{ margin: 0, fontSize: 14, color: "var(--text-secondary)" }}>
+            Nessuna riga. Usa “+ Aggiungi”.
+          </p>
         ) : null}
       </div>
     </div>
@@ -279,7 +300,13 @@ export default function CampiSchema({
   const imposta = (campo: string, v: unknown) => onChange({ ...valore, [campo]: v });
 
   return (
-    <div className="space-y-4">
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+        gap: 20,
+      }}
+    >
       {Object.entries(props).map(([campo, sotto]) => {
         const isArray = tipiDi(sotto).includes("array");
         // Oggetti freeform (es. `riferimenti_estratti`) non hanno un editor: si

@@ -11,7 +11,6 @@ Riservato all'ufficio (admin). Le voci create a mano nascono già ``validato`` (
 le inserisce è l'autorità, come il seed) e senza documento allegato.
 """
 
-import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +24,13 @@ from app.core.dal import (
     TIPI_INGRESSO,
     DalError,
     SchemaValidationError,
+)
+from app.core.riferimenti import (
+    campi_riferimento,
+    messaggio_referenti,
+    referenti,
+    schema_entita,
+    verifica_riferimenti,
 )
 from app.models.envelope import Meta
 
@@ -42,88 +48,6 @@ TIPI_GESTIBILI = [t for t in ENTITY_TYPES if t != "documento"]
 def _assicura_gestibile(tipo: str) -> None:
     if tipo not in TIPI_GESTIBILI:
         raise HTTPException(status_code=404, detail=f"tipo non gestibile a mano: {tipo}")
-
-
-def _schema(dal: DAL, tipo: str) -> dict[str, Any]:
-    percorso = dal.data_dir / "schemas" / f"{tipo}.schema.json"
-    return json.loads(percorso.read_text(encoding="utf-8"))
-
-
-def _campi_riferimento(schema: dict[str, Any]) -> dict[str, str]:
-    """{campo: tipo} per i campi il cui ``pattern`` combacia con la regex id di un
-    tipo entità (es. ``fornitore_id`` → ``fornitore``). Guarda anche dentro gli
-    array (``righe``/``voci``); ``voce_computo_id`` non ha pattern e resta fuori,
-    è il caso a parte del computo gestito da :func:`_referenti`."""
-    trovati: dict[str, str] = {}
-
-    def scan(proprieta: dict[str, Any] | None) -> None:
-        for nome, spec in (proprieta or {}).items():
-            if not isinstance(spec, dict):
-                continue
-            pattern = spec.get("pattern")
-            if pattern:
-                for tipo, regola in ENTITY_TYPES.items():
-                    if regola["id"].pattern == pattern:
-                        trovati[nome] = tipo
-            tipo_spec = spec.get("type")
-            e_array = tipo_spec == "array" or (
-                isinstance(tipo_spec, list) and "array" in tipo_spec
-            )
-            if e_array:
-                scan((spec.get("items") or {}).get("properties"))
-
-    scan(schema.get("properties"))
-    return trovati
-
-
-def _voci_computo(dal: DAL, computo_id: str) -> set[str]:
-    try:
-        computo = dal.read("computo", computo_id)
-    except DalError:
-        return set()
-    return {v.get("id") for v in (computo.dati.get("voci") or []) if v.get("id")}
-
-
-def _referenti(dal: DAL, tipo: str, entity_id: str) -> list[str]:
-    """Gli id delle entità che referenziano ``entity_id`` (guardia di eliminazione).
-
-    Scansione robusta via ``list_all`` (non le viste, che su un tipo vuoto non si
-    devono nemmeno interrogare). Copre i riferimenti ``*_id`` derivati dagli schemi
-    e, per il computo, i ``voce_computo_id`` delle righe che puntano alle sue voci.
-    """
-    voci = _voci_computo(dal, entity_id) if tipo == "computo" else set()
-    referenti: list[str] = []
-    for altro in TIPI_GESTIBILI:
-        campi = [c for c, t in _campi_riferimento(_schema(dal, altro)).items() if t == tipo]
-        controlla_voci = tipo == "computo" and altro in ("fattura", "ddt")
-        if not campi and not controlla_voci:
-            continue
-        for entita in dal.list_all(altro):
-            righe = entita.dati.get("righe") or []
-            per_campo = any(entita.dati.get(c) == entity_id for c in campi)
-            # riferimento annidato nelle righe (es. ``mezzo_id`` su una riga fattura)
-            per_riga = any(r.get(c) == entity_id for r in righe for c in campi)
-            per_voce = controlla_voci and any(
-                r.get("voce_computo_id") in voci for r in righe
-            )
-            if per_campo or per_riga or per_voce:
-                referenti.append(entita.id)
-    return referenti
-
-
-def _verifica_riferimenti(dal: DAL, tipo: str, dati: dict[str, Any]) -> list[str]:
-    """I riferimenti (``fornitore_id``/``cantiere_id``…) che puntano a entità
-    inesistenti: lo schema valida il formato dell'id, non la sua esistenza."""
-    mancanti = []
-    for campo, target in _campi_riferimento(_schema(dal, tipo)).items():
-        valore = dati.get(campo)
-        if not valore:
-            continue
-        try:
-            dal.read(target, str(valore))
-        except DalError:
-            mancanti.append(f"{ENTITY_TYPES[target]['etichetta']} {valore} non esiste")
-    return mancanti
 
 
 def _scollega_documento(dal: DAL, entity_id: str, attore: str) -> None:
@@ -169,7 +93,7 @@ def meta(
     """Catalogo dei tipi gestibili con il loro schema: alimenta i form generici."""
     tipi = []
     for tipo in TIPI_GESTIBILI:
-        schema = _schema(dal, tipo)
+        schema = schema_entita(dal, tipo)
         tipi.append(
             {
                 "tipo": tipo,
@@ -177,7 +101,7 @@ def meta(
                 "is_master": tipo not in TIPI_INGRESSO,
                 "per_anno": ENTITY_TYPES[tipo]["per_anno"],
                 "schema": schema,
-                "riferimenti": _campi_riferimento(schema),
+                "riferimenti": campi_riferimento(schema),
             }
         )
     return {"tipi": tipi}
@@ -226,7 +150,7 @@ def crea(
 ) -> dict[str, Any]:
     """Crea una voce a mano: nasce ``validato`` (l'ufficio è l'autorità), niente blob."""
     _assicura_gestibile(tipo)
-    mancanti = _verifica_riferimenti(dal, tipo, body.dati)
+    mancanti = verifica_riferimenti(dal, tipo, body.dati)
     if mancanti:
         raise HTTPException(status_code=422, detail="; ".join(mancanti))
     try:
@@ -258,7 +182,7 @@ def aggiorna(
         esistente = dal.read(tipo, entity_id)
     except DalError as exc:
         raise HTTPException(status_code=404, detail="entità non trovata") from exc
-    mancanti = _verifica_riferimenti(dal, tipo, body.dati)
+    mancanti = verifica_riferimenti(dal, tipo, body.dati)
     if mancanti:
         raise HTTPException(status_code=422, detail="; ".join(mancanti))
     env = esistente.model_copy(deep=True)
@@ -285,15 +209,10 @@ def elimina(
         dal.read(tipo, entity_id)
     except DalError as exc:
         raise HTTPException(status_code=404, detail="entità non trovata") from exc
-    referenti = _referenti(dal, tipo, entity_id)
-    if referenti:
-        elenco = ", ".join(referenti[:8]) + ("…" if len(referenti) > 8 else "")
+    usato_da = referenti(dal, tipo, entity_id)
+    if usato_da:
         raise HTTPException(
-            status_code=409,
-            detail=(
-                f"{ENTITY_TYPES[tipo]['etichetta']} {entity_id} è ancora usato da "
-                f"{len(referenti)} documenti ({elenco}): rimuovi o sposta prima i collegamenti."
-            ),
+            status_code=409, detail=messaggio_referenti(tipo, entity_id, usato_da)
         )
     if tipo in TIPI_INGRESSO:
         _scollega_documento(dal, entity_id, admin.username)

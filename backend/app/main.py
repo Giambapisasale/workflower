@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
+from app.core.erp import ErpClient
 from app.core.gateway import Gateway
 from app.core.logbook import configura_logging, ottieni_logger, registra_osservatore
 
@@ -16,15 +17,21 @@ from app.core.logbook import configura_logging, ottieni_logger, registra_osserva
 _DEBOUNCE_DIAGNOSTICA = 3.0
 
 
-def create_app(data_dir: Path | str | None = None, gateway: Gateway | None = None) -> FastAPI:
-    """App FastAPI. ``data_dir`` e ``gateway`` sono iniettabili per i test.
+def create_app(
+    data_dir: Path | str | None = None,
+    gateway: Gateway | None = None,
+    erp: ErpClient | None = None,
+) -> FastAPI:
+    """App FastAPI. ``data_dir``, ``gateway`` ed ``erp`` sono iniettabili per i test.
 
     Il DAL nasce alla prima richiesta che ne ha bisogno (vedi api/deps.py):
-    l'app parte anche senza repo dati, l'health check non lo richiede.
+    l'app parte anche senza repo dati, l'health check non lo richiede. Il client
+    ERP è sempre presente ma inattivo finché le env ``ERP_*`` non sono configurate.
     """
     app = FastAPI(title="Workflower", version="0.1.0")
     app.state.data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data")).resolve()
     app.state.gateway = gateway or Gateway()
+    app.state.erp = erp or ErpClient()
     livello = configura_logging(app.state.data_dir)
     ottieni_logger("avvio").info(
         "app avviata (data_dir=%s, log=%s)", app.state.data_dir, livello

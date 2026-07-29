@@ -53,6 +53,7 @@ SKELETON = [
     "entities/sal/2026",
     "entities/rapportini/2026",
     "entities/documenti",
+    "entities/pagamenti",
     "blobs/fatture/2026",
     "blobs/caricati",
     "schemas",
@@ -64,6 +65,10 @@ SKELETON = [
     "patches",
     "diagnoses",
     "config",
+    # Documenti scartati dall'ufficio: fuori da ``entities/`` di proposito, così
+    # nessuna vista li vede (globbano ``entities/<dir>/…``) e restano comunque
+    # dato versionato e ripristinabile.
+    "scartati",
 ]
 
 README = """# Repo dati Workflower
@@ -160,18 +165,25 @@ def _seed_golden(dal: DAL) -> None:
 
     La fixture CON ritenuta è volutamente esclusa: è lo scenario che l'Improver
     dovrà imparare a gestire (M5), non un caso già validato in passato.
+
+    Gli originali si **copiano** da ``seed_assets/samples/`` (asset versionati,
+    package-data) invece di ridisegnarli: così il golden set esiste anche
+    nell'immagine di produzione, dove reportlab non è installato. Se ci fosse un
+    solo caso golden, il replay dell'Improver perderebbe quasi tutto il suo
+    valore di rete di sicurezza.
     """
-    try:
-        from app import fixtures
-    except Exception:
-        return  # reportlab assente (dipendenza dev): il golden serve a demo/M5
+    from app import fixtures  # FIXTURES e dati_attesi sono dato puro, non disegnano
+
     cartella = dal.data_dir / "blobs" / "golden"
     cartella.mkdir(parents=True, exist_ok=True)
     for spec in fixtures.FIXTURES:
         if spec["ritenuta"] is not None:
             continue
+        sorgente = ASSETS / "samples" / spec["file"]
+        if not sorgente.is_file():
+            continue  # asset non presente: si salta il caso, il seed non cade
         percorso = cartella / spec["file"]
-        fixtures.disegna(percorso, spec)
+        shutil.copy(sorgente, percorso)
         dal.commit_paths([percorso], f"golden: allega originale {spec['file']} [seed]")
         dal.crea_golden(
             workflow="carica-fattura",

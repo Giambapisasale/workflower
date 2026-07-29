@@ -1,12 +1,13 @@
-/** "I miei documenti": elenco a semaforo 🟢🟡🔴, tap per il dettaglio. */
+/** "I miei documenti": elenco a semaforo, tap per il dettaglio. */
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, type DocumentoVista } from "../shared/api";
-import { PALLINO, quandoLeggibile, TESTI } from "./testi";
-import { Card, Indietro, Titolo } from "./ui";
+import { quandoLeggibile, TESTI } from "./testi";
+import { Card, Colonna, Indietro, Pallino, Titolo } from "./ui";
 
 export default function Documenti() {
+  const naviga = useNavigate();
   const [documenti, setDocumenti] = useState<DocumentoVista[] | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ export default function Documenti() {
 
   return (
     <div>
-      <Indietro a="/op" />
+      <Indietro onClick={() => naviga("/op")} />
       <Titolo>{TESTI.titoloDocumenti}</Titolo>
 
       {avviso ? (
@@ -27,25 +28,39 @@ export default function Documenti() {
           <b>{avviso}</b>
         </Card>
       ) : documenti === null ? (
-        <p className="text-neutral-500">{TESTI.caricamento}</p>
+        <p style={{ color: "var(--text-secondary)" }}>{TESTI.caricamento}</p>
       ) : documenti.length === 0 ? (
         <Card>{TESTI.nessunDocumento}</Card>
       ) : (
-        <div>
+        <Colonna gap={12}>
           {documenti.map((doc) => (
             <Link
               key={doc.id}
               to={`/op/documenti/${doc.id}`}
-              className="mb-3 flex min-h-[64px] items-center gap-3 rounded-2xl border-2 border-neutral-300 p-4 active:bg-neutral-100"
+              className="wf-riga-documento"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                minHeight: 64,
+                background: "var(--background-primary)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "var(--radius)",
+                padding: 14,
+                color: "var(--text-primary)",
+                textDecoration: "none",
+              }}
             >
-              <span className="text-2xl">{PALLINO[doc.semaforo]}</span>
+              <Pallino semaforo={doc.semaforo} alto />
               <span>
                 <b>{doc.titolo}</b> · {quandoLeggibile(doc.quando)}
-                <span className="block text-neutral-500">{doc.messaggio}</span>
+                <span style={{ display: "block", color: "var(--text-secondary)" }}>
+                  {doc.messaggio}
+                </span>
               </span>
             </Link>
           ))}
-        </div>
+        </Colonna>
       )}
     </div>
   );

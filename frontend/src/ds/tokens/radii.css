@@ -1,0 +1,8 @@
+/* Aitho Design UI — radius tokens (from lib/main.css :root). */
+
+:root {
+  --radius-sm: 0.25rem;
+  --radius: 0.438rem;
+  --radius-lg: 0.625rem;
+  --radius-full: 9999px;
+}

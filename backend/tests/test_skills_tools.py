@@ -55,7 +55,14 @@ def test_endpoint_tools_registry(client: TestClient, fixtures_dir: Path) -> None
     corpo = client.get("/api/tools", headers=intestazioni).json()
 
     per_nome = {t["name"]: t for t in corpo["tools"]}
-    attesi = {"ocr_pdf", "cerca_fornitore", "cerca_cantiere", "salva_bozza", "cerca_voce_computo"}
+    attesi = {
+        "ocr_pdf",
+        "cerca_fornitore",
+        "cerca_cantiere",
+        "cerca_dipendente",
+        "salva_bozza",
+        "cerca_voce_computo",
+    }
     assert attesi <= set(per_nome)
     assert per_nome["salva_bozza"]["usi"] >= 1  # usato dall'upload
     assert per_nome["cerca_voce_computo"]["usi"] == 0  # nessun workflow lo invoca ancora
