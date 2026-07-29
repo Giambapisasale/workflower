@@ -47,7 +47,10 @@ function Voce({ v }: { v: VoceLog }) {
           <Badge tono={TONO_LIVELLO[v.livello] ?? "grigio"}>{v.livello}</Badge>
         </span>
         <span className="w-24 shrink-0 font-mono text-xs text-slate-500">{v.fase}</span>
-        <span className="flex-1 text-slate-700">
+        {/* `min-w-0` + `break-words`: i messaggi portano URL e query ERP senza
+            spazi, e un flex item senza queste due regole non si stringe mai —
+            sporgerebbe fuori dalla colonna dei contenuti. */}
+        <span className="min-w-0 flex-1 break-words text-slate-700">
           {v.messaggio}
           {ctx ? <span className="ml-2 text-xs text-slate-400">{ctx}</span> : null}
         </span>

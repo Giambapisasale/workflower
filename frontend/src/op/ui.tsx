@@ -12,6 +12,10 @@ import type { Icona } from "../ds";
 import type { Semaforo } from "../shared/api";
 import { TESTI } from "./testi";
 
+/* Tutti i bottoni qui dichiarano `type="button"`: l'Operatore ha due form (il
+   login a due passi, la domanda libera) e un bottone senza `type` dentro un
+   form è un invio travestito. L'invio lo chiede solo `BottonePieno tipo="submit"`. */
+
 /** I bottoni dell'Operatore portano l'icona dentro il contenuto, come nel
  *  design: la `icon` del design system userebbe una griglia più stretta. */
 function Contenuto({ icona, children }: { icona?: Icona; children: ReactNode }) {
@@ -58,6 +62,7 @@ export function BottoneGrande({
     <Button
       variant={primario ? "primary" : "outline"}
       size="lg"
+      type="button"
       className="aitho-btn wf-btn-largo"
       style={STILE_GRANDE}
       disabled={disabled}
@@ -116,6 +121,7 @@ export function BottoneMezzo({
     <Button
       variant={primario ? "primary" : "outline"}
       size="lg"
+      type="button"
       style={{ flex: 1, minHeight: 56, justifyContent: "center", fontSize: 18 }}
       disabled={disabled}
       onClick={onClick}
@@ -181,6 +187,7 @@ export function Indietro({ onClick }: { onClick: () => void }) {
     <Button
       variant="transparent"
       size="sm"
+      type="button"
       compact
       icon={{ data: ArrowLeftIcon }}
       onClick={onClick}

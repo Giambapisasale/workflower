@@ -221,6 +221,7 @@ export default function ConsuntivoOre() {
             <Button
               variant="outline"
               size="xl"
+              type="button"
               style={{ width: 80, minHeight: 64, justifyContent: "center", fontSize: 28 }}
               disabled={ore <= ORE_MIN}
               onClick={() => setOre((o) => Math.max(ORE_MIN, o - ORE_PASSO))}
@@ -232,6 +233,7 @@ export default function ConsuntivoOre() {
             <Button
               variant="outline"
               size="xl"
+              type="button"
               style={{ width: 80, minHeight: 64, justifyContent: "center", fontSize: 28 }}
               disabled={ore >= ORE_MAX}
               onClick={() => setOre((o) => Math.min(ORE_MAX, o + ORE_PASSO))}
@@ -256,6 +258,7 @@ export default function ConsuntivoOre() {
                 key={a.id}
                 variant={scelte.has(a.id) ? "primary" : "outline"}
                 size="md"
+                type="button"
                 borderRadius="pills"
                 compact
                 style={{ minHeight: 44, padding: "0 16px" }}

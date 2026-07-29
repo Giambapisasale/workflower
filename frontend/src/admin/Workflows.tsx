@@ -297,13 +297,9 @@ export default function Workflows() {
                   ) : null}
                 </div>
                 <div className="mt-3 border-t border-slate-100 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => setApri(apri === w.name ? null : w.name)}
-                    className="text-sm font-medium text-sky-700 hover:underline"
-                  >
-                    {apri === w.name ? "▾ chiudi" : "✎ Migliora con un'istruzione"}
-                  </button>
+                  <Bottone onClick={() => setApri(apri === w.name ? null : w.name)}>
+                    {apri === w.name ? "Chiudi" : "Migliora con un'istruzione"}
+                  </Bottone>
                   {apri === w.name ? (
                     <div className="mt-3">
                       <MiglioraWorkflow workflow={w.name} onFatto={reload} />

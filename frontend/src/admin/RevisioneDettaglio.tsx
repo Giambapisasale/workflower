@@ -8,7 +8,7 @@ import { caricaMetaForm } from "./metaForm";
 import MiglioraWorkflow from "./MiglioraWorkflow";
 import RiferimentiDaCompletare from "./RiferimentiDaCompletare";
 import TracePanel from "./TracePanel";
-import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+import { Badge, Bottone, BottoneIndietro, Card, Errore, Stato } from "./ui";
 
 type MetaEdit = {
   schema: JsonSchema;
@@ -181,7 +181,7 @@ export default function RevisioneDettaglio() {
     <>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/admin/revisione" className="text-slate-400 hover:text-slate-700">← Coda</Link>
+          <BottoneIndietro a="/admin/revisione" etichetta="Coda" />
           <h1 className="font-mono text-lg font-bold">{rev.entita.id}</h1>
           {rev.validato ? (
             <Badge tono="verde">validato · {String(rev.entita.meta.validato_da ?? "")}</Badge>
@@ -357,9 +357,7 @@ export default function RevisioneDettaglio() {
                         <Bottone type="submit" disabled={azione === "nota"}>ok</Bottone>
                       </form>
                     ) : (
-                      <button onClick={() => setCampoNota(campo)} className="text-xs text-sky-700 hover:underline">
-                        + nota
-                      </button>
+                      <Bottone onClick={() => setCampoNota(campo)}>+ nota</Bottone>
                     )}
                   </td>
                 </tr>

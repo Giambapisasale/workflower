@@ -1,7 +1,16 @@
-import { Link } from "react-router-dom";
 import { admin, ETICHETTA_TIPO } from "./api";
 import { dataBreve, euro, percento, useCarica } from "./formato";
-import { Badge, Card, Errore, MONO, NUMERI, Stato, Tabella, Targhetta } from "./ui";
+import {
+  Badge,
+  BottoneVerso,
+  Card,
+  Errore,
+  MONO,
+  NUMERI,
+  Stato,
+  Tabella,
+  Targhetta,
+} from "./ui";
 import type { TableColumn, TableRow } from "../ds";
 
 function tono(c: number | null): string {
@@ -46,9 +55,9 @@ const COLONNE: TableColumn<RigaCoda>[] = [
     title: "",
     dataIndex: "azione",
     render: (_v, r) => (
-      <Link to={`/admin/revisione/${r.id}`} style={{ fontWeight: 700 }}>
-        Rivedi →
-      </Link>
+      <BottoneVerso a={`/admin/revisione/${r.id}`} variante="primario">
+        Rivedi
+      </BottoneVerso>
     ),
   },
 ];

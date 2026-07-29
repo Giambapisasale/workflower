@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { admin } from "./api";
 import { dataBreve, euro, useCarica } from "./formato";
 import TracePanel from "./TracePanel";
-import { Badge, Bottone, Card, Errore, MONO, Stato } from "./ui";
+import { Badge, Bottone, BottoneVerso, Card, Errore, MONO, Stato } from "./ui";
 
 // v1: unico workflow d'ingresso documenti (vedi documents.WORKFLOW_UPLOAD)
 const WORKFLOW_DOC = "carica-fattura";
@@ -88,25 +88,16 @@ export default function Segnalazioni() {
                 }}
               >
                 {i.entity_id ? (
-                  <Link to={`/admin/revisione/${i.entity_id}`} style={{ fontSize: 14, fontWeight: 700 }}>
+                  <BottoneVerso a={`/admin/revisione/${i.entity_id}`} variante="primario">
                     Rivedi
-                  </Link>
+                  </BottoneVerso>
                 ) : null}
                 {i.run_id ? (
-                  <button
-                    type="button"
+                  <Bottone
                     onClick={() => setTraceAperto(traceAperto === i.run_id ? null : i.run_id)}
-                    style={{
-                      border: "none",
-                      background: "none",
-                      cursor: "pointer",
-                      font: "inherit",
-                      fontSize: 14,
-                      color: "var(--color-primary)",
-                    }}
                   >
-                    {traceAperto === i.run_id ? "Nascondi trace" : "Trace"}
-                  </button>
+                    {traceAperto === i.run_id ? "Nascondi trace" : "Mostra trace"}
+                  </Bottone>
                 ) : null}
                 {i.stato === "aperta" && i.run_id ? (
                   <Bottone

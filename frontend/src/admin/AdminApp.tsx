@@ -116,10 +116,21 @@ export default function AdminApp() {
         <p style={{ margin: 0, fontSize: 18 }}>
           Questa è l'area dell'ufficio. Il tuo accesso è da operatore.
         </p>
-        <a href="/op">Vai alla tua area →</a>
-        <Button variant="outline" size="sm" onClick={esci}>
-          Esci
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Button
+            variant="primary"
+            size="md"
+            type="button"
+            onClick={() => {
+              window.location.href = "/op";
+            }}
+          >
+            Vai alla tua area
+          </Button>
+          <Button variant="outline" size="md" type="button" onClick={esci}>
+            Esci
+          </Button>
+        </div>
       </div>
     );
   }
@@ -144,38 +155,34 @@ export default function AdminApp() {
         background: "var(--background-secondary)",
       }}
     >
+      {/* Sempre aperta: la navigazione dell'ufficio è la mappa del lavoro, non
+          un cassetto da riaprire ogni volta. `sticky` perché il guscio scorre
+          e la sidebar è alta una schermata. */}
       <Sidebar
-        behaviour="hover"
-        expandOnHover
+        behaviour="permanent"
+        open
         variant="primary"
         position="static"
         items={voci}
+        style={{ position: "sticky", top: 0, alignSelf: "flex-start" }}
         header={<span style={{ fontSize: 17, fontWeight: 700, whiteSpace: "nowrap" }}>Workflower</span>}
         footer={
           <div
             style={{
               display: "flex",
               alignItems: "center",
+              justifyContent: "space-between",
               gap: 8,
               fontSize: 13,
               color: "var(--text-secondary)",
-              whiteSpace: "nowrap",
             }}
           >
-            <span>{sessione.utente.nome}</span>
-            <button
-              type="button"
-              onClick={esci}
-              style={{
-                border: "none",
-                background: "none",
-                cursor: "pointer",
-                font: "inherit",
-                color: "var(--color-primary)",
-              }}
-            >
-              esci
-            </button>
+            <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {sessione.utente.nome}
+            </span>
+            <Button variant="outline" size="sm" type="button" onClick={esci}>
+              Esci
+            </Button>
           </div>
         }
       />

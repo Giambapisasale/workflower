@@ -8,7 +8,8 @@
  */
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { Button, Table } from "../ds";
 import type { TableColumn, TableRow } from "../ds";
 
@@ -206,14 +207,56 @@ const VARIANTE_DS = {
   pericolo: "outlineError",
 } as const;
 
+/** Il bottone dell'Admin. `type="button"` è il default e non un dettaglio: molti
+ *  di questi bottoni vivono dentro un `<form>` (EntitaForm, le righe di
+ *  CampiSchema) e senza di esso il browser li tratterebbe come invio. Chi vuole
+ *  l'invio lo chiede a voce alta con `type="submit"`. */
 export function Bottone({
   variante = "normale",
+  type = "button",
   children,
   ...resto
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: VarianteBottone }) {
   return (
-    <Button variant={VARIANTE_DS[variante]} size="sm" {...resto}>
+    <Button variant={VARIANTE_DS[variante]} size="sm" type={type} {...resto}>
       {children}
+    </Button>
+  );
+}
+
+/** Un bottone che porta in un'altra pagina. Un `<Link>` con dentro un `<button>`
+ *  non è HTML valido (e il click resta ambiguo): qui la navigazione è l'azione
+ *  del bottone, non il contorno. */
+export function BottoneVerso({
+  a,
+  variante = "normale",
+  children,
+}: {
+  a: string;
+  variante?: VarianteBottone;
+  children: ReactNode;
+}) {
+  const naviga = useNavigate();
+  return (
+    <Bottone variante={variante} onClick={() => naviga(a)}>
+      {children}
+    </Bottone>
+  );
+}
+
+/** Il ritorno alla pagina di sopra: un bottone con la freccia, non un link di
+ *  testo. Sta in cima alla pagina, dentro `IntestazionePagina`. */
+export function BottoneIndietro({ a, etichetta }: { a: string; etichetta?: string }) {
+  const naviga = useNavigate();
+  return (
+    <Button
+      variant="transparent"
+      size="sm"
+      type="button"
+      icon={{ data: ArrowLeftIcon }}
+      onClick={() => naviga(a)}
+    >
+      {etichetta ?? "Indietro"}
     </Button>
   );
 }
@@ -239,11 +282,7 @@ export function IntestazionePagina({
   return (
     <div style={{ marginBottom: sotto ? 12 : 24 }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-        {indietro ? (
-          <Link to={indietro} style={{ color: "var(--text-secondary)" }}>
-            ← {etichettaIndietro ?? "indietro"}
-          </Link>
-        ) : null}
+        {indietro ? <BottoneIndietro a={indietro} etichetta={etichettaIndietro} /> : null}
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{titolo}</h1>
         {accanto ? (
           <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{accanto}</span>

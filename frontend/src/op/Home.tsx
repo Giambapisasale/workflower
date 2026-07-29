@@ -49,7 +49,14 @@ export default function Home() {
             {dovesono ? ` · ${dovesono}` : ""}
           </div>
         </div>
-        <Button variant="transparent" size="sm" compact onClick={esci} style={{ minHeight: 32 }}>
+        <Button
+          variant="transparent"
+          size="sm"
+          type="button"
+          compact
+          onClick={esci}
+          style={{ minHeight: 32 }}
+        >
           {TESTI.esci}
         </Button>
       </div>

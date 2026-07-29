@@ -4,6 +4,7 @@ import { euro, useCarica } from "./formato";
 import {
   BarraConsumo,
   Bottone,
+  BottoneVerso,
   Card,
   Errore,
   Griglia,
@@ -60,9 +61,7 @@ const COL_CANTIERI: TableColumn<RigaCantiere>[] = [
     title: "Gestisci",
     dataIndex: "gestisci",
     render: (_v, r) => (
-      <Link to={`/admin/dati/cantiere/${r.cantiere_id}`} style={{ fontSize: 12 }}>
-        modifica
-      </Link>
+      <BottoneVerso a={`/admin/dati/cantiere/${r.cantiere_id}`}>Modifica</BottoneVerso>
     ),
   },
 ];
@@ -76,9 +75,7 @@ const COL_FORNITORI: TableColumn<RigaFornitore>[] = [
     dataIndex: "gestisci",
     render: (_v, r) =>
       r.fornitore_id ? (
-        <Link to={`/admin/dati/fornitore/${r.fornitore_id}`} style={{ fontSize: 12 }}>
-          modifica
-        </Link>
+        <BottoneVerso a={`/admin/dati/fornitore/${r.fornitore_id}`}>Modifica</BottoneVerso>
       ) : null,
   },
 ];
@@ -114,10 +111,12 @@ export default function Cruscotto() {
         titolo="Cruscotto"
         azioni={
           <>
-            <Link to="/admin/dati/cantiere/nuovo"><Bottone>+ Cantiere</Bottone></Link>
-            <Link to="/admin/dati/fornitore/nuovo"><Bottone>+ Fornitore</Bottone></Link>
-            <Link to="/admin/dati/fattura/nuovo"><Bottone>+ Fattura a mano</Bottone></Link>
-            <Link to="/admin/dati"><Bottone variante="primario">Gestione dati →</Bottone></Link>
+            <BottoneVerso a="/admin/dati/cantiere/nuovo">+ Cantiere</BottoneVerso>
+            <BottoneVerso a="/admin/dati/fornitore/nuovo">+ Fornitore</BottoneVerso>
+            <BottoneVerso a="/admin/dati/fattura/nuovo">+ Fattura a mano</BottoneVerso>
+            <BottoneVerso a="/admin/dati" variante="primario">
+              Gestione dati
+            </BottoneVerso>
           </>
         }
       />

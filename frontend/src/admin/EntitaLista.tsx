@@ -1,13 +1,14 @@
 /** Elenco gestibile di un tipo entità (M13): nuovo, modifica, elimina. */
 
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
 import { admin } from "./api";
 import { useCarica } from "./formato";
 import {
   Badge,
   Bottone,
+  BottoneVerso,
   Card,
   Errore,
   IntestazionePagina,
@@ -85,9 +86,7 @@ export default function EntitaLista() {
         }
         return (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Link to={`/admin/dati/${tipo}/${id}`} style={{ fontSize: 12, fontWeight: 700 }}>
-              Modifica
-            </Link>
+            <BottoneVerso a={`/admin/dati/${tipo}/${id}`}>Modifica</BottoneVerso>
             <Bottone
               variante="pericolo"
               onClick={() => {
@@ -111,9 +110,9 @@ export default function EntitaLista() {
         etichettaIndietro="Dati"
         accanto={dati.voci.length}
         azioni={
-          <Link to={`/admin/dati/${tipo}/nuovo`}>
-            <Bottone variante="primario">+ Nuovo</Bottone>
-          </Link>
+          <BottoneVerso a={`/admin/dati/${tipo}/nuovo`} variante="primario">
+            + Nuovo
+          </BottoneVerso>
         }
       />
 
