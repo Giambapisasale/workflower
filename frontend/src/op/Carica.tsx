@@ -6,11 +6,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  CheckCircledIcon,
+  FileIcon,
+  HomeIcon,
+} from "@radix-ui/react-icons";
 import { api, type DocumentoVista, type EsempioDoc, scaricaFile } from "../shared/api";
+import { Spinner } from "../ds";
 import { CardGrazie, PannelloVerdetto, RigheRiepilogo } from "./RiepilogoCard";
 import { useSessione } from "./sessione";
 import { TESTI } from "./testi";
-import { Bottone, BottoneFile, Card, Indietro, Titolo } from "./ui";
+import {
+  BottoneFile,
+  BottoneGrande,
+  BottonePieno,
+  Card,
+  Colonna,
+  Domanda,
+  Indietro,
+  Titolo,
+} from "./ui";
 
 const RITMO_ATTESA_MS = 1500;
 const MAX_GIRI_ATTESA = 80; // ~2 minuti, poi si rimanda a "I miei documenti"
@@ -76,81 +93,95 @@ export default function Carica() {
 
   return (
     <div>
-      <Indietro a="/op" />
+      <Indietro onClick={() => naviga("/op")} />
       <Titolo>{TESTI.titoloCarica}</Titolo>
 
       {fase.tipo === "scegli" ? (
-        <div className="space-y-4">
+        <Colonna>
           <BottoneFile
-            icona="📷"
-            variante="primario"
+            icona={ArrowUpIcon}
+            primario
             accept="image/*"
             capture="environment"
             onFile={scelto}
           >
             {TESTI.fotografa}
           </BottoneFile>
-          <BottoneFile icona="📁" accept="application/pdf,image/*" onFile={scelto}>
+          <BottoneFile icona={FileIcon} accept="application/pdf,image/*" onFile={scelto}>
             {TESTI.scegliFile}
           </BottoneFile>
 
           {esempi.length > 0 ? (
-            <div className="pt-4">
-              <p className="text-[17px] font-bold">{TESTI.scaricaEsempioTitolo}</p>
-              <p className="mb-3 text-neutral-600">{TESTI.scaricaEsempioSotto}</p>
-              <div className="space-y-3">
+            <div style={{ paddingTop: 12 }}>
+              <p style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
+                {TESTI.scaricaEsempioTitolo}
+              </p>
+              <p style={{ color: "var(--text-secondary)", margin: "4px 0 14px" }}>
+                {TESTI.scaricaEsempioSotto}
+              </p>
+              <Colonna gap={12}>
                 {esempi.map((e) => (
-                  <Bottone
+                  <BottoneGrande
                     key={e.file}
-                    icona="⬇️"
+                    icona={ArrowDownIcon}
                     onClick={() => void scaricaFile(`/samples/${e.file}`, e.file)}
                   >
                     {e.titolo}
-                  </Bottone>
+                  </BottoneGrande>
                 ))}
-              </div>
+              </Colonna>
             </div>
           ) : null}
-        </div>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "cantiere" ? (
-        <div className="space-y-4">
-          <p className="text-[19px] font-bold">{TESTI.diQualeCantiere}</p>
+        <Colonna>
+          <Domanda>{TESTI.diQualeCantiere}</Domanda>
           {cantieri.map((cantiere) => (
-            <Bottone
+            <BottoneGrande
               key={cantiere.id}
-              icona="🏗️"
+              icona={HomeIcon}
               onClick={() => void invia(fase.file, cantiere.id)}
             >
               {cantiere.nome}
-            </Bottone>
+            </BottoneGrande>
           ))}
-        </div>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "attesa" ? (
         <Card>
-          ⏳ <b>{TESTI.stoLeggendo}</b>
-          <p className="mt-1 text-neutral-600">{TESTI.puoiUscire}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Spinner size="sm" />
+            <b>{TESTI.stoLeggendo}</b>
+          </div>
+          <p style={{ margin: "8px 0 0", color: "var(--text-secondary)" }}>{TESTI.puoiUscire}</p>
         </Card>
       ) : null}
 
       {fase.tipo === "esito" ? (
         fase.doc.riepilogo && fase.doc.semaforo !== "rosso" ? (
           <Card>
-            ✅ <b>{TESTI.hoLetto(fase.doc.riepilogo.tipo)}</b>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ display: "flex", flex: "0 0 18px", color: "var(--color-success)" }}>
+                <CheckCircledIcon width={18} height={18} />
+              </span>
+              <b style={{ flex: 1 }}>{TESTI.hoLetto(fase.doc.riepilogo.tipo)}</b>
+            </div>
             <RigheRiepilogo riepilogo={fase.doc.riepilogo} />
             <PannelloVerdetto doc={fase.doc} onGrazie={() => setFase({ tipo: "grazie" })} />
           </Card>
         ) : (
           <Card>
-            🤝 <b>{TESTI.grazie}</b>
-            <p className="mt-1 text-neutral-600">{fase.doc.messaggio}</p>
-            <div className="mt-4">
-              <Bottone icona="🏠" onClick={() => naviga("/op")}>
+            <b>{TESTI.grazie}</b>
+            <p style={{ margin: "6px 0 0", color: "var(--text-secondary)" }}>
+              {fase.doc.messaggio}
+            </p>
+            <div style={{ marginTop: 16 }}>
+              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
                 {TESTI.tornaHome}
-              </Bottone>
+              </BottoneGrande>
             </div>
           </Card>
         )
@@ -161,13 +192,15 @@ export default function Carica() {
       {fase.tipo === "avviso" ? (
         <Card>
           <b>{fase.messaggio}</b>
-          <div className="mt-4 space-y-3">
-            <Bottone variante="primario" onClick={() => setFase({ tipo: "scegli" })}>
-              {TESTI.riprova}
-            </Bottone>
-            <Bottone icona="🏠" onClick={() => naviga("/op")}>
-              {TESTI.tornaHome}
-            </Bottone>
+          <div style={{ marginTop: 16 }}>
+            <Colonna gap={12}>
+              <BottonePieno onClick={() => setFase({ tipo: "scegli" })}>
+                {TESTI.riprova}
+              </BottonePieno>
+              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+                {TESTI.tornaHome}
+              </BottoneGrande>
+            </Colonna>
           </div>
         </Card>
       ) : null}

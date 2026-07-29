@@ -25,8 +25,30 @@ export default function OpApp() {
   }, []);
 
   return (
-    <div className="flex min-h-screen justify-center bg-neutral-200 sm:py-6">
-      <div className="w-full max-w-[430px] bg-white px-5 py-6 sm:h-fit sm:min-h-[780px] sm:rounded-[26px] sm:border sm:border-neutral-300 sm:shadow-xl">
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        background: "var(--background-secondary)",
+        padding: "24px 0",
+        /* Vincolo M3 "a prova di cantiere": il corpo del testo non scende
+           sotto i 17px. Vive qui, sul guscio dell'Operatore. */
+        fontSize: 17,
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 430,
+          background: "var(--background-primary)",
+          border: "1px solid var(--border-color)",
+          borderRadius: "var(--radius-lg)",
+          padding: "24px 20px",
+          minHeight: 780,
+          height: "fit-content",
+        }}
+      >
         {sessione === null ? (
           <Login
             onEntra={(nuova) => {

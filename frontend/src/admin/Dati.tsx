@@ -1,22 +1,25 @@
 /** Hub della gestione manuale (M13): i tipi gestibili, per anagrafiche e documenti. */
 
-import { Link } from "react-router-dom";
 import { admin, type MetaTipo } from "./api";
 import { useCarica } from "./formato";
-import { Badge, Card, Errore, Stato } from "./ui";
+import { Badge, Card, Errore, IntestazionePagina, Riquadro, Stato } from "./ui";
 
 function Riquadri({ tipi }: { tipi: MetaTipo[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        gap: 12,
+      }}
+    >
       {tipi.map((t) => (
-        <Link
+        <Riquadro
           key={t.tipo}
-          to={`/admin/dati/${t.tipo}`}
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 hover:shadow"
-        >
-          <div className="text-base font-semibold text-slate-800">{t.etichetta}</div>
-          <div className="mt-1 text-xs text-slate-400">apri e gestisci →</div>
-        </Link>
+          a={`/admin/dati/${t.tipo}`}
+          titolo={t.etichetta}
+          sotto="apri e gestisci →"
+        />
       ))}
     </div>
   );
@@ -33,12 +36,10 @@ export default function Dati() {
 
   return (
     <>
-      <div className="mb-4">
-        <h1 className="text-lg font-bold">Gestione dati</h1>
-        <p className="text-sm text-slate-500">
-          Inserisci, correggi o elimina i dati a mano. Ogni modifica resta tracciata.
-        </p>
-      </div>
+      <IntestazionePagina
+        titolo="Gestione dati"
+        sotto="Inserisci, correggi o elimina i dati a mano. Ogni modifica resta tracciata."
+      />
       <Card titolo="Anagrafiche">
         <Riquadri tipi={master} />
       </Card>
@@ -46,18 +47,22 @@ export default function Dati() {
         <Riquadri tipi={documenti} />
       </Card>
       <Card titolo="Scartati">
-        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
-          <Link
-            to="/admin/dati/scartati"
-            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm hover:border-sky-300 hover:shadow"
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
+          <Riquadro
+            a="/admin/dati/scartati"
+            titolo="Inserimenti scartati"
+            badge={quantiScartati > 0 ? <Badge tono="giallo">{quantiScartati}</Badge> : undefined}
+            sotto="apri e ripristina →"
+          />
+          <p
+            style={{
+              maxWidth: "28rem",
+              margin: 0,
+              fontSize: 14,
+              color: "var(--text-secondary)",
+              textWrap: "pretty",
+            }}
           >
-            <div className="flex items-center gap-2 text-base font-semibold text-slate-800">
-              Inserimenti scartati
-              {quantiScartati > 0 ? <Badge tono="giallo">{quantiScartati}</Badge> : null}
-            </div>
-            <div className="mt-1 text-xs text-slate-400">apri e ripristina →</div>
-          </Link>
-          <p className="max-w-md">
             I documenti che l'ufficio ha ripudiato. Non contano nei costi e non sono cancellati:
             da lì si ripristinano.
           </p>

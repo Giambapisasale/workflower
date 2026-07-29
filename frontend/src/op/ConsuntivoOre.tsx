@@ -7,14 +7,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CalendarIcon, CheckIcon, HomeIcon } from "@radix-ui/react-icons";
 import {
   api,
   type AttivitaScelta,
   type Cantiere,
   type ConsuntivoContesto,
 } from "../shared/api";
+import { Button, Input, Spinner, Step, Stepper } from "../ds";
 import { TESTI, dataBreve } from "./testi";
-import { Bottone, Card, Indietro, Titolo } from "./ui";
+import {
+  BottoneGrande,
+  BottonePieno,
+  Card,
+  Colonna,
+  Domanda,
+  Indietro,
+  Spiegazione,
+  Titolo,
+} from "./ui";
 
 const ORE_MIN = 0.5;
 const ORE_MAX = 16;
@@ -38,6 +49,15 @@ type Fase =
   | { tipo: "invio" }
   | { tipo: "inviato" }
   | { tipo: "avviso"; messaggio: string };
+
+/** A quale pallino dello Stepper corrisponde ogni passo. */
+const PASSO_STEPPER: Partial<Record<Fase["tipo"], number>> = {
+  giorno: 0,
+  cantiere: 1,
+  ore: 2,
+  attivita: 3,
+  conferma: 3,
+};
 
 export default function ConsuntivoOre() {
   const naviga = useNavigate();
@@ -113,153 +133,180 @@ export default function ConsuntivoOre() {
   }
 
   const quando = data === oggi ? TESTI.oggi : data === ieri ? TESTI.ieri : dataBreve(data);
+  const passo = PASSO_STEPPER[fase.tipo];
+  const scelteDescritte = [
+    ...(contesto?.attivita_disponibili ?? [])
+      .filter((a) => scelte.has(a.id))
+      .map((a) => a.descrizione),
+    ...(nota.trim() ? [nota.trim()] : []),
+  ];
 
   return (
     <div>
-      <Indietro a="/op" />
+      <Indietro onClick={() => naviga("/op")} />
       <Titolo>{TESTI.titoloOre}</Titolo>
 
+      {passo !== undefined ? (
+        <div style={{ marginBottom: 24 }}>
+          <Stepper index={passo}>
+            <Step>Giorno</Step>
+            <Step>Cantiere</Step>
+            <Step>Ore</Step>
+            <Step>Attività</Step>
+          </Stepper>
+        </div>
+      ) : null}
+
       {fase.tipo === "carica" || fase.tipo === "invio" ? (
-        <Card>⏳ {TESTI.caricamento}</Card>
+        <Card>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Spinner size="sm" />
+            <span>{TESTI.caricamento}</span>
+          </div>
+        </Card>
       ) : null}
 
       {fase.tipo === "nessuno" ? (
         <Card>
           <b>{TESTI.oreNessunDip}</b>
-          <div className="mt-4">
-            <Bottone icona="🏠" onClick={() => naviga("/op")}>
+          <div style={{ marginTop: 16 }}>
+            <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
               {TESTI.tornaHome}
-            </Bottone>
+            </BottoneGrande>
           </div>
         </Card>
       ) : null}
 
       {fase.tipo === "giorno" ? (
-        <div className="space-y-4">
-          <p className="text-[19px] font-bold">{TESTI.oreQuando}</p>
-          <Bottone icona="📅" variante="primario" onClick={() => void scegliGiorno(oggi)}>
+        <Colonna>
+          <Domanda>{TESTI.oreQuando}</Domanda>
+          <BottoneGrande primario icona={CalendarIcon} onClick={() => void scegliGiorno(oggi)}>
             {TESTI.oggi}
-          </Bottone>
-          <Bottone icona="📅" onClick={() => void scegliGiorno(ieri)}>
+          </BottoneGrande>
+          <BottoneGrande icona={CalendarIcon} onClick={() => void scegliGiorno(ieri)}>
             {TESTI.ieri}
-          </Bottone>
-        </div>
+          </BottoneGrande>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "cantiere" ? (
-        <div className="space-y-4">
-          <p className="text-[19px] font-bold">{TESTI.oreQualeCantiere}</p>
+        <Colonna>
+          <Domanda>{TESTI.oreQualeCantiere}</Domanda>
           {(contesto?.cantieri ?? []).map((c) => (
-            <Bottone
+            <BottoneGrande
               key={c.id}
-              icona="🏗️"
+              icona={HomeIcon}
               onClick={() => {
                 setCantiere(c);
                 setFase({ tipo: "ore" });
               }}
             >
               {c.nome}
-            </Bottone>
+            </BottoneGrande>
           ))}
-        </div>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "ore" ? (
-        <div className="space-y-5">
-          <p className="text-[19px] font-bold">{TESTI.oreQuante}</p>
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              className="min-h-[64px] w-20 rounded-2xl border-2 border-neutral-900 text-3xl font-bold disabled:opacity-30"
-              onClick={() => setOre((o) => Math.max(ORE_MIN, o - ORE_PASSO))}
+        <Colonna gap={20}>
+          <Domanda>{TESTI.oreQuante}</Domanda>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <Button
+              variant="outline"
+              size="xl"
+              style={{ width: 80, minHeight: 64, justifyContent: "center", fontSize: 28 }}
               disabled={ore <= ORE_MIN}
+              onClick={() => setOre((o) => Math.max(ORE_MIN, o - ORE_PASSO))}
+              aria-label="meno mezz'ora"
             >
               −
-            </button>
-            <div className="text-3xl font-bold">{TESTI.oreUnita(ore)}</div>
-            <button
-              type="button"
-              className="min-h-[64px] w-20 rounded-2xl border-2 border-neutral-900 text-3xl font-bold disabled:opacity-30"
-              onClick={() => setOre((o) => Math.min(ORE_MAX, o + ORE_PASSO))}
+            </Button>
+            <div style={{ fontSize: 30, fontWeight: 700 }}>{TESTI.oreUnita(ore)}</div>
+            <Button
+              variant="outline"
+              size="xl"
+              style={{ width: 80, minHeight: 64, justifyContent: "center", fontSize: 28 }}
               disabled={ore >= ORE_MAX}
+              onClick={() => setOre((o) => Math.min(ORE_MAX, o + ORE_PASSO))}
+              aria-label="più mezz'ora"
             >
               +
-            </button>
+            </Button>
           </div>
-          <Bottone variante="primario" onClick={() => setFase({ tipo: "attivita" })}>
+          <BottonePieno onClick={() => setFase({ tipo: "attivita" })}>
             {TESTI.oreAvanti}
-          </Bottone>
-        </div>
+          </BottonePieno>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "attivita" ? (
-        <div className="space-y-4">
-          <p className="text-[19px] font-bold">{TESTI.oreCosaTitolo}</p>
-          <p className="text-neutral-600">{TESTI.oreCosaSotto}</p>
-          <div className="flex flex-wrap gap-2">
+        <Colonna>
+          <Domanda>{TESTI.oreCosaTitolo}</Domanda>
+          <Spiegazione>{TESTI.oreCosaSotto}</Spiegazione>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {(contesto?.attivita_disponibili ?? []).map((a) => (
-              <button
+              <Button
                 key={a.id}
-                type="button"
+                variant={scelte.has(a.id) ? "primary" : "outline"}
+                size="md"
+                borderRadius="pills"
+                compact
+                style={{ minHeight: 44, padding: "0 16px" }}
                 onClick={() => alterna(a.id)}
-                className={`min-h-[48px] rounded-2xl border-2 px-4 py-2 text-[17px] font-bold ${
-                  scelte.has(a.id)
-                    ? "border-green-700 bg-green-700 text-white"
-                    : "border-neutral-300 bg-white text-neutral-900"
-                }`}
               >
                 {a.descrizione}
-              </button>
+              </Button>
             ))}
           </div>
-          <input
-            className="w-full rounded-2xl border-2 border-neutral-300 px-4 py-4 text-[18px] focus:border-neutral-900 focus:outline-none"
+          <Input
             value={nota}
             onChange={(e) => setNota(e.target.value)}
             placeholder={TESTI.oreAltro}
+            style={{ width: "100%", fontSize: 18, padding: "12px 14px" }}
           />
-          <Bottone variante="primario" onClick={() => setFase({ tipo: "conferma" })}>
+          <BottonePieno onClick={() => setFase({ tipo: "conferma" })}>
             {scelte.size > 0 || nota.trim() ? TESTI.oreAvanti : TESTI.oreSalta}
-          </Bottone>
-        </div>
+          </BottonePieno>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "conferma" ? (
-        <div className="space-y-4">
-          <p className="text-[19px] font-bold">{TESTI.oreConferma}</p>
+        <Colonna>
+          <Domanda>{TESTI.oreConferma}</Domanda>
           <Card>
-            <div className="text-[18px]">
-              🏗️ <b>{cantiere?.nome}</b>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{cantiere?.nome}</div>
+            <div style={{ marginTop: 4, color: "var(--text-secondary)" }}>
+              {quando} · {TESTI.oreUnita(ore)}
             </div>
-            <div className="mt-1 text-neutral-700">
-              📅 {quando} · ⏱️ {TESTI.oreUnita(ore)}
-            </div>
-            {scelte.size > 0 || nota.trim() ? (
-              <div className="mt-2 text-neutral-700">
-                🔧{" "}
-                {[
-                  ...(contesto?.attivita_disponibili ?? [])
-                    .filter((a) => scelte.has(a.id))
-                    .map((a) => a.descrizione),
-                  ...(nota.trim() ? [nota.trim()] : []),
-                ].join(", ")}
+            {scelteDescritte.length > 0 ? (
+              <div style={{ marginTop: 8, color: "var(--text-secondary)" }}>
+                {scelteDescritte.join(", ")}
               </div>
             ) : null}
           </Card>
-          <Bottone variante="conferma" onClick={() => void invia()}>
+          <BottoneGrande primario icona={CheckIcon} onClick={() => void invia()}>
             {TESTI.oreInvia}
-          </Bottone>
-        </div>
+          </BottoneGrande>
+        </Colonna>
       ) : null}
 
       {fase.tipo === "inviato" ? (
         <Card>
           <b>{TESTI.oreInviato}</b>
-          <p className="mt-1 text-neutral-600">{TESTI.oreInviatoSotto}</p>
-          <div className="mt-4">
-            <Bottone icona="🏠" onClick={() => naviga("/op")}>
+          <p style={{ margin: "6px 0 0", color: "var(--text-secondary)" }}>
+            {TESTI.oreInviatoSotto}
+          </p>
+          <div style={{ marginTop: 16 }}>
+            <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
               {TESTI.tornaHome}
-            </Bottone>
+            </BottoneGrande>
           </div>
         </Card>
       ) : null}
@@ -267,13 +314,15 @@ export default function ConsuntivoOre() {
       {fase.tipo === "avviso" ? (
         <Card>
           <b>{fase.messaggio}</b>
-          <div className="mt-4 space-y-3">
-            <Bottone variante="primario" onClick={() => setFase({ tipo: "giorno" })}>
-              {TESTI.riprova}
-            </Bottone>
-            <Bottone icona="🏠" onClick={() => naviga("/op")}>
-              {TESTI.tornaHome}
-            </Bottone>
+          <div style={{ marginTop: 16 }}>
+            <Colonna gap={12}>
+              <BottonePieno onClick={() => setFase({ tipo: "giorno" })}>
+                {TESTI.riprova}
+              </BottonePieno>
+              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+                {TESTI.tornaHome}
+              </BottoneGrande>
+            </Colonna>
           </div>
         </Card>
       ) : null}

@@ -1,0 +1,93 @@
+/* Aitho Design UI — color tokens.
+   Source: aitho_ui/lib/main.css (Panda CSS themes, [data-panda-theme]).
+   Light is the default (:root). Switch themes by setting
+   data-panda-theme="light" | "dark" on <html>. */
+
+:root,
+[data-panda-theme="light"] {
+  --color-primary: #0000ad;
+  --color-primary-hover: #00009a;
+  --color-primary-active: #000088;
+  --color-primary-disabled: #a0a0d8;
+  --color-primary-opacity-20: #0000ad33;
+  --color-primary-opacity-50: #0000ad80;
+
+  --text-primary: #000000;
+  --text-secondary: #4a4a4a;
+  --text-on-primary: #ffffff;
+
+  --background-primary: #ffffff;
+  --background-secondary: #f9fafb;
+  --background-tertiary: #cccccc;
+  --background-contrast: #000000;
+  --background-overlay: #00000069;
+
+  --color-error: #d32f2f;
+  --color-error-hover: #b71c1c;
+  --color-error-opacity-80: #d32f2fcc;
+  --color-attention: #fa7a1e;
+  --color-attention-hover: #eb5a0b;
+  --color-warning: #ffbf00;
+  --color-warning-hover: #ffb300;
+  --color-success: #388e3c;
+  --color-success-hover: #2e7d32;
+  --color-info: #0288d1;
+  --color-info-hover: #0277bd;
+
+  --border-color: #dcdcdc;
+
+  --accent: #3377ff;
+  --white: #ffffff;
+  --grey-light: #c6c6c6;
+  --light: #f0f3ff;
+  --dark: #1f1f1f;
+  --transparent: #00000000;
+  --background-popup: #666666;
+  --checkbox-square-color: #0000ad;
+  --table-base-color: #f2f2f2;
+  --table-striped-color: #eaeaea;
+}
+
+[data-panda-theme="dark"] {
+  --color-primary: #00d9ea;
+  --color-primary-hover: #00c2d1;
+  --color-primary-active: #00a9b6;
+  --color-primary-disabled: #71c2d4;
+  --color-primary-opacity-20: #00d9ea33;
+  --color-primary-opacity-50: #00d9ea80;
+
+  --text-primary: #ffffff;
+  --text-secondary: #cfcfcf;
+  --text-on-primary: #1a1a1a;
+
+  --background-primary: #121212;
+  --background-secondary: #1e1e1e;
+  --background-tertiary: #494949;
+  --background-contrast: #ffffff;
+  --background-overlay: #fbfbfb69;
+
+  --color-error: #ff5252;
+  --color-error-hover: #ff1744;
+  --color-error-opacity-80: #ff1744cc;
+  --color-attention: #ae482e;
+  --color-attention-hover: #833829;
+  --color-warning: #ffbf00;
+  --color-warning-hover: #ffb300;
+  --color-success: #4caf50;
+  --color-success-hover: #43a047;
+  --color-info: #29b6f6;
+  --color-info-hover: #039be5;
+
+  --border-color: #333333;
+
+  --accent: #3377ff;
+  --white: #ffffff;
+  --grey-light: #c6c6c6;
+  --light: #f0f3ff;
+  --dark: #1f1f1f;
+  --transparent: #00000000;
+  --background-popup: #666666;
+  --checkbox-square-color: #3377ff;
+  --table-base-color: #3e3e3e;
+  --table-striped-color: #2c2c2c;
+}

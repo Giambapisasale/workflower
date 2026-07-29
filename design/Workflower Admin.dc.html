@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/fonts/fonts.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/colors.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/typography.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/tokens/radii.css">
+<link rel="stylesheet" href="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/styles.css">
+<script src="_ds/aitho-design-system-c0878fb9-47c4-4316-a3e8-ba782bb3b2ce/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; font-family: var(--font-custom), sans-serif; color: var(--text-primary); background: var(--background-secondary); }
+  a { color: var(--color-primary); text-decoration: none; }
+  a:hover { color: var(--color-primary-hover); text-decoration: underline; }
+</style>
+</helmet>
+
+<sc-if value="{{ isLogin }}" hint-placeholder-val="{{ false }}">
+  <div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--background-secondary); padding: 24px">
+    <form onSubmit="{{ entra }}" style="width: 100%; max-width: 380px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 32px">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700">Workflower · Ufficio</h1>
+      <p style="margin: 4px 0 24px; font-size: 14px; color: var(--text-secondary)">Console di amministrazione</p>
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px">
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" label="Nome utente" value="{{ utente }}" onChange="{{ setUtente }}" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" label="Codice" type="password" value="{{ pin }}" onChange="{{ setPin }}" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+      </div>
+      <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="md" type="submit" dc-props="{{ btnPieno }}" hint-size="100%,40px">Entra</x-import>
+    </form>
+  </div>
+</sc-if>
+
+<sc-if value="{{ isApp }}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; min-height: 100vh; min-width: 1360px; background: var(--background-secondary)">
+  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Sidebar" behaviour="hover" variant="primary" position="static" items="{{ vociMenu }}" header="{{ intestazione }}" footer="{{ piede }}" hint-size="4rem,100vh"></x-import>
+
+  <main style="flex: 1; min-width: 0; padding: 24px 28px 48px">
+
+    <sc-if value="{{ pgCruscotto }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 24px">
+          <h1 style="margin: 0 auto 0 0; font-size: 20px; font-weight: 700">Cruscotto</h1>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ vaiNuovoCantiere }}" hint-size="auto,36px">+ Cantiere</x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,36px">+ Fornitore</x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,36px">+ Fattura a mano</x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ vaiDati }}" hint-size="auto,36px">Gestione dati →</x-import>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Fatture</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">5</div>
+            <a href="#revisione" onClick="{{ vaiRevisione }}" style="display: inline-block; margin-top: 6px; font-size: 12px">0 da validare →</a>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Totale documenti</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">32.558,84 €</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">imponibile 27.250,00 €</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">IVA</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">5308,84 €</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Ritenute d'acconto</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">800,00 €</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">DDT</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">2</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">documenti di trasporto</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">SAL</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">2</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">stati avanzamento</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Ore manodopera</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">48</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">da rapportini</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo manodopera</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">1196,00 €</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo mezzi</div>
+            <div style="margin-top: 6px; font-size: 26px; font-weight: 700">6840,00 €</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">noli e costi da fatture</div>
+          </div>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Scadenze</h2>
+          </header>
+          <div style="padding: 8px 20px 16px">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border-color)">
+              <div><b>Assicurazione RCA escavatore</b> <span style="margin-left: 8px; font-size: 12px; color: var(--text-secondary)">Escavatore cingolato 20 t</span></div>
+              <div style="text-align: right; flex-shrink: 0">
+                <div style="font-variant-numeric: tabular-nums; color: var(--text-secondary)">2026-08-10</div>
+                <div style="font-size: 12px; color: var(--color-attention)">tra 13 gg</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0">
+              <div><b>Pagamento SAL 2 impresa strutture</b> <span style="margin-left: 8px; font-size: 12px; color: var(--text-secondary)">Ristrutturazione Scuola Manzoni</span></div>
+              <div style="text-align: right; flex-shrink: 0">
+                <div style="font-variant-numeric: tabular-nums; color: var(--text-secondary)">2026-08-15</div>
+                <div style="font-size: 12px; color: var(--color-attention)">tra 18 gg</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costi per cantiere</h2>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Scarica report Excel</x-import>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colCantieri }}" data="{{ rowCantieri }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Fornitori principali</h2>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colFornitori }}" data="{{ rowFornitori }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgCantiere }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px">
+          <a href="#cruscotto" onClick="{{ vaiCruscotto }}" style="color: var(--text-secondary)">← Cruscotto</a>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700">Ristrutturazione Scuola Manzoni</h1>
+          <span style="font-size: 14px; color: var(--text-secondary)">Acireale</span>
+          <div style="margin-left: auto">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Scarica Excel</x-import>
+          </div>
+        </div>
+        <div style="margin-bottom: 24px; font-size: 14px; color: var(--text-secondary)">Committente: <b style="color: var(--text-primary)">Comune di Acireale</b> · Capocantiere: <b style="color: var(--text-primary)">Giuseppe Leotta</b></div>
+
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Speso (fatture)</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">9171,44 €</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">su 640.000,00 € · 1,4%</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Ore manodopera</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">24</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">584,00 € · 1 giornate</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo mezzi / noli</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">0,00 €</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Avanzamento (SAL)</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">—</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Scostamento computo</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">8080,00 €</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">previsto 184.760,00 €</div>
+          </div>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Fatture (2)</h2>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colFatture }}" data="{{ rowFatture }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+          </div>
+        </section>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
+          <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">DDT (1)</h2>
+            </header>
+            <div style="padding: 12px 20px 20px">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-color); font-size: 14px">
+                <span>445/T · Edil Sud S.r.l.</span>
+                <span style="color: var(--text-secondary)">16/03/2026 · 2 righe</span>
+              </div>
+            </div>
+          </section>
+          <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">SAL (0)</h2>
+            </header>
+            <div style="padding: 40px 20px; text-align: center; color: var(--text-secondary)">Nessuno stato avanzamento.</div>
+          </section>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgDati }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="margin-bottom: 20px">
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700">Gestione dati</h1>
+          <p style="margin: 4px 0 0; font-size: 14px; color: var(--text-secondary)">Inserisci, correggi o elimina i dati a mano. Ogni modifica resta tracciata.</p>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Anagrafiche</h2>
+          </header>
+          <div style="padding: 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+            <sc-for list="{{ tipiAnagrafiche }}" as="t" hint-placeholder-count="8">
+              <button type="button" onClick="{{ t.apri }}" style="text-align: left; cursor: pointer; font: inherit; color: inherit; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px" style-hover="border-color: var(--color-primary)">
+                <div style="font-size: 16px; font-weight: 700">{{ t.etichetta }}</div>
+                <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary)">apri e gestisci →</div>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Documenti gestionali</h2>
+          </header>
+          <div style="padding: 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
+            <sc-for list="{{ tipiDocumenti }}" as="t" hint-placeholder-count="4">
+              <button type="button" onClick="{{ t.apri }}" style="text-align: left; cursor: pointer; font: inherit; color: inherit; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px" style-hover="border-color: var(--color-primary)">
+                <div style="font-size: 16px; font-weight: 700">{{ t.etichetta }}</div>
+                <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary)">apri e gestisci →</div>
+              </button>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Scartati</h2>
+          </header>
+          <div style="padding: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+            <button type="button" onClick="{{ vaiScartati }}" style="text-align: left; cursor: pointer; font: inherit; color: inherit; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px" style-hover="border-color: var(--color-primary)">
+              <div style="display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700">
+                Inserimenti scartati
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--color-warning); color: #1f1f1f">2</span>
+              </div>
+              <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary)">apri e ripristina →</div>
+            </button>
+            <p style="max-width: 28rem; margin: 0; font-size: 14px; color: var(--text-secondary)">I documenti che l'ufficio ha ripudiato. Non contano nei costi e non sono cancellati: da lì si ripristinano.</p>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgLista }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
+          <a href="#dati" onClick="{{ vaiDati }}" style="color: var(--text-secondary)">← Dati</a>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700">Cantieri</h1>
+          <span style="font-size: 14px; color: var(--text-secondary)">3</span>
+          <div style="margin-left: auto">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ vaiNuovoCantiere }}" hint-size="auto,32px">+ Nuovo</x-import>
+          </div>
+        </div>
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colLista }}" data="{{ rowLista }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgForm }}" hint-placeholder-val="{{ false }}">
+      <form onSubmit="{{ salvaForm }}">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
+          <a href="#dati" onClick="{{ vaiLista }}" style="color: var(--text-secondary)">← Cantieri</a>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700">Nuovo · Cantiere</h1>
+        </div>
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 20px">
+          <p style="margin: 0 0 20px; font-size: 12px; color: var(--text-secondary)">I campi nascono dallo schema dell'entità (<span style="font-family: var(--font-mono), monospace">data/schemas/cantiere.schema.json</span>): l'autorità di validazione resta il backend.</p>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Nome <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Indirizzo <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Comune <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Provincia</div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Committente <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Budget <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" type="number" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+              <p style="margin: 6px 0 0; font-size: 12px; color: var(--text-secondary)">Budget complessivo in euro</p>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Data inizio <span style="color: var(--color-error)">*</span></div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" type="date" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Data fine prevista</div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" type="date" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+            </div>
+            <div>
+              <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Capocantiere</div>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="— nessuno —" items="{{ opzioniDipendenti }}" size="md" hint-size="100%,40px"></x-import>
+            </div>
+          </div>
+        </section>
+        <div style="margin-top: 16px; display: flex; gap: 8px">
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" type="submit" hint-size="auto,32px">Salva</x-import>
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ vaiLista }}" hint-size="auto,32px">Annulla</x-import>
+        </div>
+      </form>
+    </sc-if>
+
+    <sc-if value="{{ pgScartati }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
+          <a href="#dati" onClick="{{ vaiDati }}" style="color: var(--text-secondary)">← Dati</a>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 700">Scartati</h1>
+        </div>
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Inserimenti scartati</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Documenti che l'ufficio ha ripudiato: non contano nei costi, non sono in revisione e non arrivano in contabilità. <strong>Non sono cancellati</strong> — <em>Ripristina</em> li rimette dov'erano. Ogni scarto e ogni ripristino è un commit nel repo dati.</p>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colScartati }}" data="{{ rowScartati }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgScostamenti }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <h1 style="margin: 0 0 20px; font-size: 20px; font-weight: 700">Scostamenti</h1>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <sc-for list="{{ cantieriScost }}" as="c" hint-placeholder-count="3">
+            <button type="button" onClick="{{ c.scegli }}" style="text-align: left; cursor: pointer; font: inherit; color: inherit; background: var(--background-primary); border-radius: var(--radius-lg); padding: 16px; border: {{ c.bordo }}">
+              <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">{{ c.nome }}</div>
+              <div style="margin-top: 6px; font-size: 20px; font-weight: 700">{{ c.consuntivo }}</div>
+              <div style="margin-top: 4px; font-size: 12px; color: var(--text-secondary)">{{ c.nota }}</div>
+            </button>
+          </sc-for>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Previsto (computo)</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ scostPrevisto }}</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Consuntivo abbinato</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ scostConsuntivo }}</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Voci sopra soglia</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ scostSopraSoglia }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">consumo ≥ 80% del previsto</div>
+          </div>
+        </div>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Voci di computo — previsto vs speso</h2>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colVoci }}" data="{{ rowVoci }}" striped="{{ vero }}" hint-size="100%,240px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgRevisione }}" hint-placeholder-val="{{ false }}">
+      <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+        <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Bozze da rivedere (3)</h2>
+        </header>
+        <div style="padding: 20px">
+          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colCoda }}" data="{{ rowCoda }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ pgRevDettaglio }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <a href="#revisione" onClick="{{ vaiRevisione }}" style="color: var(--text-secondary)">← Coda</a>
+            <h1 style="margin: 0; font-family: var(--font-mono), monospace; font-size: 18px; font-weight: 700">fattura-2026-0042</h1>
+            <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; background: var(--color-warning); color: #1f1f1f">bozza</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ alternaJson }}" hint-size="auto,32px">{{ etichettaJson }}</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ alternaTrace }}" hint-size="auto,32px">{{ etichettaTrace }}</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Modifica dati</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Collega al computo</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="sm" onClick="{{ apriScarto }}" hint-size="auto,32px">Scarta</x-import>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Salva come validato</x-import>
+          </div>
+        </div>
+
+        <sc-if value="{{ scartoAperto }}" hint-placeholder-val="{{ false }}">
+          <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Scarta questo documento</h2>
+            </header>
+            <div style="padding: 20px">
+              <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Il documento esce dai costi, dalla revisione e dai report, ma <strong>non viene cancellato</strong>: lo ritrovi in Dati → Scartati e da lì puoi ripristinarlo. Se è già arrivato in contabilità, va prima sistemato in ERPNext.</p>
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" placeholder="Perché lo scarti? (es. fattura doppia)" value="{{ motivoScarto }}" onChange="{{ setMotivoScarto }}" dc-props="{{ campoMedio }}" hint-size="320px,40px"></x-import>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="error" size="sm" disabled="{{ motivoVuoto }}" hint-size="auto,32px">Sì, scarta</x-import>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ chiudiScarto }}" hint-size="auto,32px">Annulla</x-import>
+              </div>
+            </div>
+          </section>
+        </sc-if>
+
+        <sc-if value="{{ traceAperto }}" hint-placeholder-val="{{ false }}">
+          <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Trace del run run-8f21ac</h2>
+            </header>
+            <div style="padding: 20px">
+              <div style="background: var(--dark); border-radius: var(--radius); padding: 12px; font-family: var(--font-mono), monospace; font-size: 12px; color: #e6e6e6">
+                <sc-for list="{{ eventiTrace }}" as="e" hint-placeholder-count="5">
+                  <div style="display: flex; gap: 10px; padding: 2px 0">
+                    <span style="width: 60px; flex-shrink: 0; color: #8a8a8a">{{ e.ora }}</span>
+                    <span style="flex: 1">{{ e.testo }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </section>
+        </sc-if>
+
+        <div style="margin-bottom: 24px; border: 1px solid var(--color-warning); border-radius: var(--radius); padding: 12px 16px; font-size: 14px">
+          Segnalazione aperta: <b>Sulla fattura Marino la ritenuta d'acconto non è stata letta: sul documento c'è 4% sull'imponibile.</b> — <a href="#segnalazioni" onClick="{{ vaiSegnalazioni }}">vai alle segnalazioni</a>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Riferimenti da completare</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Questi riferimenti non sono stati trovati in anagrafica durante l'estrazione. Puoi <strong>crearli dal documento</strong> (precompilati con ciò che è stato letto) o collegarne uno esistente. L'anagrafica creata nasce già validata.</p>
+            <div style="border: 1px solid var(--color-warning); border-radius: var(--radius); padding: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--color-warning); color: #1f1f1f">Manca</span>
+                <span style="font-weight: 700">Fornitore</span>
+                <span style="font-size: 14px; color: var(--text-secondary)">letto dal documento: <b style="color: var(--text-primary)">Impianti Elettrici Marino S.r.l.</b></span>
+              </div>
+              <sc-if value="{{ rifIniziale }}" hint-placeholder-val="{{ true }}">
+                <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ apriCreaRif }}" hint-size="auto,32px">Crea Fornitore dal documento</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ apriCollegaRif }}" hint-size="auto,32px">Collega esistente</x-import>
+                </div>
+              </sc-if>
+              <sc-if value="{{ rifCollega }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="— scegli —" items="{{ opzioniFornitori }}" size="sm" hint-size="260px,36px"></x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Collega</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ chiudiRif }}" hint-size="auto,32px">Annulla</x-import>
+                </div>
+              </sc-if>
+              <sc-if value="{{ rifCrea }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 14px">
+                  <p style="margin: 0 0 12px; font-size: 12px; color: var(--text-secondary)">Completa i campi obbligatori che il documento non riporta, poi crea.</p>
+                  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+                    <div>
+                      <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Ragione sociale <span style="color: var(--color-error)">*</span></div>
+                      <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" value="Impianti Elettrici Marino S.r.l." dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+                    </div>
+                    <div>
+                      <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Partita IVA <span style="color: var(--color-error)">*</span></div>
+                      <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" value="04512380877" dc-props="{{ campoLargo }}" hint-size="100%,40px"></x-import>
+                    </div>
+                  </div>
+                  <div style="margin-top: 14px; display: flex; gap: 8px">
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Crea Fornitore e collega</x-import>
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ chiudiRif }}" hint-size="auto,32px">Annulla</x-import>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </section>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-bottom: 24px">
+          <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Originale</h2>
+            </header>
+            <div style="padding: 20px">
+              <div style="height: 560px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--background-secondary); display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 14px">Anteprima del PDF caricato</div>
+            </div>
+          </section>
+
+          <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Campi estratti</h2>
+            </header>
+            <div style="padding: 20px">
+              <div>
+                <sc-for list="{{ campiEstratti }}" as="c" hint-placeholder-count="7">
+                  <div style="display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px">
+                    <span style="width: 130px; flex-shrink: 0; font-weight: 700; color: var(--text-secondary)">{{ c.campo }}</span>
+                    <span style="flex: 1">{{ c.valore }}</span>
+                    <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: {{ c.colore }}">{{ c.confidenza }}</span>
+                    <button type="button" onClick="{{ c.nota }}" style="border: none; background: none; cursor: pointer; font: inherit; font-size: 12px; color: var(--color-primary)">+ nota</button>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top: 20px">
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 8px">Righe</div>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colRighe }}" data="{{ rowRighe }}" striped="{{ vero }}" hint-size="100%,120px"></x-import>
+              </div>
+              <sc-if value="{{ jsonAperto }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 20px; max-height: 288px; overflow: auto; border-radius: var(--radius); background: var(--dark); padding: 12px; font-family: var(--font-mono), monospace; font-size: 12px; line-height: 1.6; color: #e6e6e6; white-space: pre">{{ jsonDati }}</div>
+              </sc-if>
+            </div>
+          </section>
+        </div>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Migliora il workflow</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Le note “+ nota” sui campi qui sopra spiegano <em>cosa</em> non torna. Qui invece detti una <strong>regola</strong> in italiano: l'Improver la trasforma in una nuova versione della skill di <span style="font-family: var(--font-mono), monospace">carica-fattura</span> — con verifica sui casi già validati — che poi approvi nei Workflows.</p>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.TextArea" type="inputForm" placeholder="Es. «individua sempre il fornitore dalla partita IVA, non dalla ragione sociale»" value="{{ istruzione }}" onChange="{{ setIstruzione }}" dc-props="{{ areaLarga }}" hint-size="100%,80px"></x-import>
+            <div style="margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ proponiPatch }}" disabled="{{ istruzioneVuota }}" hint-size="auto,32px">Proponi miglioramento</x-import>
+              <span style="font-size: 12px; color: var(--text-secondary)">L'Improver riscrive la skill e la prova sui casi già validati; poi la approvi tu.</span>
+            </div>
+            <sc-if value="{{ patchProposta }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top: 12px; border: 1px solid var(--color-success); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; color: var(--color-success)">Proposta <span style="font-family: var(--font-mono), monospace">patch-0007</span> creata · replay golden 4/4 · rivedi e approva nei Workflows →</div>
+            </sc-if>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgSegnalazioni }}" hint-placeholder-val="{{ false }}">
+      <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+        <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+          <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Segnalazioni (2 aperte)</h2>
+        </header>
+        <div style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+          <sc-for list="{{ segnalazioni }}" as="s" hint-placeholder-count="3">
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px; opacity: {{ s.opacita }}">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px">
+                <span style="font-family: var(--font-mono), monospace; white-space: nowrap; color: var(--text-secondary)">{{ s.id }}</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-weight: 700; color: #ffffff; background: var(--color-info)">{{ s.origine }}</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-weight: 700; background: {{ s.coloreStato }}; color: {{ s.testoStato }}">{{ s.stato }}</span>
+                <span style="color: var(--text-secondary)">{{ s.data }}</span>
+              </div>
+              <p style="margin: 0; font-size: 14px">{{ s.testo }}</p>
+              <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">{{ s.entita }}</div>
+              <div style="margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                <a href="#revisione" onClick="{{ vaiRevDettaglio }}" style="font-size: 14px; font-weight: 700">Rivedi</a>
+                <a href="#trace" onClick="{{ s.trace }}" style="font-size: 14px">Trace</a>
+                <sc-if value="{{ s.aperta }}" hint-placeholder-val="{{ true }}">
+                  <span style="display: flex; gap: 8px">
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Migliora il workflow</x-import>
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ s.chiudi }}" hint-size="auto,32px">Segna risolta</x-import>
+                  </span>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ pgInterroga }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Interroga i dati</h2>
+          </header>
+          <div style="padding: 20px">
+            <form onSubmit="{{ chiediSql }}" style="display: flex; gap: 8px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" placeholder="Fai una domanda sui costi, in italiano…" value="{{ domanda }}" onChange="{{ setDomanda }}" dc-props="{{ campoFlex }}" hint-size="100%,40px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" type="submit" hint-size="auto,40px">Chiedi</x-import>
+            </form>
+            <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{ esempiSql }}" as="e" hint-placeholder-count="3">
+                <button type="button" onClick="{{ e.usa }}" style="cursor: pointer; font: inherit; font-size: 12px; color: var(--text-secondary); background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-full); padding: 5px 12px" style-hover="background: var(--background-secondary)">{{ e.testo }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <sc-if value="{{ esitoSql }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+              <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+                <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">SQL generato</h2>
+              </header>
+              <div style="padding: 20px">
+                <pre style="margin: 0; overflow: auto; border-radius: var(--radius); background: var(--dark); padding: 12px; font-family: var(--font-mono), monospace; font-size: 12px; color: #e6e6e6">{{ sqlGenerato }}</pre>
+              </div>
+            </section>
+            <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+              <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+                <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Risultato (3 righe)</h2>
+              </header>
+              <div style="padding: 20px">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colSql }}" data="{{ rowSql }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+              </div>
+            </section>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgWorkflows }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Patch in attesa (1)</h2>
+          </header>
+          <div style="padding: 20px">
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px">
+                <span style="font-family: var(--font-mono), monospace; font-size: 14px; font-weight: 700">patch-0006</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-info)">carica-fattura</span>
+                <span style="font-size: 14px; color: var(--text-secondary)">v3 → v4</span>
+                <span style="margin-left: auto; font-size: 12px; color: var(--text-secondary)">27/07/2026</span>
+              </div>
+              <p style="margin: 0 0 4px; font-size: 14px"><strong>Analisi:</strong> la ritenuta d'acconto non viene letta quando è espressa in percentuale.</p>
+              <p style="margin: 0; font-size: 14px"><strong>Motivo:</strong> aggiunta una regola che calcola la ritenuta dall'imponibile quando manca il valore assoluto.</p>
+              <div style="margin: 14px 0; display: flex; align-items: center; gap: 10px">
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-success)">Replay golden 4/4</span>
+                <span style="font-size: 12px; color: var(--text-secondary)">nessuna regressione sui casi validati</span>
+              </div>
+              <div style="overflow: auto; border-radius: var(--radius); background: var(--dark); padding: 12px; font-family: var(--font-mono), monospace; font-size: 12px; line-height: 1.6; white-space: pre">
+                <div style="color: #9a9a9a">--- skills/carica-fattura/estrai.md</div>
+                <div style="color: #9a9a9a">+++ skills/carica-fattura/estrai.md</div>
+                <div style="color: #7ec8ff">@@ -18,6 +18,9 @@</div>
+                <div style="color: #d4d4d4"> Leggi i totali del documento.</div>
+                <div style="color: #7ee787">+Se la ritenuta d'acconto è espressa in percentuale,</div>
+                <div style="color: #7ee787">+calcolala sull'imponibile e riporta il valore in euro.</div>
+                <div style="color: #ff9c9c">-Ignora la ritenuta se non è un importo.</div>
+              </div>
+              <div style="margin-top: 14px; display: flex; gap: 8px">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Approva e applica</x-import>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="sm" hint-size="auto,32px">Rifiuta</x-import>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Workflow</h2>
+          </header>
+          <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px">
+            <sc-for list="{{ workflows }}" as="w" hint-placeholder-count="3">
+              <div style="border: 1px solid var(--border-color); border-radius: var(--radius); padding: 16px">
+                <div style="display: flex; align-items: center; gap: 12px">
+                  <span style="font-family: var(--font-mono), monospace; font-weight: 700">{{ w.nome }}</span>
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-info)">{{ w.versione }}</span>
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">{{ w.tier }}</span>
+                </div>
+                <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px">
+                  <sc-for list="{{ w.passi }}" as="p" hint-placeholder-count="3">
+                    <span style="border-radius: var(--radius-sm); background: var(--background-secondary); border: 1px solid var(--border-color); padding: 2px 8px; font-size: 12px; color: var(--text-secondary)">{{ p.nome }}</span>
+                  </sc-for>
+                </div>
+                <div style="margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 24px; font-size: 14px; color: var(--text-secondary)">
+                  <span><b style="color: var(--text-primary)">{{ w.run }}</b> run</span>
+                  <span style="color: var(--color-success)">{{ w.ok }} ok</span>
+                  <span style="color: var(--color-error)">{{ w.errori }} errore</span>
+                  <span><b style="color: var(--text-primary)">{{ w.golden }}</b> casi golden</span>
+                  <span>soglia confidenza {{ w.soglia }}</span>
+                </div>
+                <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color)">
+                  <button type="button" onClick="{{ w.alterna }}" style="border: none; background: none; cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; color: var(--color-primary)">{{ w.etichetta }}</button>
+                  <sc-if value="{{ w.aperto }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top: 12px">
+                      <x-import component-from-global-scope="AithoDesignSystem_c0878f.TextArea" type="inputForm" placeholder="Es. «individua sempre il fornitore dalla partita IVA, non dalla ragione sociale»" dc-props="{{ areaLarga }}" hint-size="100%,80px"></x-import>
+                      <div style="margin-top: 12px">
+                        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Proponi miglioramento</x-import>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Casi golden — la rete di regressione (4)</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Ogni caso è un documento già validato dall'ufficio con la sua trascrizione corretta. Quando l'Improver propone una nuova versione, la riesegue su tutti questi e confronta: è ciò che impedisce di correggere un errore introducendone tre.</p>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colGolden }}" data="{{ rowGolden }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgRun }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Run mostrati</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ runMostrati }}</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Falliti</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ runFalliti }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">{{ notaFalliti }}</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo LLM</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ runCosto }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">somma dei run mostrati</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Escalation</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ runEscalation }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">step rifatti su un tier superiore</div>
+          </div>
+        </div>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Esecuzioni</h2>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="Tutti i workflow" items="{{ opzioniWorkflow }}" onValueChange="{{ setFiltroWorkflow }}" size="sm" hint-size="200px,36px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="Tutti gli esiti" items="{{ opzioniEsito }}" onValueChange="{{ setFiltroEsito }}" size="sm" hint-size="160px,36px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ azzeraFiltriRun }}" hint-size="auto,32px">Aggiorna</x-import>
+            </div>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colRun }}" data="{{ rowRun }}" striped="{{ vero }}" hint-size="100%,240px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgTools }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px">
+          <sc-for list="{{ kpiTools }}" as="k" hint-placeholder-count="6">
+            <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 14px">
+              <div style="font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">{{ k.etichetta }}</div>
+              <div style="margin-top: 6px; font-size: 22px; font-weight: 700">{{ k.valore }}</div>
+              <div style="margin-top: 6px; font-size: 11px; color: var(--text-secondary)">{{ k.nota }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Dataset per il fine-tuning (FunctionGemma)</h2>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Scarica finetuning.jsonl</x-import>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Solo le tool call dei documenti <b>validati dall'ufficio</b> diventano esempi di addestramento: 128 pronti. Serviranno a distillare i workflow consolidati su un modello locale (tier T3), portando il costo per documento verso zero.</p>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Tool nativi (Python)</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Funzioni deterministiche che i workflow di caricamento invocano durante l'estrazione. Quelle marcate <b>nativa</b> sono il set fisso incluso nell'app; quelle <b>consolidata dal Toolsmith</b> sono nate da un calcolo ricorrente e vivono in <span style="font-family: var(--font-mono), monospace">data/tools/</span>.</p>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colTool }}" data="{{ rowTool }}" striped="{{ vero }}" hint-size="100%,200px"></x-import>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Candidati Python — calcoli che l'ufficio corregge sempre</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Ogni riga è un campo che la revisione ha corretto più volte: il segnale che l'estrazione lo sta <em>ragionando</em> quando invece lo si può <em>calcolare</em>. Serve un minimo di casi validati (3) perché ci sia materia per generare e per testare.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <sc-for list="{{ candidatiPy }}" as="c" hint-placeholder-count="2">
+                <div style="padding-bottom: 12px; border-bottom: 1px solid var(--border-color)">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                    <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: {{ c.colore }}; color: #1f1f1f">×{{ c.occorrenze }}</span>
+                    <code style="font-family: var(--font-mono), monospace; font-size: 13px">{{ c.campo }}</code>
+                    <span style="font-size: 12px; color: var(--text-secondary)">{{ c.contesto }}</span>
+                    <span style="font-size: 12px; color: var(--text-secondary)">valori: {{ c.valori }}</span>
+                    <span style="margin-left: auto">
+                      <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xs" onClick="{{ c.alterna }}" hint-size="auto,28px">{{ c.etichetta }}</x-import>
+                    </span>
+                  </div>
+                  <sc-if value="{{ c.aperto }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top: 12px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--background-secondary); padding: 12px">
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                        <span style="font-size: 12px; color: var(--text-secondary)">Nome del tool</span>
+                        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" value="{{ c.nomeTool }}" dc-props="{{ campoMedio }}" hint-size="224px,36px"></x-import>
+                        <span style="font-size: 12px; color: var(--text-secondary)">minuscole, numeri e underscore</span>
+                      </div>
+                      <p style="margin: 12px 0 6px; font-size: 12px; color: var(--text-secondary)">Da quali campi si <b>ricava</b> <code style="font-family: var(--font-mono), monospace">{{ c.campo }}</code>? Il tool riceverà solo questi.</p>
+                      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                        <sc-for list="{{ c.campiDisponibili }}" as="k" hint-placeholder-count="4">
+                          <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="{{ k.variante }}" size="xs" borderRadius="pills" onClick="{{ k.alterna }}" hint-size="auto,26px">{{ k.nome }}</x-import>
+                        </sc-for>
+                      </div>
+                      <div style="margin-top: 14px; display: flex; gap: 8px">
+                        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" disabled="{{ c.senzaIngressi }}" hint-size="auto,32px">Genera la proposta</x-import>
+                        <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" onClick="{{ c.alterna }}" hint-size="auto,32px">Annulla</x-import>
+                      </div>
+                      <p style="margin: 8px 0 0; font-size: 12px; color: var(--text-secondary); text-wrap: pretty">Genera codice e schema col modello, poi esegue in sandbox i test ricavati dagli esempi validati. Nulla viene attivato: resta una proposta da approvare.</p>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Proposte di tool</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Ogni proposta porta il codice, lo schema e l'<b>esito reale dei test in sandbox</b>. Approvare registra il tool in <span style="font-family: var(--font-mono), monospace">data/tools/</span> — dato versionato, eseguito solo in sandbox isolata, mai importato nel processo — e fa nascere una patch di skill che insegna a chiamarlo, con il modello come riserva.</p>
+            <div style="padding-bottom: 12px; border-bottom: 1px solid var(--border-color)">
+              <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--color-warning); color: #1f1f1f">proposta</span>
+                <code style="font-family: var(--font-mono), monospace; font-size: 13px">calcola_ritenuta_acconto</code>
+                <span style="font-size: 12px; color: var(--text-secondary)">imponibile, aliquota_ritenuta → ritenuta_acconto</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-success)">test 5/5</span>
+                <span style="font-size: 12px; color: var(--text-secondary)">5 esempi validati · 26/07/2026</span>
+                <span style="margin-left: auto; display: flex; gap: 8px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xs" onClick="{{ alternaProposta }}" hint-size="auto,28px">{{ etichettaProposta }}</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="xs" hint-size="auto,28px">Approva</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="xs" hint-size="auto,28px">Rifiuta</x-import>
+                </span>
+              </div>
+              <sc-if value="{{ propostaAperta }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 14px">
+                  <div>
+                    <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Codice (eseguito solo in sandbox)</div>
+                    <div style="overflow: auto; border-radius: var(--radius); background: var(--dark); padding: 12px; font-family: var(--font-mono), monospace; font-size: 12px; line-height: 1.6; color: #e6e6e6; white-space: pre">def calcola_ritenuta_acconto(imponibile, aliquota_ritenuta):
+    if not aliquota_ritenuta:
+        return 0.0
+    return round(imponibile * aliquota_ritenuta / 100, 2)</div>
+                  </div>
+                  <div>
+                    <div style="margin-bottom: 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Test dai casi già validati</div>
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colCasi }}" data="{{ rowCasi }}" striped="{{ vero }}" hint-size="100%,140px"></x-import>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Query ricorrenti — candidate al consolidamento</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Ogni riga è una domanda che l'ufficio ha già posto a “Interroga”, con quante volte è tornata. <b>Crea vista</b> se è un totale o un elenco senza valori variabili; <b>Crea tool</b> se cambia solo un valore (es. il cantiere), che diventa un parametro.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <sc-for list="{{ candidati }}" as="c" hint-placeholder-count="3">
+                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color)">
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: {{ c.colore }}; color: {{ c.testo }}">×{{ c.conteggio }}</span>
+                  <code style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">{{ c.esempio }}</code>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xs" hint-size="auto,28px">Crea vista</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="xs" hint-size="auto,28px">Crea tool</x-import>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Viste consolidate</h2>
+          </header>
+          <div style="padding: 20px; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color)">
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-success)">v_spesa_per_cantiere</span>
+              <code style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">SELECT cantiere_id, SUM(totale) FROM v_fatture GROUP BY 1</code>
+              <span style="white-space: nowrap; font-size: 12px; color: var(--text-secondary)">21/07/2026 · giovanna</span>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="xs" hint-size="auto,28px">Rimuovi</x-import>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-success)">v_iva_mensile</span>
+              <code style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">SELECT strftime('%Y-%m', data) AS mese, SUM(iva) FROM v_fatture GROUP BY 1</code>
+              <span style="white-space: nowrap; font-size: 12px; color: var(--text-secondary)">18/07/2026 · giovanna</span>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="xs" hint-size="auto,28px">Rimuovi</x-import>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-top: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Tool parametrici (macro)</h2>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Per <b>modificarne</b> uno, rimuovilo: la query torna tra le “ricorrenti” qui sopra e puoi ricrearlo con nome o parametri diversi. Ogni rimozione è un commit git, reversibile.</p>
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-info)">t_spesa_per_cantiere(cantiere)</span>
+              <code style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">SELECT SUM(totale) FROM v_fatture WHERE cantiere_id = :cantiere</code>
+              <span style="white-space: nowrap; font-size: 12px; color: var(--text-secondary)">24/07/2026 · giovanna</span>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outlineError" size="xs" hint-size="auto,28px">Rimuovi</x-import>
+            </div>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgDataset }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Run</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">12</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">11 ok · 1 errore</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo LLM</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">$ 0,4182</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">38 chiamate</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Costo per documento</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">$ 0,0465</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">9 documenti</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Tool call</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">64</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">48 nel dataset</div>
+          </div>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Dataset tool call</h2>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Esporta toolcalls.jsonl</x-import>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 14px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Ogni chiamata a un tool dei run validati è un esempio per il futuro fine-tuning di un modello locale. Sono 48 righe.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">carica-fattura: 7 run</span>
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">carica-ddt: 3 run</span>
+              <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">interroga: 2 run</span>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Idoneità T3 — il modello locale</h2>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ misuraT3 }}" hint-size="auto,32px">{{ etichettaT3 }}</x-import>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Rigioca gli esempi già validati sul tier <b>T3</b> (modello locale) e sul tier di riferimento <b>T1</b>, e confronta la precisione con cui scelgono il tool e i suoi argomenti. Nessun addestramento: solo misura. Costa token su due tier, perciò parte solo quando lo chiedi.</p>
+            <sc-if value="{{ misuraFatta }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="margin-bottom: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary)">
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-weight: 700; color: #ffffff; background: var(--color-info)">T3: gemma-2-9b-local</span>
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">T1: claude-sonnet</span>
+                  <span>24 esempi · soglia 90% · complessivo 83% contro 96%</span>
+                </div>
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colT3 }}" data="{{ rowT3 }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ misuraDaFare }}" hint-placeholder-val="{{ true }}">
+              <div style="padding: 32px 0; text-align: center; color: var(--text-secondary)">Nessuna misura in questa sessione.</div>
+            </sc-if>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Query di Interroga per fingerprint (3)</h2>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colFingerprint }}" data="{{ rowFingerprint }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgErp }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Sincronizzazioni verso la contabilità</h2>
+            <div style="display: flex; gap: 8px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Rileggi i pagamenti</x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Re-invia gli arretrati</x-import>
+            </div>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">I documenti validati vengono inviati alla contabilità da soli. Se l'ERP era momentaneamente irraggiungibile qualcuno può restare indietro: compare qui sotto e si re-invia con un clic. Ogni tentativo, riuscito o no, resta nel registro.</p>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+              <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 14px">
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Fattura</div>
+                <div style="margin-top: 6px; font-size: 22px; font-weight: 700">4/5</div>
+                <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">1 da re-inviare</div>
+              </div>
+              <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 14px">
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">DDT</div>
+                <div style="margin-top: 6px; font-size: 22px; font-weight: 700">2/2</div>
+                <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">tutti a destinazione</div>
+              </div>
+              <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 14px">
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">SAL</div>
+                <div style="margin-top: 6px; font-size: 22px; font-weight: 700">2/2</div>
+                <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">tutti a destinazione</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Rimasti indietro (1)</h2>
+          </header>
+          <div style="padding: 12px 20px 20px">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0">
+              <span style="display: flex; align-items: center; gap: 8px">
+                <span style="font-family: var(--font-mono), monospace; font-size: 14px; color: var(--color-primary)">fattura-2026-0039</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">fattura</span>
+              </span>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Riprova</x-import>
+            </div>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Registro dei tentativi</h2>
+          </header>
+          <div style="padding: 20px">
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Table" columns="{{ colErp }}" data="{{ rowErp }}" striped="{{ vero }}" hint-size="100%,160px"></x-import>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgLog }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px">
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Eventi</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">1284</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">{{ notaPeriodo }}</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Errori</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">3</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">ERROR + CRITICAL</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Avvisi</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">11</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">WARNING</div>
+          </div>
+          <div style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px">
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Livello attivo</div>
+            <div style="margin-top: 6px; font-size: 24px; font-weight: 700">{{ livelloAttivo }}</div>
+            <div style="margin-top: 6px; font-size: 12px; color: var(--text-secondary)">soglia di registrazione</div>
+          </div>
+        </div>
+
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Livello di log</h2>
+            <div style="display: flex; align-items: center; gap: 12px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.ToggleSwitch" label="auto-aggiorna" hint-size="auto,24px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Aggiorna</x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Esporta (oggi)</x-import>
+            </div>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">Registra dalla soglia scelta in su. La modifica vale subito ed è persistita (sopravvive al riavvio). Il default all'avvio arriva da <span style="font-family: var(--font-mono), monospace">LOG_LEVEL</span>.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{ livelli }}" as="l" hint-placeholder-count="5">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="{{ l.variante }}" size="sm" onClick="{{ l.scegli }}" hint-size="auto,32px">{{ l.nome }}</x-import>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <section style="background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Eventi</h2>
+          </header>
+          <div style="padding: 20px">
+            <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 20px">
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="Da livello: DEBUG" items="{{ opzioniLivello }}" onValueChange="{{ setLogLivello }}" size="sm" hint-size="180px,36px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="Fase: tutte" items="{{ opzioniFase }}" onValueChange="{{ setLogFase }}" size="sm" hint-size="180px,36px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Select" placeholder="7 giorni" items="{{ opzioniPeriodo }}" onValueChange="{{ setLogPeriodo }}" size="sm" hint-size="140px,36px"></x-import>
+              <x-import component-from-global-scope="AithoDesignSystem_c0878f.Input" type="search" inputSearch="{{ vero }}" placeholder="messaggio, run_id, documento…" value="{{ logCerca }}" onChange="{{ setLogCerca }}" dc-props="{{ campoFlex }}" hint-size="100%,36px"></x-import>
+            </div>
+            <sc-if value="{{ logVuoto }}" hint-placeholder-val="{{ false }}">
+              <div style="padding: 40px 0; text-align: center; color: var(--text-secondary)">Nessun evento per questi filtri.</div>
+            </sc-if>
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius)">
+              <sc-for list="{{ vociLog }}" as="v" hint-placeholder-count="6">
+                <div style="display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--border-color); font-size: 14px">
+                  <span style="width: 96px; flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">{{ v.ora }}</span>
+                  <span style="width: 76px; flex-shrink: 0"><span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: {{ v.testo }}; background: {{ v.colore }}">{{ v.livello }}</span></span>
+                  <span style="width: 90px; flex-shrink: 0; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">{{ v.fase }}</span>
+                  <span style="flex: 1">{{ v.messaggio }} <span style="margin-left: 6px; font-size: 12px; color: var(--text-secondary)">{{ v.contesto }}</span></span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ pgDiagnosi }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+          <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+            <h2 style="margin: 0; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Diagnosi automatica degli errori</h2>
+            <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" hint-size="auto,32px">Analizza errori adesso</x-import>
+          </header>
+          <div style="padding: 20px">
+            <p style="margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); text-wrap: pretty">All'arrivo di errori il sistema ne analizza la causa e propone una risoluzione: se impatta un <strong>dato</strong> modificabile (skill, tool, schema) suggerisce la modifica — spesso passando per l'Improver; se riguarda l'<strong>architettura</strong>, fornisce la sola analisi leggendo il proprio codice sorgente. Ogni proposta resta in attesa di una decisione umana.</p>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{ statiDiagnosi }}" as="s" hint-placeholder-count="4">
+                <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="{{ s.variante }}" size="sm" onClick="{{ s.scegli }}" hint-size="auto,32px">{{ s.etichetta }}</x-import>
+              </sc-for>
+            </div>
+          </div>
+        </section>
+
+        <sc-if value="{{ diagnosiVuote }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 40px 0; text-align: center; color: var(--text-secondary)">Nessuna diagnosi: usa «Analizza errori adesso» quando compaiono errori nel Log.</div>
+        </sc-if>
+
+        <sc-for list="{{ diagnosi }}" as="d" hint-placeholder-count="1">
+          <section style="margin-bottom: 24px; background: var(--background-primary); border: 1px solid var(--border-color); border-radius: var(--radius-lg)">
+            <header style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color)">
+              <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px">
+                <span style="font-family: var(--font-mono), monospace; font-size: 12px; white-space: nowrap; color: var(--text-secondary)">{{ d.id }}</span>
+                <span style="font-size: 14px; font-weight: 700">{{ d.titolo }}</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; background: {{ d.coloreCategoria }}; color: {{ d.testoCategoria }}">{{ d.categoria }}</span>
+                <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: {{ d.testoLivello }}; background: {{ d.coloreLivello }}">{{ d.livello }}</span>
+                <sc-if value="{{ d.chiusa }}" hint-placeholder-val="{{ false }}">
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 1px 9px; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--color-success)">{{ d.stato }}</span>
+                </sc-if>
+              </span>
+              <sc-if value="{{ d.aperta }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; gap: 8px">
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Segna risolta</x-import>
+                  <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="outline" size="sm" hint-size="auto,32px">Archivia</x-import>
+                </div>
+              </sc-if>
+            </header>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px">
+              <div style="display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-secondary)">
+                <span>fase: <span style="font-family: var(--font-mono), monospace">{{ d.fase }}</span></span>
+                <span>occorrenze: <b style="color: var(--text-primary)">{{ d.occorrenze }}</b></span>
+                <span>ultima: {{ d.ultima }}</span>
+                <span>{{ d.notaWorkflow }}</span>
+                <span>confidenza: {{ d.confidenza }}%</span>
+              </div>
+              <div style="border-radius: var(--radius-sm); background: var(--background-secondary); border: 1px solid var(--border-color); padding: 10px 12px; font-family: var(--font-mono), monospace; font-size: 12px; color: var(--text-secondary)">{{ d.messaggio }}</div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Analisi</div>
+                <div style="margin-top: 4px; font-size: 14px; text-wrap: pretty">{{ d.analisi }}</div>
+              </div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Causa radice</div>
+                <div style="margin-top: 4px; font-size: 14px; text-wrap: pretty">{{ d.causa }}</div>
+              </div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-secondary)">Proposta di risoluzione</div>
+                <div style="margin-top: 6px; border: 1px solid var(--color-warning); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; text-wrap: pretty">{{ d.proposta }}</div>
+                <sc-if value="{{ d.improver }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+                    <x-import component-from-global-scope="AithoDesignSystem_c0878f.Button" variant="primary" size="sm" onClick="{{ vaiWorkflows }}" hint-size="auto,32px">{{ d.etichettaImprover }}</x-import>
+                    <span style="font-size: 12px; color: var(--text-secondary)">la patch va comunque approvata a mano</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ d.soloAnalisi }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 12px; border: 1px solid var(--color-info); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; color: var(--color-info)">Tocca l'architettura dell'applicazione: <strong>sola analisi</strong>, la modifica al codice va valutata a mano.</div>
+                </sc-if>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px">
+                <sc-for list="{{ d.file }}" as="f" hint-placeholder-count="2">
+                  <span style="display: inline-block; border-radius: var(--radius-full); padding: 2px 10px; font-size: 12px; font-weight: 700; background: var(--background-tertiary); color: #1f1f1f">{{ f.nome }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </section>
+        </sc-for>
+      </div>
+    </sc-if>
+
+  </main>
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;nomeUtente&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Giovanna Russo&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;paginaIniziale&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cruscotto&quot;,&quot;cantiere&quot;,&quot;dati&quot;,&quot;lista&quot;,&quot;form&quot;,&quot;scartati&quot;,&quot;scostamenti&quot;,&quot;revisione&quot;,&quot;revdettaglio&quot;,&quot;segnalazioni&quot;,&quot;interroga&quot;,&quot;workflows&quot;,&quot;run&quot;,&quot;tools&quot;,&quot;dataset&quot;,&quot;erp&quot;,&quot;log&quot;,&quot;diagnosi&quot;],&quot;default&quot;:&quot;cruscotto&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;mostraLogin&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const NS = () => window.AithoDesignSystem_c0878f || {};
+
+const PILL = "display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700";
+
+function pill(testo, sfondo, colore) {
+  return React.createElement("span", { style: { display: "inline-block", borderRadius: 999, padding: "1px 9px", fontSize: 12, fontWeight: 700, background: sfondo, color: colore || "#ffffff" } }, testo);
+}
+
+const VERDE = "var(--color-success)";
+const GIALLO = "var(--color-warning)";
+const ROSSO = "var(--color-error)";
+const BLU = "var(--color-info)";
+const GRIGIO = "var(--background-tertiary)";
+
+function euro(v) {
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(v).replace("€", "").trim() + " €";
+}
+
+const VOCI = [
+  { key: "cruscotto", text: "Cruscotto", icona: "HomeIcon" },
+  { key: "dati", text: "Dati", icona: "FileIcon" },
+  { key: "scostamenti", text: "Scostamenti", icona: "ArrowUpIcon" },
+  { key: "revisione", text: "Revisione", icona: "CheckCircledIcon" },
+  { key: "segnalazioni", text: "Segnalazioni", icona: "BellIcon" },
+  { key: "interroga", text: "Interroga", icona: "MagnifyingGlassIcon" },
+  { key: "workflows", text: "Workflows", icona: "GearIcon" },
+  { key: "run", text: "Run", icona: "TriangleRightIcon" },
+  { key: "tools", text: "Skills & Tools", icona: "ClipboardCopyIcon" },
+  { key: "dataset", text: "Dataset", icona: "DotsHorizontalIcon" },
+  { key: "erp", text: "Contabilità", icona: "Link2Icon" },
+  { key: "log", text: "Log", icona: "CalendarIcon" },
+  { key: "diagnosi", text: "Diagnosi", icona: "InfoCircledIcon" },
+];
+
+const CANTIERI_SCOST = [
+  { id: "c1", nome: "Residenza Le Palme", previsto: 412000, consuntivo: 15042.6, voci: [
+    { id: "01.10", desc: "Scavi e movimenti terra", cat: "Opere civili", previsto: 84000, consuntivo: 8344.8 },
+    { id: "01.20", desc: "Calcestruzzi strutturali", cat: "Strutture", previsto: 168000, consuntivo: 6697.8 },
+    { id: "02.10", desc: "Impianto elettrico", cat: "Impianti", previsto: 96000, consuntivo: 0 },
+    { id: "03.10", desc: "Finiture interne", cat: "Finiture", previsto: 64000, consuntivo: 0 },
+  ] },
+  { id: "c2", nome: "Ristrutturazione Scuola Manzoni", previsto: 184760, consuntivo: 8080, voci: [
+    { id: "01.10", desc: "Demolizioni e rimozioni", cat: "Opere civili", previsto: 24760, consuntivo: 21500 },
+    { id: "02.10", desc: "Impianti elettrici", cat: "Impianti", previsto: 48000, consuntivo: 2881.64 },
+    { id: "02.20", desc: "Impianto termico", cat: "Impianti", previsto: 62000, consuntivo: 0 },
+    { id: "03.10", desc: "Serramenti", cat: "Finiture", previsto: 50000, consuntivo: 6289.8 },
+  ] },
+  { id: "c3", nome: "Capannone logistico Etna Sud", previsto: 980000, consuntivo: 8344.8, voci: [
+    { id: "01.10", desc: "Platea di fondazione", cat: "Strutture", previsto: 320000, consuntivo: 8344.8 },
+    { id: "01.20", desc: "Carpenteria metallica", cat: "Strutture", previsto: 480000, consuntivo: 0 },
+    { id: "02.10", desc: "Impianto antincendio", cat: "Impianti", previsto: 180000, consuntivo: 0 },
+  ] },
+];
+
+const RUN = [
+  { quando: "27/07/2026, 09:12:04", workflow: "carica-fattura", versione: "3", documento: "fattura-marino.pdf", esito: "ok", costo: 0.0228, durata: "8,1 s", escalation: 1 },
+  { quando: "26/07/2026, 17:40:11", workflow: "carica-ddt", versione: "2", documento: "ddt-edil-sud.pdf", esito: "ok", costo: 0.0164, durata: "6,4 s", escalation: 0 },
+  { quando: "26/07/2026, 11:02:58", workflow: "carica-fattura", versione: "3", documento: "fattura-illeggibile.jpg", esito: "errore", costo: 0.0191, durata: "12,7 s", escalation: 1 },
+  { quando: "25/07/2026, 16:20:03", workflow: "carica-fattura", versione: "3", documento: "fattura-studio-bianchi.pdf", esito: "ok", costo: 0.0206, durata: "7,4 s", escalation: 0 },
+  { quando: "25/07/2026, 09:05:44", workflow: "carica-ddt", versione: "2", documento: "ddt-calcestruzzi.pdf", esito: "in_corso", costo: 0.0089, durata: "—", escalation: 0 },
+  { quando: "24/07/2026, 08:31:20", workflow: "interroga-sql", versione: "5", documento: "—", esito: "ok", costo: 0.0042, durata: "1,9 s", escalation: 0 },
+];
+
+const LIVELLI = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"];
+
+const ORDINE_LIVELLO = { DEBUG: 0, INFO: 1, WARNING: 2, ERROR: 3, CRITICAL: 4 };
+
+const DIAGNOSI = [
+  {
+    id: "diag-0003", stato: "proposta", titolo: "Ritenuta d'acconto non riconosciuta in percentuale",
+    categoria: "dato", livello: "ERROR", fase: "estrazione", occorrenze: 4, ultima: "27/07/2026",
+    workflow: "carica-fattura", confidenza: 82,
+    messaggio: 'ValidationError: ritenuta_acconto expected number, got "4%"',
+    analisi: "In quattro fatture su cinque la ritenuta è scritta come percentuale sull'imponibile. Lo schema attende un importo, quindi la validazione scarta il campo e la bozza finisce in revisione con confidenza bassa.",
+    causa: "La skill di estrazione non converte la percentuale in valore assoluto.",
+    proposta: "Aggiungere alla skill una regola che calcoli la ritenuta sull'imponibile quando il documento riporta solo la percentuale.",
+    file: ["data/workflows/carica-fattura/estrai.md", "data/schemas/fattura.json"],
+  },
+  {
+    id: "diag-0002", stato: "risolta", titolo: "Timeout verso ERPNext durante la sincronizzazione",
+    categoria: "architettura", livello: "WARNING", fase: "erp", occorrenze: 2, ultima: "26/07/2026",
+    workflow: null, confidenza: 74,
+    messaggio: "ReadTimeout: HTTPSConnectionPool(host='erp.local', port=443)",
+    analisi: "Due invii sono scaduti dopo 30 secondi mentre l'ERP era in manutenzione. I documenti sono rimasti in coda e sono stati re-inviati a mano dalla pagina Contabilità.",
+    causa: "Il client non ritenta con backoff quando l'ERP risponde lentamente.",
+    proposta: "Valutare un retry con backoff nel client ERP: tocca il codice-cornice, quindi sola analisi.",
+    file: ["backend/app/erp/client.py"],
+  },
+  {
+    id: "diag-0001", stato: "archiviata", titolo: "Classificatore incerto sui rapportini scritti a mano",
+    categoria: "dato", livello: "WARNING", fase: "classifica", occorrenze: 3, ultima: "18/07/2026",
+    workflow: "carica-rapportino", confidenza: 65,
+    messaggio: "confidence 0.58 < soglia 0.75",
+    analisi: "Le foto dei rapportini compilati a penna vengono confuse con i DDT. L'ufficio ha corretto a mano il tipo in tre casi su tre.",
+    causa: "La skill di classificazione non ha esempi di rapportini manoscritti.",
+    proposta: "Aggiungere alla skill due esempi di rapportino manoscritto fra i casi golden.",
+    file: ["data/workflows/carica-rapportino/classifica.md"],
+  },
+];
+
+const TONO_LIVELLO = { DEBUG: [GRIGIO, "#1f1f1f"], INFO: [BLU, "#ffffff"], WARNING: [GIALLO, "#1f1f1f"], ERROR: [ROSSO, "#ffffff"], CRITICAL: [ROSSO, "#ffffff"] };
+
+const LOG = [
+  { ora: "09:12:04.118", livello: "INFO", fase: "upload", messaggio: "documento ricevuto (2,1 MB)", contesto: "utente:giovanna" },
+  { ora: "09:12:05.902", livello: "INFO", fase: "classifica", messaggio: "tipo riconosciuto: fattura (0,96)", contesto: "wf:carica-fattura · step:classifica" },
+  { ora: "09:12:11.447", livello: "WARNING", fase: "estrazione", messaggio: "campo ritenuta_acconto sotto soglia (0,61)", contesto: "wf:carica-fattura · step:estrai" },
+  { ora: "09:12:11.452", livello: "ERROR", fase: "validazione", messaggio: "ValidationError: ritenuta_acconto expected number", contesto: "doc:fattura-2026-0042" },
+  { ora: "09:12:12.010", livello: "INFO", fase: "revisione", messaggio: "bozza messa in coda di revisione", contesto: "doc:fattura-2026-0042" },
+  { ora: "09:14:38.771", livello: "DEBUG", fase: "erp", messaggio: "docstatus letto a valle: 0", contesto: "doc:fattura-2026-0039" },
+];
+
+const CAMPI = [
+  { campo: "numero", valore: "205/26", conf: 0.98 },
+  { campo: "data", valore: "25/06/2026", conf: 0.97 },
+  { campo: "fornitore", valore: "Impianti Elettrici Marino S.r.l.", conf: 0.93 },
+  { campo: "cantiere", valore: "Ristrutturazione Scuola Manzoni", conf: 0.88 },
+  { campo: "imponibile", valore: "2362,00 €", conf: 0.95 },
+  { campo: "iva", valore: "519,64 €", conf: 0.95 },
+  { campo: "ritenuta_acconto", valore: "— (vuoto)", conf: 0.61 },
+];
+
+const TRACE = [
+  { ora: "09:12:04", testo: "▶ avvio carica-fattura@3 · fattura-marino.pdf" },
+  { ora: "09:12:05", testo: "classifica · claude-sonnet · 1420+58 token · 0,0041$ · 1780ms" },
+  { ora: "09:12:09", testo: "estrai · claude-sonnet · 3980+412 token · 0,0187$ · 4290ms" },
+  { ora: "09:12:11", testo: "verifica estrai: errore" },
+  { ora: "09:12:11", testo: "↑ estrai · rifatto da T3 a T1 · confidenza bassa" },
+  { ora: "09:12:12", testo: "fine: ok → fattura-2026-0042" },
+];
+
+class Component extends DCLogic {
+  state = {
+    pagina: this.props.paginaIniziale || "cruscotto",
+    autenticato: this.props.mostraLogin !== true,
+    utente: "",
+    pin: "",
+    cantiereScost: "c2",
+    traceAperto: false,
+    scartoAperto: false,
+    motivoScarto: "",
+    istruzione: "",
+    patchProposta: false,
+    domanda: "",
+    esitoSql: false,
+    workflowAperto: null,
+    livello: "INFO",
+    statoDiagnosi: "proposta",
+    misuraT3: false,
+    segnalazioniChiuse: [],
+    jsonAperto: false,
+    rifModo: null,
+    candidatoAperto: null,
+    ingressiTool: [],
+    propostaAperta: false,
+    filtroWorkflow: "",
+    filtroEsito: "",
+    logDaLivello: "DEBUG",
+    logFase: "",
+    logPeriodo: "7",
+    logCerca: "",
+  };
+
+  vai = (pagina) => () => this.setState({ pagina: pagina });
+
+  renderVals() {
+    const s = this.state;
+    const ns = NS();
+    const ico = (nome) => (ns[nome] ? React.createElement(ns[nome]) : null);
+    const cant = CANTIERI_SCOST.find((c) => c.id === s.cantiereScost) || CANTIERI_SCOST[1];
+    const runFiltrati = RUN.filter((r) => (!s.filtroWorkflow || r.workflow === s.filtroWorkflow) && (!s.filtroEsito || r.esito === s.filtroEsito));
+    const cerca = s.logCerca.trim().toLowerCase();
+    const logFiltrati = LOG.filter((v) =>
+      ORDINE_LIVELLO[v.livello] >= ORDINE_LIVELLO[s.logDaLivello] &&
+      (!s.logFase || v.fase === s.logFase) &&
+      (!cerca || (v.messaggio + " " + v.contesto).toLowerCase().indexOf(cerca) >= 0));
+    const diagnosiFiltrate = DIAGNOSI.filter((d) => !s.statoDiagnosi || d.stato === s.statoDiagnosi);
+    const previsto = cant.voci.reduce((a, v) => a + v.previsto, 0);
+    const consuntivo = cant.voci.reduce((a, v) => a + v.consuntivo, 0);
+
+    const barra = (quota) => {
+      const perc = Math.min(100, Math.round(quota * 100));
+      const colore = quota > 1 ? ROSSO : quota >= 0.8 ? GIALLO : VERDE;
+      return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+        React.createElement("div", { style: { height: 8, width: 110, borderRadius: 999, background: "var(--background-secondary)", border: "1px solid var(--border-color)", overflow: "hidden" } },
+          React.createElement("div", { style: { height: "100%", width: perc + "%", background: colore } })),
+        pill(new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(perc) + "%", colore, quota >= 0.8 && quota <= 1 ? "#1f1f1f" : "#ffffff"));
+    };
+
+    return {
+      vero: true,
+      isLogin: !s.autenticato,
+      isApp: s.autenticato,
+      utente: s.utente,
+      pin: s.pin,
+      setUtente: (e) => this.setState({ utente: e.target.value }),
+      setPin: (e) => this.setState({ pin: e.target.value }),
+      entra: (e) => { e.preventDefault(); this.setState({ autenticato: true }); },
+
+      campoLargo: { style: { width: "100%" } },
+      campoMedio: { style: { width: 320 } },
+      campoFlex: { style: { flex: 1, minWidth: 240 } },
+      areaLarga: { style: { width: "100%", minHeight: 76 } },
+      btnPieno: { style: { width: "100%", justifyContent: "center" } },
+
+      // guscio
+      intestazione: React.createElement("span", { style: { fontSize: 17, fontWeight: 700, whiteSpace: "nowrap" } }, "Workflower"),
+      piede: React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", whiteSpace: "nowrap" } },
+        React.createElement("span", null, this.props.nomeUtente || "Giovanna Russo"),
+        React.createElement("button", {
+          type: "button",
+          onClick: () => this.setState({ autenticato: false, utente: "", pin: "" }),
+          style: { border: "none", background: "none", cursor: "pointer", font: "inherit", color: "var(--color-primary)" },
+        }, "esci")),
+      vociMenu: VOCI.map((v) => ({
+        key: v.key,
+        text: v.text,
+        icon: ico(v.icona),
+        selected: s.pagina === v.key || (v.key === "dati" && ["lista", "form", "scartati"].indexOf(s.pagina) >= 0) || (v.key === "revisione" && s.pagina === "revdettaglio") || (v.key === "cruscotto" && s.pagina === "cantiere"),
+        onClick: () => this.setState({ pagina: v.key }),
+      })),
+
+      // pagine
+      pgCruscotto: s.pagina === "cruscotto",
+      pgCantiere: s.pagina === "cantiere",
+      pgDati: s.pagina === "dati",
+      pgLista: s.pagina === "lista",
+      pgForm: s.pagina === "form",
+      pgScartati: s.pagina === "scartati",
+      pgScostamenti: s.pagina === "scostamenti",
+      pgRevisione: s.pagina === "revisione",
+      pgRevDettaglio: s.pagina === "revdettaglio",
+      pgSegnalazioni: s.pagina === "segnalazioni",
+      pgInterroga: s.pagina === "interroga",
+      pgWorkflows: s.pagina === "workflows",
+      pgRun: s.pagina === "run",
+      pgTools: s.pagina === "tools",
+      pgDataset: s.pagina === "dataset",
+      pgErp: s.pagina === "erp",
+      pgLog: s.pagina === "log",
+      pgDiagnosi: s.pagina === "diagnosi",
+
+      vaiCruscotto: (e) => { e.preventDefault(); this.setState({ pagina: "cruscotto" }); },
+      vaiDati: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pagina: "dati" }); },
+      vaiLista: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pagina: "lista" }); },
+      vaiNuovoCantiere: () => this.setState({ pagina: "form" }),
+      vaiScartati: () => this.setState({ pagina: "scartati" }),
+      vaiRevisione: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pagina: "revisione" }); },
+      vaiRevDettaglio: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pagina: "revdettaglio" }); },
+      vaiWorkflows: () => this.setState({ pagina: "workflows" }),
+      salvaForm: (e) => { e.preventDefault(); this.setState({ pagina: "lista" }); },
+
+      // cruscotto — tabelle
+      colCantieri: [
+        { title: "Cantiere", dataIndex: "cantiere", render: (v, r) => React.createElement("a", { href: "#cantiere", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "cantiere" }); }, style: { fontWeight: 700 } }, v) },
+        { title: "Fatture", dataIndex: "fatture" },
+        { title: "Speso", dataIndex: "speso" },
+        { title: "Budget", dataIndex: "budget" },
+        { title: "Consumo", dataIndex: "consumo", render: (v) => barra(v) },
+        { title: "Gestisci", dataIndex: "gestisci", render: () => React.createElement("a", { href: "#dati", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "form" }); }, style: { fontSize: 12 } }, "modifica") },
+      ],
+      rowCantieri: [
+        { id: "c1", cantiere: "Residenza Le Palme", fatture: 2, speso: "15.042,60 €", budget: "1.850.000,00 €", consumo: 0.008, gestisci: "" },
+        { id: "c2", cantiere: "Ristrutturazione Scuola Manzoni", fatture: 2, speso: "9171,44 €", budget: "640.000,00 €", consumo: 0.014, gestisci: "" },
+        { id: "c3", cantiere: "Capannone logistico Etna Sud", fatture: 1, speso: "8344,80 €", budget: "2.300.000,00 €", consumo: 0.004, gestisci: "" },
+      ],
+      colFornitori: [
+        { title: "Fornitore", dataIndex: "fornitore" },
+        { title: "Fatture", dataIndex: "fatture" },
+        { title: "Speso", dataIndex: "speso" },
+        { title: "Gestisci", dataIndex: "gestisci", render: () => React.createElement("a", { href: "#dati", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "form" }); }, style: { fontSize: 12 } }, "modifica") },
+      ],
+      rowFornitori: [
+        { id: "f1", fornitore: "Edil Sud S.r.l.", fatture: 2, speso: "14.634,60 €", gestisci: "" },
+        { id: "f2", fornitore: "Calcestruzzi Etna S.p.A.", fatture: 1, speso: "8344,80 €", gestisci: "" },
+        { id: "f3", fornitore: "Impianti Elettrici Marino S.r.l.", fatture: 1, speso: "2881,64 €", gestisci: "" },
+        { id: "f4", fornitore: "Studio Bianchi", fatture: 1, speso: "6697,80 €", gestisci: "" },
+      ],
+
+      // cantiere
+      colFatture: [
+        { title: "Numero", dataIndex: "numero", render: (v) => React.createElement("a", { href: "#revisione", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "revdettaglio" }); } }, v) },
+        { title: "Fornitore", dataIndex: "fornitore" },
+        { title: "Data", dataIndex: "data" },
+        { title: "Totale", dataIndex: "totale" },
+        { title: "Stato", dataIndex: "stato", render: (v) => pill(v, VERDE) },
+      ],
+      rowFatture: [
+        { id: "1", numero: "205/26", fornitore: "Impianti Elettrici Marino S.r.l.", data: "25/06/2026", totale: "2881,64 €", stato: "validato" },
+        { id: "2", numero: "88/E", fornitore: "Edil Sud S.r.l.", data: "18/03/2026", totale: "6289,80 €", stato: "validato" },
+      ],
+
+      // dati
+      tipiAnagrafiche: ["Cantieri", "Fornitori", "Dipendenti", "Mezzi", "Materiali", "Lavorazioni", "Scadenze", "Voci di computo"].map((et) => ({
+        etichetta: et, apri: () => this.setState({ pagina: "lista" }),
+      })),
+      tipiDocumenti: ["Fatture", "DDT", "SAL", "Rapportini ore"].map((et) => ({
+        etichetta: et, apri: () => this.setState({ pagina: "lista" }),
+      })),
+
+      colLista: [
+        { title: "Codice", dataIndex: "codice" },
+        { title: "Descrizione", dataIndex: "descrizione" },
+        { title: "Stato", dataIndex: "stato", render: (v) => pill(v, v === "validato" ? VERDE : GIALLO, v === "validato" ? "#ffffff" : "#1f1f1f") },
+        { title: "Azioni", dataIndex: "azioni", render: () => React.createElement("span", { style: { display: "inline-flex", gap: 12, fontSize: 12 } },
+          React.createElement("a", { href: "#form", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "form" }); } }, "Modifica"),
+          React.createElement("a", { href: "#elimina", onClick: (ev) => ev.preventDefault(), style: { color: ROSSO } }, "Elimina")) },
+      ],
+      rowLista: [
+        { id: "1", codice: "cantiere-le-palme", descrizione: "Residenza Le Palme", stato: "validato", azioni: "" },
+        { id: "2", codice: "cantiere-scuola-manzoni", descrizione: "Ristrutturazione Scuola Manzoni", stato: "validato", azioni: "" },
+        { id: "3", codice: "cantiere-etna-sud", descrizione: "Capannone logistico Etna Sud", stato: "bozza", azioni: "" },
+      ],
+
+      colScartati: [
+        { title: "Documento", dataIndex: "documento" },
+        { title: "Motivo", dataIndex: "motivo" },
+        { title: "Scartato da", dataIndex: "da" },
+        { title: "Quando", dataIndex: "quando" },
+        { title: "", dataIndex: "azione", render: () => React.createElement(ns.Button || "button", { variant: "outline", size: "xs" }, "Ripristina") },
+      ],
+      rowScartati: [
+        { id: "1", documento: "fattura-2026-0031", motivo: "fattura doppia", da: "giovanna", quando: "22/07/2026", azione: "" },
+        { id: "2", documento: "ddt-2026-0014", motivo: "caricato per errore dal cantiere", da: "marco", quando: "19/07/2026", azione: "" },
+      ],
+
+      // scostamenti
+      cantieriScost: CANTIERI_SCOST.map((c) => ({
+        nome: c.nome,
+        consuntivo: euro(c.consuntivo),
+        nota: "abbinato su " + euro(c.previsto) + " previsti · " + new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1 }).format(c.consuntivo / c.previsto),
+        bordo: c.id === s.cantiereScost ? "1px solid var(--color-primary)" : "1px solid var(--border-color)",
+        scegli: () => this.setState({ cantiereScost: c.id }),
+      })),
+      scostPrevisto: euro(previsto),
+      scostConsuntivo: euro(consuntivo),
+      scostSopraSoglia: cant.voci.filter((v) => v.previsto && v.consuntivo / v.previsto >= 0.8).length,
+      colVoci: [
+        { title: "Voce", dataIndex: "voce" },
+        { title: "Categoria", dataIndex: "categoria" },
+        { title: "Previsto", dataIndex: "previsto" },
+        { title: "Speso", dataIndex: "speso" },
+        { title: "Consumo", dataIndex: "consumo", render: (v) => barra(v) },
+      ],
+      rowVoci: cant.voci.map((v, i) => ({
+        id: String(i),
+        voce: React.createElement("span", null, React.createElement("span", { style: { fontFamily: "var(--font-mono), monospace", fontSize: 12, color: "var(--text-secondary)" } }, v.id), " " + v.desc),
+        categoria: v.cat,
+        previsto: euro(v.previsto),
+        speso: euro(v.consuntivo),
+        consumo: v.previsto ? v.consuntivo / v.previsto : 0,
+      })),
+
+      // revisione
+      colCoda: [
+        { title: "Documento", dataIndex: "documento", render: (v, r) => React.createElement("span", null, pill(r.tipo, GRIGIO, "#1f1f1f"), React.createElement("span", { style: { marginLeft: 8, fontFamily: "var(--font-mono), monospace", fontSize: 12, color: "var(--text-secondary)" } }, v)) },
+        { title: "Fornitore", dataIndex: "fornitore" },
+        { title: "Cantiere", dataIndex: "cantiere" },
+        { title: "Totale", dataIndex: "totale" },
+        { title: "Data", dataIndex: "data" },
+        { title: "Confidenza", dataIndex: "conf", render: (v) => pill(new Intl.NumberFormat("it-IT", { style: "percent" }).format(v), v >= 0.9 ? VERDE : v >= 0.75 ? GIALLO : ROSSO, v >= 0.75 && v < 0.9 ? "#1f1f1f" : "#ffffff") },
+        { title: "", dataIndex: "azione", render: () => React.createElement("a", { href: "#revdettaglio", onClick: (ev) => { ev.preventDefault(); this.setState({ pagina: "revdettaglio" }); }, style: { fontWeight: 700 } }, "Rivedi →") },
+      ],
+      rowCoda: [
+        { id: "1", tipo: "Fattura", documento: "fattura-2026-0042", fornitore: "Impianti Elettrici Marino S.r.l.", cantiere: "Ristrutturazione Scuola Manzoni", totale: "2881,64 €", data: "25/06/2026", conf: 0.61, azione: "" },
+        { id: "2", tipo: "DDT", documento: "ddt-2026-0018", fornitore: "Edil Sud S.r.l.", cantiere: "Residenza Le Palme", totale: "—", data: "16/03/2026", conf: 0.82, azione: "" },
+        { id: "3", tipo: "Rapportino", documento: "rapportino-2026-0091", fornitore: "—", cantiere: "Residenza Le Palme", totale: "196,00 €", data: "21/07/2026", conf: 0.94, azione: "" },
+      ],
+
+      // revisione dettaglio
+      etichettaTrace: s.traceAperto ? "Nascondi trace" : "Mostra trace",
+      alternaTrace: () => this.setState({ traceAperto: !s.traceAperto }),
+      traceAperto: s.traceAperto,
+      eventiTrace: TRACE,
+      scartoAperto: s.scartoAperto,
+      apriScarto: () => this.setState({ scartoAperto: true }),
+      chiudiScarto: () => this.setState({ scartoAperto: false, motivoScarto: "" }),
+      motivoScarto: s.motivoScarto,
+      motivoVuoto: !s.motivoScarto.trim(),
+      setMotivoScarto: (e) => this.setState({ motivoScarto: e.target.value }),
+      campiEstratti: CAMPI.map((c) => ({
+        campo: c.campo,
+        valore: c.valore,
+        confidenza: new Intl.NumberFormat("it-IT", { style: "percent" }).format(c.conf),
+        colore: c.conf >= 0.9 ? VERDE : c.conf >= 0.75 ? GIALLO : ROSSO,
+        nota: () => undefined,
+      })),
+      colRighe: [
+        { title: "descrizione", dataIndex: "descrizione" },
+        { title: "quantita", dataIndex: "quantita" },
+        { title: "importo", dataIndex: "importo" },
+      ],
+      rowRighe: [
+        { id: "1", descrizione: "Quadro elettrico di piano", quantita: "2", importo: "1180,00 €" },
+        { id: "2", descrizione: "Cavo FG16OR16 3x2,5", quantita: "240 m", importo: "1182,00 €" },
+      ],
+      etichettaJson: s.jsonAperto ? "Nascondi dati" : "Mostra dati",
+      alternaJson: () => this.setState({ jsonAperto: !s.jsonAperto }),
+      jsonAperto: s.jsonAperto,
+      jsonDati: JSON.stringify({
+        numero: "205/26",
+        data: "2026-06-25",
+        fornitore_id: null,
+        cantiere_id: "cantiere-scuola-manzoni",
+        imponibile: 2362,
+        iva: 519.64,
+        totale: 2881.64,
+        ritenuta_acconto: null,
+        riferimenti_estratti: { fornitore_id: { ragione_sociale: "Impianti Elettrici Marino S.r.l.", partita_iva: "04512380877" } },
+        righe: [
+          { descrizione: "Quadro elettrico di piano", quantita: 2, importo: 1180 },
+          { descrizione: "Cavo FG16OR16 3x2,5", quantita: 240, importo: 1182 },
+        ],
+      }, null, 2),
+      vaiSegnalazioni: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ pagina: "segnalazioni" }); },
+      rifIniziale: s.rifModo === null,
+      rifCrea: s.rifModo === "crea",
+      rifCollega: s.rifModo === "collega",
+      apriCreaRif: () => this.setState({ rifModo: "crea" }),
+      apriCollegaRif: () => this.setState({ rifModo: "collega" }),
+      chiudiRif: () => this.setState({ rifModo: null }),
+      opzioniFornitori: [
+        { value: "edil-sud", textValue: "Edil Sud S.r.l." },
+        { value: "calcestruzzi-etna", textValue: "Calcestruzzi Etna S.p.A." },
+        { value: "studio-bianchi", textValue: "Studio Bianchi" },
+      ],
+      opzioniDipendenti: [
+        { value: "leotta", textValue: "Giuseppe Leotta" },
+        { value: "russo", textValue: "Giovanna Russo" },
+        { value: "sciuto", textValue: "Marco Sciuto" },
+      ],
+      istruzione: s.istruzione,
+      istruzioneVuota: !s.istruzione.trim(),
+      setIstruzione: (e) => this.setState({ istruzione: e.target.value }),
+      proponiPatch: () => this.setState({ patchProposta: true, istruzione: "" }),
+      patchProposta: s.patchProposta,
+
+      // segnalazioni
+      segnalazioni: [
+        { id: "issue-0012", origine: "operatore", testo: "Sulla fattura Marino la ritenuta d'acconto non è stata letta: sul documento c'è 4% sull'imponibile.", entita: "Impianti Elettrici Marino S.r.l. · 2881,64 €", data: "27/07/2026" },
+        { id: "issue-0011", origine: "operatore", testo: "Il DDT di Edil Sud è finito sul cantiere sbagliato.", entita: "Edil Sud S.r.l.", data: "24/07/2026" },
+        { id: "issue-0009", origine: "sistema", testo: "Tre run consecutivi con confidenza sotto soglia sullo stesso fornitore.", entita: "Calcestruzzi Etna S.p.A.", data: "18/07/2026", risolta: true },
+      ].map((i) => {
+        const aperta = !i.risolta && this.state.segnalazioniChiuse.indexOf(i.id) < 0;
+        return {
+          id: i.id, origine: i.origine, testo: i.testo, entita: i.entita, data: i.data,
+          stato: aperta ? "aperta" : "risolta",
+          coloreStato: aperta ? GIALLO : VERDE,
+          testoStato: aperta ? "#1f1f1f" : "#ffffff",
+          opacita: aperta ? 1 : 0.7,
+          aperta: aperta,
+          chiudi: () => this.setState({ segnalazioniChiuse: this.state.segnalazioniChiuse.concat([i.id]) }),
+          trace: (e) => { e.preventDefault(); this.setState({ pagina: "run" }); },
+        };
+      }),
+
+      // interroga
+      domanda: s.domanda,
+      setDomanda: (e) => this.setState({ domanda: e.target.value }),
+      chiediSql: (e) => { e.preventDefault(); this.setState({ esitoSql: true }); },
+      esempiSql: [
+        "Quanto abbiamo speso per ogni cantiere?",
+        "Quali fatture hanno una ritenuta d'acconto?",
+        "Totale IVA di tutte le fatture",
+      ].map((t) => ({ testo: t, usa: () => this.setState({ domanda: t, esitoSql: true }) })),
+      esitoSql: s.esitoSql,
+      sqlGenerato: "SELECT c.nome AS cantiere,\n       COUNT(f.id) AS fatture,\n       SUM(f.totale) AS speso\nFROM v_fatture f\nJOIN v_cantieri c ON c.id = f.cantiere_id\nGROUP BY 1\nORDER BY speso DESC\nLIMIT 100;",
+      colSql: [
+        { title: "cantiere", dataIndex: "cantiere" },
+        { title: "fatture", dataIndex: "fatture" },
+        { title: "speso", dataIndex: "speso" },
+      ],
+      rowSql: [
+        { id: "1", cantiere: "Residenza Le Palme", fatture: "2", speso: "15.042,60" },
+        { id: "2", cantiere: "Ristrutturazione Scuola Manzoni", fatture: "2", speso: "9171,44" },
+        { id: "3", cantiere: "Capannone logistico Etna Sud", fatture: "1", speso: "8344,80" },
+      ],
+
+      // workflows
+      workflows: [
+        { nome: "carica-fattura", versione: "v3", tier: "T1", passi: ["classifica", "estrai", "valida", "salva"], run: 7, ok: 6, errori: 1, golden: 4, soglia: "0,75" },
+        { nome: "carica-ddt", versione: "v2", tier: "T2", passi: ["classifica", "estrai", "valida"], run: 3, ok: 3, errori: 0, golden: 2, soglia: "0,75" },
+        { nome: "interroga-sql", versione: "v5", tier: "T2", passi: ["genera-sql", "guardrail", "esegui"], run: 2, ok: 2, errori: 0, golden: 0, soglia: "—" },
+      ].map((w) => ({
+        nome: w.nome, versione: w.versione, tier: w.tier, run: w.run, ok: w.ok, errori: w.errori, golden: w.golden, soglia: w.soglia,
+        passi: w.passi.map((p) => ({ nome: p })),
+        aperto: s.workflowAperto === w.nome,
+        etichetta: s.workflowAperto === w.nome ? "▾ chiudi" : "Migliora con un'istruzione",
+        alterna: () => this.setState({ workflowAperto: s.workflowAperto === w.nome ? null : w.nome }),
+      })),
+      colGolden: [
+        { title: "Caso", dataIndex: "caso" },
+        { title: "Workflow", dataIndex: "workflow", render: (v, r) => React.createElement("span", null, pill(v, BLU), React.createElement("span", { style: { marginLeft: 8, fontSize: 12, color: "var(--text-secondary)" } }, r.versione)) },
+        { title: "Documento", dataIndex: "documento" },
+        { title: "Origine", dataIndex: "origine" },
+        { title: "", dataIndex: "azione", render: () => React.createElement(ns.Button || "button", { variant: "outlineError", size: "xs" }, "Rimuovi") },
+      ],
+      rowGolden: [
+        { id: "1", caso: "golden-0004", workflow: "carica-fattura", versione: "v3", documento: "fattura-edil-sud.pdf", origine: "giovanna · 21/07/2026", azione: "" },
+        { id: "2", caso: "golden-0003", workflow: "carica-fattura", versione: "v3", documento: "fattura-studio-bianchi.pdf", origine: "giovanna · 19/07/2026", azione: "" },
+        { id: "3", caso: "golden-0002", workflow: "carica-ddt", versione: "v2", documento: "ddt-edil-sud.pdf", origine: "marco · 18/07/2026", azione: "" },
+        { id: "4", caso: "golden-0001", workflow: "carica-fattura", versione: "v2", documento: "fattura-calcestruzzi-etna.pdf", origine: "giovanna · 12/07/2026", azione: "" },
+      ],
+
+      // run
+      opzioniWorkflow: [{ value: "", textValue: "Tutti i workflow" }, { value: "carica-fattura", textValue: "carica-fattura" }, { value: "carica-ddt", textValue: "carica-ddt" }, { value: "interroga-sql", textValue: "interroga-sql" }],
+      opzioniEsito: [{ value: "", textValue: "Tutti" }, { value: "ok", textValue: "Riusciti" }, { value: "errore", textValue: "Falliti" }, { value: "in_corso", textValue: "In corso" }],
+      colRun: [
+        { title: "Quando", dataIndex: "quando" },
+        { title: "Workflow", dataIndex: "workflow" },
+        { title: "Documento", dataIndex: "documento" },
+        { title: "Esito", dataIndex: "esito", render: (v) => pill(v, v === "ok" ? VERDE : v === "errore" ? ROSSO : GIALLO, v === "in_corso" ? "#1f1f1f" : "#ffffff") },
+        { title: "Costo", dataIndex: "costo" },
+        { title: "Durata", dataIndex: "durata" },
+        { title: "", dataIndex: "azione", render: () => React.createElement(ns.Button || "button", { variant: "outline", size: "xs", onClick: () => this.setState({ pagina: "revdettaglio", traceAperto: true }) }, "Trace") },
+      ],
+      setFiltroWorkflow: (v) => this.setState({ filtroWorkflow: v || "" }),
+      setFiltroEsito: (v) => this.setState({ filtroEsito: v || "" }),
+      azzeraFiltriRun: () => this.setState({ filtroWorkflow: "", filtroEsito: "" }),
+      runMostrati: runFiltrati.length,
+      runFalliti: runFiltrati.filter((r) => r.esito === "errore").length,
+      notaFalliti: runFiltrati.some((r) => r.esito === "errore") ? "guarda il trace" : "nessuno",
+      runCosto: new Intl.NumberFormat("it-IT", { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(runFiltrati.reduce((a, r) => a + r.costo, 0)) + " $",
+      runEscalation: runFiltrati.reduce((a, r) => a + r.escalation, 0),
+      rowRun: runFiltrati.map((r, i) => ({
+        id: String(i),
+        quando: r.quando,
+        workflow: r.workflow + "@" + r.versione,
+        documento: r.documento,
+        esito: r.esito,
+        costo: new Intl.NumberFormat("it-IT", { minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(r.costo) + " $",
+        durata: r.durata,
+        azione: "",
+      })),
+
+      // skills & tools
+      kpiTools: [
+        { etichetta: "Tool nativi", valore: 6, nota: "funzioni Python di sistema" },
+        { etichetta: "Tool call registrate", valore: 64, nota: "" },
+        { etichetta: "Esempi fine-tuning", valore: 128, nota: "dai soli run validati" },
+        { etichetta: "Query ricorrenti", valore: 3, nota: "candidate a vista/tool" },
+        { etichetta: "Viste consolidate", valore: 2, nota: "query → v_*" },
+        { etichetta: "Tool parametrici", valore: 1, nota: "query → t_*(…)" },
+      ],
+      colTool: [
+        { title: "Tool", dataIndex: "tool" },
+        { title: "Cosa fa", dataIndex: "cosa" },
+        { title: "Usi", dataIndex: "usi" },
+        { title: "Ciclo di vita", dataIndex: "ciclo", render: (v) => pill(v, VERDE) },
+        { title: "Origine", dataIndex: "origine", render: (v) => pill(v, v === "Toolsmith" ? BLU : GRIGIO, v === "Toolsmith" ? "#ffffff" : "#1f1f1f") },
+      ],
+      rowTool: [
+        { id: "1", tool: "leggi_pdf", cosa: "estrae testo e pagine da un PDF", usi: 24, ciclo: "attivo", origine: "nativa" },
+        { id: "2", tool: "trova_fornitore_da_piva", cosa: "abbina la partita IVA all'anagrafica", usi: 18, ciclo: "attivo", origine: "Toolsmith" },
+        { id: "3", tool: "calcola_ritenuta", cosa: "ritenuta d'acconto dall'imponibile", usi: 9, ciclo: "attivo", origine: "Toolsmith" },
+        { id: "4", tool: "salva_entita", cosa: "scrive la bozza nel repo dati", usi: 31, ciclo: "attivo", origine: "nativa" },
+      ],
+      candidatiPy: [
+        { campo: "ritenuta_acconto", occorrenze: 5, tipo: "fattura", workflow: "carica-fattura", valori: "94,48, 120,00, 80,00", campi: ["numero", "data", "imponibile", "iva", "totale", "aliquota_ritenuta"] },
+        { campo: "costo_orario", occorrenze: 2, tipo: "rapportino", workflow: "carica-rapportino", valori: "24,50, 26,00", campi: ["dipendente_id", "ore", "importo"] },
+      ].map((c) => ({
+        campo: c.campo,
+        occorrenze: c.occorrenze,
+        contesto: c.tipo + " · " + c.workflow,
+        valori: c.valori,
+        colore: c.occorrenze > 2 ? GIALLO : GRIGIO,
+        aperto: s.candidatoAperto === c.campo,
+        etichetta: s.candidatoAperto === c.campo ? "Annulla" : "Proponi un tool",
+        nomeTool: "calcola_" + c.campo,
+        senzaIngressi: s.ingressiTool.length === 0,
+        alterna: () => this.setState({ candidatoAperto: s.candidatoAperto === c.campo ? null : c.campo, ingressiTool: [] }),
+        campiDisponibili: c.campi.map((k) => ({
+          nome: k,
+          variante: s.ingressiTool.indexOf(k) >= 0 ? "primary" : "outline",
+          alterna: () => this.setState({ ingressiTool: s.ingressiTool.indexOf(k) >= 0 ? s.ingressiTool.filter((x) => x !== k) : s.ingressiTool.concat([k]) }),
+        })),
+      })),
+      etichettaProposta: s.propostaAperta ? "Nascondi" : "Ispeziona",
+      alternaProposta: () => this.setState({ propostaAperta: !s.propostaAperta }),
+      propostaAperta: s.propostaAperta,
+      colCasi: [
+        { title: "Argomenti", dataIndex: "argomenti" },
+        { title: "Atteso", dataIndex: "atteso" },
+        { title: "Ottenuto", dataIndex: "ottenuto" },
+        { title: "", dataIndex: "ok", render: (v) => pill(v, VERDE) },
+      ],
+      rowCasi: [
+        { id: "1", argomenti: "[2362, 4]", atteso: "94.48", ottenuto: "94.48", ok: "ok" },
+        { id: "2", argomenti: "[6000, 2]", atteso: "120.0", ottenuto: "120.0", ok: "ok" },
+        { id: "3", argomenti: "[4000, null]", atteso: "0.0", ottenuto: "0.0", ok: "ok" },
+      ],
+
+      candidati: [
+        { conteggio: 5, esempio: "SELECT cantiere_id, SUM(totale) FROM v_fatture GROUP BY 1", colore: GIALLO, testo: "#1f1f1f" },
+        { conteggio: 3, esempio: "SELECT * FROM v_fatture WHERE ritenuta_acconto > 0", colore: GIALLO, testo: "#1f1f1f" },
+        { conteggio: 1, esempio: "SELECT SUM(iva) FROM v_fatture WHERE cantiere_id = 'cantiere-le-palme'", colore: GRIGIO, testo: "#1f1f1f" },
+      ],
+
+      // dataset
+      etichettaT3: s.misuraT3 ? "Misuro…" : "Misura adesso",
+      misuraT3: () => this.setState({ misuraT3: !s.misuraT3 }),
+      misuraFatta: s.misuraT3,
+      misuraDaFare: !s.misuraT3,
+      colT3: [
+        { title: "Workflow", dataIndex: "workflow" },
+        { title: "Esempi", dataIndex: "esempi" },
+        { title: "T3 tool", dataIndex: "t3tool" },
+        { title: "T3 argomenti", dataIndex: "t3args" },
+        { title: "T1 argomenti", dataIndex: "t1args" },
+        { title: "Verdetto", dataIndex: "verdetto", render: (v) => pill(v, v === "pronto per T3" ? VERDE : v === "regredirebbe" ? ROSSO : GIALLO, v === "sotto soglia" ? "#1f1f1f" : "#ffffff") },
+      ],
+      rowT3: [
+        { id: "1", workflow: "carica-ddt", esempi: 8, t3tool: "100%", t3args: "94%", t1args: "96%", verdetto: "pronto per T3" },
+        { id: "2", workflow: "carica-fattura", esempi: 12, t3tool: "92%", t3args: "78%", t1args: "97%", verdetto: "sotto soglia" },
+        { id: "3", workflow: "interroga-sql", esempi: 4, t3tool: "75%", t3args: "50%", t1args: "95%", verdetto: "regredirebbe" },
+      ],
+      colFingerprint: [
+        { title: "Query (esempio)", dataIndex: "query" },
+        { title: "Volte", dataIndex: "volte" },
+        { title: "", dataIndex: "nota", render: (v) => (v ? pill(v, GIALLO, "#1f1f1f") : null) },
+      ],
+      rowFingerprint: [
+        { id: "1", query: "SELECT cantiere_id, SUM(totale) FROM v_fatture GROUP BY 1", volte: 5, nota: "candidata a tool" },
+        { id: "2", query: "SELECT * FROM v_fatture WHERE ritenuta_acconto > 0", volte: 3, nota: "candidata a tool" },
+        { id: "3", query: "SELECT SUM(iva) FROM v_fatture", volte: 1, nota: "" },
+      ],
+
+      // erp
+      colErp: [
+        { title: "Quando", dataIndex: "quando" },
+        { title: "Documento", dataIndex: "documento" },
+        { title: "Esito", dataIndex: "esito", render: (v) => pill(v, v === "arrivato" ? VERDE : ROSSO) },
+        { title: "In contabilità / motivo", dataIndex: "motivo" },
+      ],
+      rowErp: [
+        { id: "1", quando: "27/07/2026", documento: "fattura-2026-0042", esito: "arrivato", motivo: "ACC-PINV-2026-00031" },
+        { id: "2", quando: "26/07/2026", documento: "fattura-2026-0039", esito: "non passato", motivo: "ERPNext non raggiungibile (timeout 30s)" },
+        { id: "3", quando: "24/07/2026", documento: "ddt-2026-0018", esito: "arrivato", motivo: "MAT-PRE-2026-00012" },
+      ],
+
+      // log
+      notaPeriodo: s.logPeriodo === "1" ? "oggi" : "ultimi " + s.logPeriodo + " giorni",
+      livelloAttivo: s.livello,
+      livelli: LIVELLI.map((l) => ({ nome: l, variante: s.livello === l ? "primary" : "outline", scegli: () => this.setState({ livello: l }) })),
+      setLogLivello: (v) => this.setState({ logDaLivello: v || "DEBUG" }),
+      setLogFase: (v) => this.setState({ logFase: v || "" }),
+      setLogPeriodo: (v) => this.setState({ logPeriodo: v || "7" }),
+      logCerca: s.logCerca,
+      setLogCerca: (e) => this.setState({ logCerca: e.target.value }),
+      logVuoto: logFiltrati.length === 0,
+      opzioniLivello: LIVELLI.map((l) => ({ value: l, textValue: l })),
+      opzioniFase: [{ value: "", textValue: "tutte" }, { value: "upload", textValue: "upload" }, { value: "classifica", textValue: "classifica" }, { value: "estrazione", textValue: "estrazione" }, { value: "validazione", textValue: "validazione" }, { value: "erp", textValue: "erp" }],
+      opzioniPeriodo: [{ value: "1", textValue: "oggi" }, { value: "7", textValue: "7 giorni" }, { value: "30", textValue: "30 giorni" }],
+      vociLog: logFiltrati.map((v) => ({
+        ora: v.ora, livello: v.livello, fase: v.fase, messaggio: v.messaggio, contesto: v.contesto,
+        colore: TONO_LIVELLO[v.livello][0], testo: TONO_LIVELLO[v.livello][1],
+      })),
+
+      // diagnosi
+      statiDiagnosi: [
+        { v: "proposta", etichetta: "Aperte" },
+        { v: "risolta", etichetta: "Risolte" },
+        { v: "archiviata", etichetta: "Archiviate" },
+        { v: "", etichetta: "Tutte" },
+      ].map((x) => ({ etichetta: x.etichetta, variante: s.statoDiagnosi === x.v ? "primary" : "outline", scegli: () => this.setState({ statoDiagnosi: x.v }) })),
+      diagnosiVuote: diagnosiFiltrate.length === 0,
+      diagnosi: diagnosiFiltrate.map((d) => ({
+        id: d.id,
+        titolo: d.titolo,
+        categoria: d.categoria === "dato" ? "correggibile (dato)" : "architettura · analisi",
+        coloreCategoria: d.categoria === "dato" ? GIALLO : BLU,
+        testoCategoria: d.categoria === "dato" ? "#1f1f1f" : "#ffffff",
+        livello: d.livello,
+        coloreLivello: d.livello === "WARNING" ? GIALLO : ROSSO,
+        testoLivello: d.livello === "WARNING" ? "#1f1f1f" : "#ffffff",
+        stato: d.stato,
+        aperta: d.stato === "proposta",
+        chiusa: d.stato !== "proposta",
+        fase: d.fase,
+        occorrenze: d.occorrenze,
+        ultima: d.ultima,
+        notaWorkflow: d.workflow ? "workflow: " + d.workflow : "",
+        confidenza: d.confidenza,
+        messaggio: d.messaggio,
+        analisi: d.analisi,
+        causa: d.causa,
+        proposta: d.proposta,
+        improver: d.categoria === "dato" && Boolean(d.workflow),
+        soloAnalisi: d.categoria === "architettura",
+        etichettaImprover: "Apri nell'Improver (" + (d.workflow || "") + ")",
+        file: d.file.map((f) => ({ nome: f })),
+      })),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

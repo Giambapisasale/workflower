@@ -5,12 +5,24 @@ import { Link, useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
 import { admin } from "./api";
 import { useCarica } from "./formato";
-import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+import {
+  Badge,
+  Bottone,
+  Card,
+  Errore,
+  IntestazionePagina,
+  MONO,
+  Stato,
+  Tabella,
+} from "./ui";
+import type { TableColumn, TableRow } from "../ds";
 
 function statoBadge(stato: string) {
   const tono = stato === "validato" ? "verde" : stato === "errore" ? "rosso" : "giallo";
   return <Badge tono={tono}>{stato}</Badge>;
 }
+
+type RigaVoce = TableRow & { titolo: string | null; stato: string };
 
 export default function EntitaLista() {
   const { tipo = "" } = useParams();
@@ -41,82 +53,81 @@ export default function EntitaLista() {
     }
   }
 
+  const colonne: TableColumn<RigaVoce>[] = [
+    {
+      title: "Codice",
+      dataIndex: "id",
+      render: (_v, r) => (
+        <span style={{ ...MONO, fontSize: 12, color: "var(--text-secondary)" }}>{r.id}</span>
+      ),
+    },
+    {
+      title: "Descrizione",
+      dataIndex: "titolo",
+      render: (_v, r) => <b>{r.titolo ?? "—"}</b>,
+    },
+    { title: "Stato", dataIndex: "stato", render: (_v, r) => statoBadge(r.stato) },
+    {
+      title: "Azioni",
+      dataIndex: "azioni",
+      render: (_v, r) => {
+        const id = String(r.id);
+        if (conferma === id) {
+          return (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>Eliminare?</span>
+              <Bottone variante="pericolo" onClick={() => elimina(id)} disabled={inElimina}>
+                Sì, elimina
+              </Bottone>
+              <Bottone onClick={() => setConferma(null)}>No</Bottone>
+            </span>
+          );
+        }
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Link to={`/admin/dati/${tipo}/${id}`} style={{ fontSize: 12, fontWeight: 700 }}>
+              Modifica
+            </Link>
+            <Bottone
+              variante="pericolo"
+              onClick={() => {
+                setConferma(id);
+                setErroreElimina(null);
+              }}
+            >
+              Elimina
+            </Bottone>
+          </span>
+        );
+      },
+    },
+  ];
+
   return (
     <>
-      <div className="mb-4 flex items-center gap-3">
-        <Link to="/admin/dati" className="text-slate-400 hover:text-slate-700">← Dati</Link>
-        <h1 className="text-lg font-bold">{etichetta}</h1>
-        <span className="text-sm text-slate-400">{dati.voci.length}</span>
-        <div className="ml-auto">
+      <IntestazionePagina
+        titolo={etichetta}
+        indietro="/admin/dati"
+        etichettaIndietro="Dati"
+        accanto={dati.voci.length}
+        azioni={
           <Link to={`/admin/dati/${tipo}/nuovo`}>
             <Bottone variante="primario">+ Nuovo</Bottone>
           </Link>
-        </div>
-      </div>
+        }
+      />
 
-      {erroreElimina ? <div className="mb-4"><Errore>{erroreElimina}</Errore></div> : null}
+      {erroreElimina ? <div style={{ marginBottom: 16 }}><Errore>{erroreElimina}</Errore></div> : null}
 
       <Card>
         {dati.voci.length === 0 ? (
           <Stato>Ancora niente. Usa “+ Nuovo”.</Stato>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                <th className="pb-2">Codice</th>
-                <th className="pb-2">Descrizione</th>
-                <th className="pb-2">Stato</th>
-                <th className="pb-2 text-right">Azioni</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dati.voci.map((v) => (
-                <tr key={v.id} className="border-b border-slate-50">
-                  <td className="py-2 font-mono text-xs text-slate-500">{v.id}</td>
-                  <td className="py-2 font-medium text-slate-800">{v.titolo ?? "—"}</td>
-                  <td className="py-2">{statoBadge(v.stato)}</td>
-                  <td className="py-2 text-right">
-                    {conferma === v.id ? (
-                      <span className="inline-flex items-center gap-2">
-                        <span className="text-xs text-slate-500">Eliminare?</span>
-                        <button
-                          onClick={() => elimina(v.id)}
-                          disabled={inElimina}
-                          className="text-xs font-medium text-red-600 hover:underline disabled:opacity-40"
-                        >
-                          Sì, elimina
-                        </button>
-                        <button
-                          onClick={() => setConferma(null)}
-                          className="text-xs text-slate-500 hover:underline"
-                        >
-                          No
-                        </button>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-3">
-                        <Link
-                          to={`/admin/dati/${tipo}/${v.id}`}
-                          className="text-xs font-medium text-sky-700 hover:underline"
-                        >
-                          Modifica
-                        </Link>
-                        <button
-                          onClick={() => {
-                            setConferma(v.id);
-                            setErroreElimina(null);
-                          }}
-                          className="text-xs font-medium text-red-600 hover:underline"
-                        >
-                          Elimina
-                        </button>
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Tabella
+            colonne={colonne}
+            righe={dati.voci.map((v) => ({ ...v }) as RigaVoce)}
+            righePerPagina={25}
+          />
         )}
       </Card>
     </>

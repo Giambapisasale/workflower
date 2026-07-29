@@ -1,11 +1,15 @@
 /**
  * Tutte le frasi della modalità Operatore, in un posto solo.
  * Regola del piano (§M3): italiano semplice, mai termini tecnici.
+ * Regola del design system Aitho: nessuna emoji — le icone sono componenti.
  */
 
 export const TESTI = {
+  // marchio
+  marchio: "Workflower",
+
   // home
-  benvenuto: (nome: string) => `Ciao ${nome} 👷`,
+  benvenuto: (nome: string) => `Ciao ${nome}`,
   sottoBenvenuto: "Fotografa bolle, fatture, rapportini. Al resto ci pensiamo noi.",
   bottoneCarica: "Carica un documento",
   bottoneDocumenti: "I miei documenti",
@@ -21,7 +25,7 @@ export const TESTI = {
   segnapostoCodice: "Il codice che ti ha dato l'ufficio",
   entra: "Entra",
   loginSbagliato: "Nome o codice non giusti. Riprova.",
-  indietro: "← indietro",
+  indietro: "indietro",
 
   // carica
   titoloCarica: "Carica un documento",
@@ -32,12 +36,12 @@ export const TESTI = {
   puoiUscire: "Puoi anche uscire: lo trovi tra poco in “I miei documenti”.",
   hoLetto: (tipo: string) => `Ho letto: ${tipo.toLowerCase()}!`,
   tuttoGiusto: "È tutto giusto?",
-  si: "👍 Sì",
-  nonTorna: "👎 Qualcosa non torna",
+  si: "Sì",
+  nonTorna: "Non torna",
   dimmiCosa: "Dimmi cosa non torna",
   scriviQui: "Scrivi qui, come lo diresti a voce",
   invia: "Invia",
-  grazie: "🤝 Grazie! Ci pensiamo noi.",
+  grazie: "Grazie! Ci pensiamo noi.",
   sottoGrazie: "L'ufficio controlla e ti avvisa qui. Non devi fare altro.",
   tornaHome: "Torna alla home",
   staAncoraLavorando:
@@ -62,7 +66,7 @@ export const TESTI = {
   oreSalta: "Salta",
   oreConferma: "Va bene così?",
   oreInvia: "Invia le ore",
-  oreInviato: "🤝 Grazie! Ho segnato le tue ore.",
+  oreInviato: "Grazie! Ho segnato le tue ore.",
   oreInviatoSotto: "L'ufficio controlla e conferma. Non devi fare altro.",
   oreNessunDip: "Non risulti tra i dipendenti. Parlane con l'ufficio.",
   oreNessunCantiere: "Per quel giorno non risulti in nessun cantiere.",
@@ -84,12 +88,6 @@ export const TESTI = {
 
   // generiche
   caricamento: "Un attimo…",
-} as const;
-
-export const PALLINO = {
-  verde: "🟢",
-  giallo: "🟡",
-  rosso: "🔴",
 } as const;
 
 /** "2026-07-18T09:30:00+00:00" → "oggi", "ieri", "martedì", "5 luglio"… */

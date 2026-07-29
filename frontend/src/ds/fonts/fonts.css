@@ -1,0 +1,44 @@
+/* Aitho Design UI — webfonts.
+   "quatro" binaries localized from the Adobe Fonts (Typekit) kit soi6buk that
+   the source library (aitho_ui/lib/main.css) loads — same files, self-hosted so
+   the design system works offline. Licensed to Aitho via Adobe Fonts
+   (EULAs: typekit.com/eulas/000000000000000077359b89 et al.).
+   Space Mono + Roboto come from Google Fonts, exactly as in the source. */
+
+@import url("https://fonts.googleapis.com/css2?family=Roboto&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
+
+@font-face {
+  font-family: "quatro";
+  src: url("./quatro-700.woff2") format("woff2");
+  font-display: auto;
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: normal;
+}
+
+@font-face {
+  font-family: "quatro";
+  src: url("./quatro-700-italic.woff2") format("woff2");
+  font-display: auto;
+  font-style: italic;
+  font-weight: 700;
+  font-stretch: normal;
+}
+
+@font-face {
+  font-family: "quatro";
+  src: url("./quatro-400.woff2") format("woff2");
+  font-display: auto;
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: normal;
+}
+
+@font-face {
+  font-family: "quatro";
+  src: url("./quatro-400-italic.woff2") format("woff2");
+  font-display: auto;
+  font-style: italic;
+  font-weight: 400;
+  font-stretch: normal;
+}

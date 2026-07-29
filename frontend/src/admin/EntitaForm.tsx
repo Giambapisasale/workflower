@@ -7,7 +7,7 @@ import { admin } from "./api";
 import CampiSchema from "./CampiSchema";
 import { useCarica } from "./formato";
 import { caricaMetaForm } from "./metaForm";
-import { Bottone, Card, Errore, Stato } from "./ui";
+import { Bottone, Card, Errore, IntestazionePagina, Stato } from "./ui";
 
 export default function EntitaForm() {
   const { tipo = "", id } = useParams();
@@ -51,18 +51,11 @@ export default function EntitaForm() {
 
   return (
     <form onSubmit={salva}>
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => navigate(`/admin/dati/${tipo}`)}
-          className="text-slate-400 hover:text-slate-700"
-        >
-          ← {metaTipo.etichetta}
-        </button>
-        <h1 className="text-lg font-bold">
-          {nuovo ? `Nuovo · ${metaTipo.etichetta}` : `Modifica · ${id}`}
-        </h1>
-      </div>
+      <IntestazionePagina
+        titolo={nuovo ? `Nuovo · ${metaTipo.etichetta}` : `Modifica · ${id}`}
+        indietro={`/admin/dati/${tipo}`}
+        etichettaIndietro={metaTipo.etichetta}
+      />
 
       <Card>
         <CampiSchema
@@ -77,7 +70,7 @@ export default function EntitaForm() {
 
       {erroreSalva ? <Errore>{erroreSalva}</Errore> : null}
 
-      <div className="mt-4 flex gap-2">
+      <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
         <Bottone variante="primario" type="submit" disabled={salvando}>
           {salvando ? "Salvo…" : "Salva"}
         </Bottone>

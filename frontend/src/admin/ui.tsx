@@ -1,29 +1,70 @@
-/** Mattoni della console Admin: componenti di layout (formattazioni in formato.ts). */
+/**
+ * Mattoni della console Admin, disegnati sul design system Aitho.
+ * (Le formattazioni di numeri e date stanno in formato.ts.)
+ *
+ * L'idioma del design è regolare: intestazione di pagina, card a bordo
+ * sottile con titolo in maiuscoletto, riquadri KPI, pillole di stato. Tenendo
+ * questi pezzi in un posto solo, tutte le pagine cambiano pelle insieme.
+ */
 
-import type { ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { Button, Table } from "../ds";
+import type { TableColumn, TableRow } from "../ds";
 
+/* ---------- superfici ---------- */
+
+const SUPERFICIE = {
+  background: "var(--background-primary)",
+  border: "1px solid var(--border-color)",
+  borderRadius: "var(--radius-lg)",
+} as const;
+
+const TITOLETTO = {
+  margin: 0,
+  fontSize: 13,
+  fontWeight: 700,
+  letterSpacing: ".06em",
+  textTransform: "uppercase",
+  color: "var(--text-secondary)",
+} as const;
+
+/** Card con titolo in maiuscoletto e azioni a destra. Il corpo ha il suo
+ *  respiro; chi vuole il bordo a filo passa `senzaPadding`. */
 export function Card({
   titolo,
   azioni,
+  senzaPadding = false,
   children,
 }: {
   titolo?: ReactNode;
   azioni?: ReactNode;
+  senzaPadding?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="mb-6 rounded-xl border border-slate-200 bg-white shadow-sm">
-      {(titolo || azioni) && (
-        <header className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{titolo}</h2>
+    <section style={{ ...SUPERFICIE, marginBottom: 24 }}>
+      {titolo || azioni ? (
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "12px 20px",
+            borderBottom: "1px solid var(--border-color)",
+          }}
+        >
+          <h2 style={TITOLETTO}>{titolo}</h2>
           {azioni}
         </header>
-      )}
-      <div className="p-5">{children}</div>
+      ) : null}
+      <div style={{ padding: senzaPadding ? 0 : 20 }}>{children}</div>
     </section>
   );
 }
 
+/** Il numero che conta, con la sua etichetta e una nota sotto. */
 export function Kpi({
   etichetta,
   valore,
@@ -34,59 +75,396 @@ export function Kpi({
   nota?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{etichetta}</div>
-      <div className="mt-1 text-2xl font-bold text-slate-800">{valore}</div>
-      {nota ? <div className="mt-1 text-xs text-slate-500">{nota}</div> : null}
+    <div style={{ ...SUPERFICIE, padding: 16 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: ".06em",
+          textTransform: "uppercase",
+          color: "var(--text-secondary)",
+        }}
+      >
+        {etichetta}
+      </div>
+      <div style={{ marginTop: 6, fontSize: 26, fontWeight: 700 }}>{valore}</div>
+      {nota ? (
+        <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>{nota}</div>
+      ) : null}
     </div>
   );
 }
 
-const TONI: Record<string, string> = {
-  verde: "bg-green-100 text-green-800",
-  giallo: "bg-amber-100 text-amber-800",
-  rosso: "bg-red-100 text-red-800",
-  blu: "bg-sky-100 text-sky-800",
-  grigio: "bg-slate-100 text-slate-600",
+/** Griglia di KPI o di riquadri: quante colonne, e a capo da sole. */
+export function Griglia({ colonne, children }: { colonne: number; children: ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${colonne}, minmax(0, 1fr))`,
+        gap: 16,
+        marginBottom: 16,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ---------- stato ---------- */
+
+const TONI: Record<string, [string, string]> = {
+  verde: ["var(--color-success)", "#ffffff"],
+  giallo: ["var(--color-warning)", "var(--dark)"],
+  rosso: ["var(--color-error)", "#ffffff"],
+  blu: ["var(--color-info)", "#ffffff"],
+  arancio: ["var(--color-attention)", "#ffffff"],
+  grigio: ["var(--background-tertiary)", "var(--dark)"],
 };
 
+/** La pillola di stato: colore pieno, testo corto, mai una frase. */
 export function Badge({ tono = "grigio", children }: { tono?: string; children: ReactNode }) {
+  const [sfondo, colore] = TONI[tono] ?? TONI.grigio;
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TONI[tono]}`}>
+    <span
+      style={{
+        display: "inline-block",
+        borderRadius: "var(--radius-full)",
+        padding: "1px 9px",
+        fontSize: 12,
+        fontWeight: 700,
+        background: sfondo,
+        color: colore,
+      }}
+    >
       {children}
     </span>
   );
 }
 
+/** Quanto del budget è stato consumato: barra + pillola. Verde fin che c'è
+ *  margine, gialla dall'80%, rossa quando si sfonda. */
+export function BarraConsumo({ quota }: { quota: number | null | undefined }) {
+  if (quota === null || quota === undefined) return <span>—</span>;
+  const perc = Math.min(100, Math.round(quota * 100));
+  const tono = quota > 1 ? "rosso" : quota >= 0.8 ? "giallo" : "verde";
+  const colore = TONI[tono][0];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          height: 8,
+          width: 110,
+          borderRadius: 999,
+          background: "var(--background-secondary)",
+          border: "1px solid var(--border-color)",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ height: "100%", width: `${perc}%`, background: colore }} />
+      </div>
+      <Badge tono={tono}>
+        {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 1 }).format(perc)}%
+      </Badge>
+    </div>
+  );
+}
+
+export function Stato({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)" }}>
+      {children}
+    </div>
+  );
+}
+
+export function Errore({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--color-error)",
+        borderRadius: "var(--radius)",
+        padding: "12px 16px",
+        fontSize: 14,
+        color: "var(--color-error)",
+        fontWeight: 700,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ---------- azioni ---------- */
+
+type VarianteBottone = "primario" | "normale" | "pericolo";
+
+const VARIANTE_DS = {
+  primario: "primary",
+  normale: "outline",
+  pericolo: "outlineError",
+} as const;
+
 export function Bottone({
   variante = "normale",
   children,
   ...resto
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variante?: "primario" | "normale" | "pericolo" }) {
-  const stili = {
-    primario: "bg-slate-800 text-white hover:bg-slate-900",
-    normale: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-    pericolo: "border border-red-300 bg-white text-red-700 hover:bg-red-50",
-  }[variante];
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variante?: VarianteBottone }) {
+  return (
+    <Button variant={VARIANTE_DS[variante]} size="sm" {...resto}>
+      {children}
+    </Button>
+  );
+}
+
+/* ---------- impaginazione ---------- */
+
+/** Intestazione di pagina: titolo, eventuale ritorno, azioni a destra. */
+export function IntestazionePagina({
+  titolo,
+  indietro,
+  etichettaIndietro,
+  accanto,
+  sotto,
+  azioni,
+}: {
+  titolo: ReactNode;
+  indietro?: string;
+  etichettaIndietro?: string;
+  accanto?: ReactNode;
+  sotto?: ReactNode;
+  azioni?: ReactNode;
+}) {
+  return (
+    <div style={{ marginBottom: sotto ? 12 : 24 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        {indietro ? (
+          <Link to={indietro} style={{ color: "var(--text-secondary)" }}>
+            ← {etichettaIndietro ?? "indietro"}
+          </Link>
+        ) : null}
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{titolo}</h1>
+        {accanto ? (
+          <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>{accanto}</span>
+        ) : null}
+        {azioni ? (
+          <div
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {azioni}
+          </div>
+        ) : null}
+      </div>
+      {sotto ? (
+        <p style={{ margin: "4px 0 0", fontSize: 14, color: "var(--text-secondary)" }}>{sotto}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Riga di un elenco dentro una card: cosa a sinistra, quando a destra. */
+export function RigaElenco({
+  ultima = false,
+  children,
+}: {
+  ultima?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        padding: "12px 0",
+        borderBottom: ultima ? undefined : "1px solid var(--border-color)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Riquadro cliccabile: usato dove si scelgono tipi di dato o entità. */
+export function Riquadro({
+  titolo,
+  sotto,
+  badge,
+  onClick,
+  a,
+}: {
+  titolo: ReactNode;
+  sotto?: ReactNode;
+  badge?: ReactNode;
+  onClick?: () => void;
+  a?: string;
+}) {
+  const contenuto = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700 }}>
+        {titolo}
+        {badge}
+      </div>
+      {sotto ? (
+        <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-secondary)" }}>{sotto}</div>
+      ) : null}
+    </>
+  );
+  const stile = {
+    display: "block",
+    textAlign: "left",
+    cursor: "pointer",
+    font: "inherit",
+    color: "inherit",
+    textDecoration: "none",
+    background: "var(--background-primary)",
+    border: "1px solid var(--border-color)",
+    borderRadius: "var(--radius)",
+    padding: 16,
+  } as const;
+
+  if (a) {
+    return (
+      <Link to={a} className="wf-riquadro" style={stile}>
+        {contenuto}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" className="wf-riquadro" style={stile} onClick={onClick}>
+      {contenuto}
+    </button>
+  );
+}
+
+/** Tabella del design system, con le righe a bande. */
+export function Tabella<R extends TableRow>({
+  colonne,
+  righe,
+  righePerPagina,
+}: {
+  colonne: TableColumn<R>[];
+  righe: R[];
+  righePerPagina?: number;
+}) {
+  return (
+    <Table<R>
+      columns={colonne}
+      data={righe}
+      striped
+      showPagination={righePerPagina !== undefined && righe.length > righePerPagina}
+      rowsPerPage={righePerPagina}
+    />
+  );
+}
+
+/** Numeri in colonna: sempre allineati, cifre della stessa larghezza. */
+export const NUMERI = { fontVariantNumeric: "tabular-nums" } as const;
+
+/** Identificativi e frammenti di codice: carattere monospaziato del brand. */
+export const MONO = { fontFamily: "var(--font-mono), monospace" } as const;
+
+/** L'etichetta di un campo di form, in maiuscoletto, con l'asterisco se serve. */
+export function EtichettaCampo({
+  children,
+  obbligatorio = false,
+}: {
+  children: ReactNode;
+  obbligatorio?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        marginBottom: 6,
+        fontSize: 12,
+        fontWeight: 700,
+        letterSpacing: ".06em",
+        textTransform: "uppercase",
+        color: "var(--text-secondary)",
+      }}
+    >
+      {children} {obbligatorio ? <span style={{ color: "var(--color-error)" }}>*</span> : null}
+    </div>
+  );
+}
+
+/** Un blocco di codice: SQL generato, JSON, messaggi di errore tecnici. */
+export function Codice({ children }: { children: ReactNode }) {
+  return (
+    <pre
+      style={{
+        margin: 0,
+        overflow: "auto",
+        borderRadius: "var(--radius)",
+        background: "var(--dark)",
+        padding: 12,
+        fontFamily: "var(--font-mono), monospace",
+        fontSize: 12,
+        color: "#e6e6e6",
+      }}
+    >
+      {children}
+    </pre>
+  );
+}
+
+/** Suggerimento cliccabile a pillola: gli esempi di domanda, i filtri. */
+export function Chip({
+  attivo = false,
+  onClick,
+  children,
+}: {
+  attivo?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
   return (
     <button
       type="button"
-      className={`rounded-lg px-3.5 py-2 text-sm font-medium disabled:opacity-40 ${stili}`}
-      {...resto}
+      className="wf-chip"
+      onClick={onClick}
+      style={{
+        cursor: "pointer",
+        font: "inherit",
+        fontSize: 12,
+        color: attivo ? "var(--text-on-primary)" : "var(--text-secondary)",
+        background: attivo ? "var(--color-primary)" : "var(--background-primary)",
+        border: `1px solid ${attivo ? "var(--color-primary)" : "var(--border-color)"}`,
+        borderRadius: "var(--radius-full)",
+        padding: "5px 12px",
+      }}
     >
       {children}
     </button>
   );
 }
 
-export function Stato({ children }: { children: ReactNode }) {
-  return <div className="py-10 text-center text-slate-400">{children}</div>;
-}
-
-export function Errore({ children }: { children: ReactNode }) {
+/** La targhetta del tipo di documento davanti a un identificativo. */
+export function Targhetta({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+    <span
+      style={{
+        display: "inline-block",
+        marginRight: 8,
+        borderRadius: "var(--radius-sm)",
+        background: "var(--background-secondary)",
+        border: "1px solid var(--border-color)",
+        padding: "1px 6px",
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        color: "var(--text-secondary)",
+      }}
+    >
       {children}
-    </div>
+    </span>
   );
 }

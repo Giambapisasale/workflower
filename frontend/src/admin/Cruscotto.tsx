@@ -1,7 +1,87 @@
 import { Link } from "react-router-dom";
 import { admin } from "./api";
-import { euro, percento, useCarica } from "./formato";
-import { Bottone, Card, Errore, Kpi, Stato } from "./ui";
+import { euro, useCarica } from "./formato";
+import {
+  BarraConsumo,
+  Bottone,
+  Card,
+  Errore,
+  Griglia,
+  IntestazionePagina,
+  Kpi,
+  NUMERI,
+  RigaElenco,
+  Stato,
+  Tabella,
+} from "./ui";
+import type { TableColumn, TableRow } from "../ds";
+
+type RigaCantiere = TableRow & {
+  cantiere: string;
+  cantiere_id: string;
+  n_fatture: number;
+  speso: number;
+  budget: number | null;
+  quota_budget: number | null;
+};
+
+type RigaFornitore = TableRow & {
+  fornitore: string;
+  fornitore_id: string | null;
+  n_fatture: number;
+  speso: number;
+};
+
+const COL_CANTIERI: TableColumn<RigaCantiere>[] = [
+  {
+    title: "Cantiere",
+    dataIndex: "cantiere",
+    render: (_v, r) => (
+      <Link to={`/admin/cantiere/${r.cantiere_id}`} style={{ fontWeight: 700 }}>
+        {r.cantiere}
+      </Link>
+    ),
+  },
+  { title: "Fatture", dataIndex: "n_fatture", render: (_v, r) => <span style={NUMERI}>{r.n_fatture}</span> },
+  { title: "Speso", dataIndex: "speso", render: (_v, r) => <span style={NUMERI}>{euro(r.speso)}</span> },
+  {
+    title: "Budget",
+    dataIndex: "budget",
+    render: (_v, r) => (
+      <span style={{ ...NUMERI, color: "var(--text-secondary)" }}>{euro(r.budget)}</span>
+    ),
+  },
+  {
+    title: "Consumo",
+    dataIndex: "quota_budget",
+    render: (_v, r) => <BarraConsumo quota={r.quota_budget} />,
+  },
+  {
+    title: "Gestisci",
+    dataIndex: "gestisci",
+    render: (_v, r) => (
+      <Link to={`/admin/dati/cantiere/${r.cantiere_id}`} style={{ fontSize: 12 }}>
+        modifica
+      </Link>
+    ),
+  },
+];
+
+const COL_FORNITORI: TableColumn<RigaFornitore>[] = [
+  { title: "Fornitore", dataIndex: "fornitore" },
+  { title: "Fatture", dataIndex: "n_fatture", render: (_v, r) => <span style={NUMERI}>{r.n_fatture}</span> },
+  { title: "Speso", dataIndex: "speso", render: (_v, r) => <span style={NUMERI}>{euro(r.speso)}</span> },
+  {
+    title: "Gestisci",
+    dataIndex: "gestisci",
+    render: (_v, r) =>
+      r.fornitore_id ? (
+        <Link to={`/admin/dati/fornitore/${r.fornitore_id}`} style={{ fontSize: 12 }}>
+          modifica
+        </Link>
+      ) : null,
+  },
+];
 
 export default function Cruscotto() {
   const { dati, errore, inCorso } = useCarica(() => admin.cruscotto());
@@ -10,129 +90,102 @@ export default function Cruscotto() {
   const t = dati.totali;
   const a = dati.attivita;
 
+  const righeCantieri: RigaCantiere[] = dati.per_cantiere.map((c) => ({
+    id: c.cantiere_id,
+    cantiere_id: c.cantiere_id,
+    cantiere: c.cantiere ?? c.cantiere_id,
+    n_fatture: c.n_fatture,
+    speso: c.speso,
+    budget: c.budget,
+    quota_budget: c.quota_budget,
+  }));
+
+  const righeFornitori: RigaFornitore[] = dati.per_fornitore.map((f, i) => ({
+    id: f.fornitore_id ?? `f-${i}`,
+    fornitore_id: f.fornitore_id,
+    fornitore: f.fornitore ?? f.fornitore_id ?? "—",
+    n_fatture: f.n_fatture,
+    speso: f.speso,
+  }));
+
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-lg font-bold">Cruscotto</h1>
-        <Link to="/admin/dati/cantiere/nuovo"><Bottone>+ Cantiere</Bottone></Link>
-        <Link to="/admin/dati/fornitore/nuovo"><Bottone>+ Fornitore</Bottone></Link>
-        <Link to="/admin/dati/fattura/nuovo"><Bottone>+ Fattura a mano</Bottone></Link>
-        <Link to="/admin/dati"><Bottone variante="primario">Gestione dati →</Bottone></Link>
-      </div>
+      <IntestazionePagina
+        titolo="Cruscotto"
+        azioni={
+          <>
+            <Link to="/admin/dati/cantiere/nuovo"><Bottone>+ Cantiere</Bottone></Link>
+            <Link to="/admin/dati/fornitore/nuovo"><Bottone>+ Fornitore</Bottone></Link>
+            <Link to="/admin/dati/fattura/nuovo"><Bottone>+ Fattura a mano</Bottone></Link>
+            <Link to="/admin/dati"><Bottone variante="primario">Gestione dati →</Bottone></Link>
+          </>
+        }
+      />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Kpi etichetta="Fatture" valore={t.n_fatture} nota={<Link className="text-sky-700 hover:underline" to="/admin/revisione">{t.da_validare} da validare →</Link>} />
-        <Kpi etichetta="Totale documenti" valore={euro(t.totale)} nota={`imponibile ${euro(t.imponibile)}`} />
+      <Griglia colonne={4}>
+        <Kpi
+          etichetta="Fatture"
+          valore={t.n_fatture}
+          nota={<Link to="/admin/revisione">{t.da_validare} da validare →</Link>}
+        />
+        <Kpi
+          etichetta="Totale documenti"
+          valore={euro(t.totale)}
+          nota={`imponibile ${euro(t.imponibile)}`}
+        />
         <Kpi etichetta="IVA" valore={euro(t.iva)} />
         <Kpi etichetta="Ritenute d'acconto" valore={euro(t.ritenute)} />
-      </div>
+      </Griglia>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-5">
-        <Kpi etichetta="DDT" valore={a.n_ddt} nota="documenti di trasporto" />
-        <Kpi etichetta="SAL" valore={a.n_sal} nota="stati avanzamento" />
-        <Kpi etichetta="Ore manodopera" valore={a.ore_totali} nota="da rapportini" />
-        <Kpi etichetta="Costo manodopera" valore={euro(a.costo_manodopera)} />
-        <Kpi etichetta="Costo mezzi" valore={euro(a.costo_mezzi)} nota="noli e costi da fatture" />
+      <div style={{ marginBottom: 8 }}>
+        <Griglia colonne={5}>
+          <Kpi etichetta="DDT" valore={a.n_ddt} nota="documenti di trasporto" />
+          <Kpi etichetta="SAL" valore={a.n_sal} nota="stati avanzamento" />
+          <Kpi etichetta="Ore manodopera" valore={a.ore_totali} nota="da rapportini" />
+          <Kpi etichetta="Costo manodopera" valore={euro(a.costo_manodopera)} />
+          <Kpi etichetta="Costo mezzi" valore={euro(a.costo_mezzi)} nota="noli e costi da fatture" />
+        </Griglia>
       </div>
 
       {dati.scadenze.length > 0 ? (
         <Card titolo="Scadenze">
-          <ul className="divide-y divide-slate-50 text-sm">
-            {dati.scadenze.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-4 py-2">
-                <div className="min-w-0">
-                  <span className="font-medium">{s.descrizione}</span>
-                  {s.mezzo ?? s.cantiere ? (
-                    <span className="ml-2 text-xs text-slate-400">{s.mezzo ?? s.cantiere}</span>
-                  ) : null}
+          {dati.scadenze.map((s, i) => (
+            <RigaElenco key={s.id} ultima={i === dati.scadenze.length - 1}>
+              <div style={{ minWidth: 0 }}>
+                <b>{s.descrizione}</b>
+                {s.mezzo ?? s.cantiere ? (
+                  <span
+                    style={{ marginLeft: 8, fontSize: 12, color: "var(--text-secondary)" }}
+                  >
+                    {s.mezzo ?? s.cantiere}
+                  </span>
+                ) : null}
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ ...NUMERI, color: "var(--text-secondary)" }}>{s.data_scadenza}</div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: s.giorni < 0 ? "var(--color-error)" : "var(--color-attention)",
+                  }}
+                >
+                  {s.giorni < 0 ? `scaduta da ${-s.giorni} gg` : `tra ${s.giorni} gg`}
                 </div>
-                <div className="shrink-0 text-right">
-                  <div className="tabular-nums text-slate-600">{s.data_scadenza}</div>
-                  <div className={`text-xs ${s.giorni < 0 ? "text-red-600" : "text-amber-600"}`}>
-                    {s.giorni < 0 ? `scaduta da ${-s.giorni} gg` : `tra ${s.giorni} gg`}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            </RigaElenco>
+          ))}
         </Card>
       ) : null}
 
       <Card
         titolo="Costi per cantiere"
-        azioni={<Bottone onClick={() => admin.scaricaReport()}>⬇ Scarica report Excel</Bottone>}
+        azioni={<Bottone onClick={() => admin.scaricaReport()}>Scarica report Excel</Bottone>}
       >
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-              <th className="pb-2">Cantiere</th>
-              <th className="pb-2 text-right">Fatture</th>
-              <th className="pb-2 text-right">Speso</th>
-              <th className="pb-2 text-right">Budget</th>
-              <th className="pb-2 pl-6">Consumo</th>
-              <th className="pb-2 text-right">Gestisci</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dati.per_cantiere.map((c) => (
-              <tr key={c.cantiere_id} className="border-b border-slate-50">
-                <td className="py-2 font-medium">
-                  <Link className="text-sky-700 hover:underline" to={`/admin/cantiere/${c.cantiere_id}`}>
-                    {c.cantiere ?? c.cantiere_id}
-                  </Link>
-                </td>
-                <td className="py-2 text-right tabular-nums">{c.n_fatture}</td>
-                <td className="py-2 text-right tabular-nums">{euro(c.speso)}</td>
-                <td className="py-2 text-right tabular-nums text-slate-500">{euro(c.budget)}</td>
-                <td className="py-2 pl-6">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-sky-500"
-                        style={{ width: `${Math.min(100, (c.quota_budget ?? 0) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">{percento(c.quota_budget)}</span>
-                  </div>
-                </td>
-                <td className="py-2 text-right">
-                  <Link className="text-xs text-sky-700 hover:underline" to={`/admin/dati/cantiere/${c.cantiere_id}`}>
-                    modifica
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Tabella colonne={COL_CANTIERI} righe={righeCantieri} />
       </Card>
 
       <Card titolo="Fornitori principali">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-              <th className="pb-2">Fornitore</th>
-              <th className="pb-2 text-right">Fatture</th>
-              <th className="pb-2 text-right">Speso</th>
-              <th className="pb-2 text-right">Gestisci</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dati.per_fornitore.map((f) => (
-              <tr key={f.fornitore_id ?? f.fornitore} className="border-b border-slate-50">
-                <td className="py-2 text-slate-700">{f.fornitore ?? f.fornitore_id}</td>
-                <td className="py-2 text-right tabular-nums">{f.n_fatture}</td>
-                <td className="py-2 text-right tabular-nums">{euro(f.speso)}</td>
-                <td className="py-2 text-right">
-                  {f.fornitore_id ? (
-                    <Link className="text-xs text-sky-700 hover:underline" to={`/admin/dati/fornitore/${f.fornitore_id}`}>
-                      modifica
-                    </Link>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Tabella colonne={COL_FORNITORI} righe={righeFornitori} righePerPagina={10} />
       </Card>
     </>
   );

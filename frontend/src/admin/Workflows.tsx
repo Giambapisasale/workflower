@@ -7,9 +7,13 @@ import { dataBreve, euro, useCarica } from "./formato";
 import MiglioraWorkflow from "./MiglioraWorkflow";
 import { Badge, Bottone, Card, Errore, Stato } from "./ui";
 
-/** "blobs/golden/fattura-edil-sud.pdf" → "fattura-edil-sud.pdf" */
-function nomeFile(percorso: string): string {
-  return percorso.split("/").pop() ?? percorso;
+/** "blobs/golden/fattura-edil-sud.pdf" → "fattura-edil-sud.pdf"
+ *
+ *  Accetta il vuoto: un caso-domanda non ha un documento, e un campo assente non
+ *  deve poter spegnere la pagina mentre la si disegna. */
+function nomeFile(percorso: string | null | undefined): string {
+  if (!percorso) return "—";
+  return percorso.split("/").pop() || percorso;
 }
 
 /** I casi golden: la rete contro cui si misura ogni patch, finalmente visibile.
@@ -63,7 +67,7 @@ function CasiGolden() {
             <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
               <th className="pb-2">Caso</th>
               <th className="pb-2">Workflow</th>
-              <th className="pb-2">Documento</th>
+              <th className="pb-2">Documento o domanda</th>
               <th className="pb-2">Origine</th>
               <th className="pb-2"></th>
             </tr>
@@ -76,13 +80,22 @@ function CasiGolden() {
                   <Badge tono="blu">{c.workflow}</Badge>
                   <span className="ml-2 text-xs text-slate-400">v{c.version}</span>
                 </td>
+                {/* Le due forme del caso: un documento si giudica guardando il PDF,
+                    una domanda rileggendo il testo posto. Mostrare "—" su una
+                    domanda perderebbe l'unica cosa che la identifica. */}
                 <td className="py-2 pr-3 text-slate-600">
-                  {nomeFile(c.doc)}
-                  {!c.originale_presente ? (
-                    <div className="mt-1">
-                      <Badge tono="rosso">originale mancante</Badge>
-                    </div>
-                  ) : null}
+                  {c.tipo === "domanda" ? (
+                    <span className="italic">{c.domanda || "—"}</span>
+                  ) : (
+                    <>
+                      {nomeFile(c.doc)}
+                      {!c.originale_presente ? (
+                        <div className="mt-1">
+                          <Badge tono="rosso">originale mancante</Badge>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
                 </td>
                 <td className="py-2 pr-3 text-xs text-slate-500">
                   {c.entity_id ? (

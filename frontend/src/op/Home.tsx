@@ -1,8 +1,17 @@
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowUpIcon,
+  CalendarIcon,
+  ChatBubbleIcon,
+  FileIcon,
+} from "@radix-ui/react-icons";
+import { Button } from "../ds";
 import { TESTI } from "./testi";
-import { BottoneLink } from "./ui";
+import { BottoneGrande, Colonna } from "./ui";
 import { useSessione } from "./sessione";
 
 export default function Home() {
+  const naviga = useNavigate();
   const { sessione, esci } = useSessione();
   const { nome, cantieri } = sessione.utente;
   const primoNome = nome.split(" ")[0];
@@ -15,39 +24,61 @@ export default function Home() {
 
   return (
     <div>
-      <div className="mb-5 flex items-start justify-between">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 24,
+        }}
+      >
         <div>
-          <div className="text-lg font-bold tracking-wide">WORKFLOWER</div>
-          <div className="text-neutral-500">
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              letterSpacing: ".06em",
+              textTransform: "uppercase",
+            }}
+          >
+            {TESTI.marchio}
+          </div>
+          <div style={{ color: "var(--text-secondary)", marginTop: 2 }}>
             {TESTI.benvenuto(primoNome)}
             {dovesono ? ` · ${dovesono}` : ""}
           </div>
         </div>
-        <button
-          type="button"
-          className="min-h-[48px] px-2 py-2 text-neutral-400 underline"
-          onClick={esci}
-        >
+        <Button variant="transparent" size="sm" compact onClick={esci} style={{ minHeight: 32 }}>
           {TESTI.esci}
-        </button>
+        </Button>
       </div>
 
-      <div className="space-y-4">
-        <BottoneLink a="/op/carica" icona="📷" variante="primario">
+      <Colonna>
+        <BottoneGrande primario icona={ArrowUpIcon} onClick={() => naviga("/op/carica")}>
           {TESTI.bottoneCarica}
-        </BottoneLink>
-        <BottoneLink a="/op/ore" icona="⏱️">
+        </BottoneGrande>
+        <BottoneGrande icona={CalendarIcon} onClick={() => naviga("/op/ore")}>
           {TESTI.bottoneOre}
-        </BottoneLink>
-        <BottoneLink a="/op/documenti" icona="📄">
+        </BottoneGrande>
+        <BottoneGrande icona={FileIcon} onClick={() => naviga("/op/documenti")}>
           {TESTI.bottoneDocumenti}
-        </BottoneLink>
-        <BottoneLink a="/op/chiedi" icona="💬">
+        </BottoneGrande>
+        <BottoneGrande icona={ChatBubbleIcon} onClick={() => naviga("/op/chiedi")}>
           {TESTI.bottoneChiedi}
-        </BottoneLink>
-      </div>
+        </BottoneGrande>
+      </Colonna>
 
-      <p className="mt-8 text-center text-neutral-500">{TESTI.sottoBenvenuto}</p>
+      <p
+        style={{
+          marginTop: 36,
+          textAlign: "center",
+          color: "var(--text-secondary)",
+          textWrap: "pretty",
+        }}
+      >
+        {TESTI.sottoBenvenuto}
+      </p>
     </div>
   );
 }

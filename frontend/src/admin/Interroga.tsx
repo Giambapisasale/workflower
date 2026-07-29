@@ -1,7 +1,9 @@
 import { type FormEvent, useState } from "react";
 import { ErroreApi } from "../shared/api";
 import { admin, type EsitoAsk } from "./api";
-import { Bottone, Card, Errore, Stato } from "./ui";
+import { Input } from "../ds";
+import type { TableColumn, TableRow } from "../ds";
+import { Bottone, Card, Chip, Codice, Errore, NUMERI, Stato, Tabella } from "./ui";
 
 const ESEMPI = [
   "Quanto abbiamo speso per ogni cantiere?",
@@ -40,14 +42,19 @@ export default function Interroga() {
     chiedi(domanda);
   }
 
-  const colonne = esito && esito.rows.length ? Object.keys(esito.rows[0]) : [];
+  const nomiColonne = esito && esito.rows.length ? Object.keys(esito.rows[0]) : [];
+  const colonne: TableColumn<TableRow>[] = nomiColonne.map((c) => ({
+    title: c,
+    dataIndex: c,
+    render: (_v, r) => <span style={NUMERI}>{cella(r[c])}</span>,
+  }));
+  const righe: TableRow[] = (esito?.rows ?? []).map((r, i) => ({ ...r, id: i }));
 
   return (
     <>
       <Card titolo="Interroga i dati">
-        <form onSubmit={invia} className="flex gap-2">
-          <input
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+        <form onSubmit={invia} style={{ display: "flex", gap: 8 }}>
+          <Input
             placeholder="Fai una domanda sui costi, in italiano…"
             value={domanda}
             onChange={(e) => setDomanda(e.target.value)}
@@ -56,18 +63,17 @@ export default function Interroga() {
             {inCorso ? "Interrogo…" : "Chiedi"}
           </Bottone>
         </form>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
           {ESEMPI.map((e) => (
-            <button
+            <Chip
               key={e}
               onClick={() => {
                 setDomanda(e);
                 chiedi(e);
               }}
-              className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 hover:bg-slate-50"
             >
               {e}
-            </button>
+            </Chip>
           ))}
         </div>
       </Card>
@@ -77,32 +83,13 @@ export default function Interroga() {
       {esito ? (
         <>
           <Card titolo="SQL generato">
-            <pre className="overflow-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100">{esito.sql}</pre>
+            <Codice>{esito.sql}</Codice>
           </Card>
           <Card titolo={`Risultato (${esito.rows.length} righe)`}>
             {esito.rows.length === 0 ? (
               <Stato>Nessun risultato.</Stato>
             ) : (
-              <div className="overflow-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                      {colonne.map((c) => (
-                        <th key={c} className="pb-2 pr-4">{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {esito.rows.map((r, i) => (
-                      <tr key={i} className="border-b border-slate-50">
-                        {colonne.map((c) => (
-                          <td key={c} className="py-1.5 pr-4 tabular-nums text-slate-700">{cella(r[c])}</td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Tabella colonne={colonne} righe={righe} righePerPagina={25} />
             )}
           </Card>
         </>

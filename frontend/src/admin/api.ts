@@ -165,12 +165,18 @@ export type RigaRun = {
   escalation: number;
 };
 
+/** Un caso golden ha **due forme** e l'elenco le mescola (backend: core/golden.py):
+ *  un caso-`documento` ha `doc` (il blob da rieseguire), un caso-`domanda` ha
+ *  `domanda` (il testo posto a /ask) e lascia vuoti `doc`/`entity_tipo`/`entity_id`.
+ *  I nullable qui non sono prudenza: nei dati reali sono la maggior parte. */
 export type CasoGolden = {
   id: string;
+  tipo: "documento" | "domanda";
   workflow: string;
   version: string;
-  doc: string;
-  entity_tipo: string;
+  doc: string | null;
+  domanda: string | null;
+  entity_tipo: string | null;
   entity_id: string | null;
   run_id: string | null;
   validato_da: string | null;

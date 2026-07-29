@@ -1,79 +1,156 @@
-/** Mattoni della UI operatore: bottoni giganti (touch ≥ 48px) e card. */
+/**
+ * Mattoni della UI Operatore, disegnati sul design system Aitho.
+ * Bottoni giganti (touch ≥ 48px, qui 56/64px), card a bordo sottile, semaforo
+ * a pallino colorato. Nessuna emoji: le icone sono quelle del design system.
+ */
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Link } from "react-router-dom";
+import type { ReactNode } from "react";
+import { useRef } from "react";
+import { ArrowLeftIcon } from "@radix-ui/react-icons";
+import { Button } from "../ds";
+import type { Icona } from "../ds";
+import type { Semaforo } from "../shared/api";
 import { TESTI } from "./testi";
 
-type VarianteBottone = "primario" | "normale" | "conferma";
-
-const STILE_BOTTONE: Record<VarianteBottone, string> = {
-  primario: "border-neutral-900 bg-neutral-900 text-white active:bg-black",
-  normale: "border-neutral-900 bg-white text-neutral-900 active:bg-neutral-100",
-  conferma: "border-green-700 bg-green-700 text-white active:bg-green-800",
-};
-
-const BASE_BOTTONE =
-  "flex w-full min-h-[64px] items-center gap-4 rounded-2xl border-2 px-5 py-4 " +
-  "text-left text-[19px] font-bold disabled:opacity-40";
-
-export function Bottone({
-  icona,
-  variante = "normale",
-  children,
-  ...resto
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  icona?: string;
-  variante?: VarianteBottone;
-}) {
+/** I bottoni dell'Operatore portano l'icona dentro il contenuto, come nel
+ *  design: la `icon` del design system userebbe una griglia più stretta. */
+function Contenuto({ icona, children }: { icona?: Icona; children: ReactNode }) {
+  const Icona = icona;
+  if (!Icona) return <>{children}</>;
   return (
-    <button type="button" className={`${BASE_BOTTONE} ${STILE_BOTTONE[variante]}`} {...resto}>
-      {icona ? <span className="text-3xl leading-none">{icona}</span> : null}
-      <span>{children}</span>
-    </button>
+    <span style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <Icona width={22} height={22} />
+      {children}
+    </span>
   );
 }
 
-export function BottoneLink({
-  a,
+const STILE_GRANDE = {
+  width: "100%",
+  minHeight: 64,
+  justifyContent: "flex-start",
+  fontSize: 19,
+  textAlign: "left",
+} as const;
+
+const STILE_PIENO = {
+  width: "100%",
+  minHeight: 56,
+  justifyContent: "center",
+  fontSize: 18,
+} as const;
+
+/** Bottone a tutta larghezza, allineato a sinistra: la scelta principale. */
+export function BottoneGrande({
   icona,
-  variante = "normale",
+  primario = false,
+  disabled,
+  onClick,
   children,
 }: {
-  a: string;
-  icona?: string;
-  variante?: VarianteBottone;
+  icona?: Icona;
+  primario?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
-    <Link to={a} className={`${BASE_BOTTONE} ${STILE_BOTTONE[variante]}`}>
-      {icona ? <span className="text-3xl leading-none">{icona}</span> : null}
-      <span>{children}</span>
-    </Link>
+    <Button
+      variant={primario ? "primary" : "outline"}
+      size="lg"
+      className="aitho-btn wf-btn-largo"
+      style={STILE_GRANDE}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Contenuto icona={icona}>{children}</Contenuto>
+    </Button>
   );
 }
 
+/** Bottone a tutta larghezza, testo centrato: "Avanti", "Entra", "Invia". */
+export function BottonePieno({
+  primario = true,
+  tipo = "button",
+  icona,
+  disabled,
+  onClick,
+  children,
+}: {
+  primario?: boolean;
+  tipo?: "button" | "submit";
+  icona?: Icona;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      variant={primario ? "primary" : "outline"}
+      size="lg"
+      type={tipo}
+      style={STILE_PIENO}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Contenuto icona={icona}>{children}</Contenuto>
+    </Button>
+  );
+}
+
+/** Due bottoni affiancati: "Sì" / "Non torna". */
+export function BottoneMezzo({
+  primario = false,
+  icona,
+  disabled,
+  onClick,
+  children,
+}: {
+  primario?: boolean;
+  icona?: Icona;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Button
+      variant={primario ? "primary" : "outline"}
+      size="lg"
+      style={{ flex: 1, minHeight: 56, justifyContent: "center", fontSize: 18 }}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Contenuto icona={icona}>{children}</Contenuto>
+    </Button>
+  );
+}
+
+/** Come BottoneGrande, ma apre la fotocamera o i file del telefono. */
 export function BottoneFile({
   icona,
-  variante = "normale",
+  primario = false,
   accept,
   capture,
   onFile,
   children,
 }: {
-  icona?: string;
-  variante?: VarianteBottone;
+  icona?: Icona;
+  primario?: boolean;
   accept: string;
   capture?: boolean | "user" | "environment";
   onFile: (file: File | null) => void;
   children: ReactNode;
 }) {
+  const campo = useRef<HTMLInputElement>(null);
   return (
-    <label className={`${BASE_BOTTONE} ${STILE_BOTTONE[variante]} cursor-pointer`}>
-      {icona ? <span className="text-3xl leading-none">{icona}</span> : null}
-      <span>{children}</span>
+    <>
+      <BottoneGrande icona={icona} primario={primario} onClick={() => campo.current?.click()}>
+        {children}
+      </BottoneGrande>
       <input
+        ref={campo}
         type="file"
-        className="hidden"
+        style={{ display: "none" }}
         accept={accept}
         capture={capture}
         onChange={(e) => {
@@ -81,24 +158,81 @@ export function BottoneFile({
           e.target.value = "";
         }}
       />
-    </label>
+    </>
   );
 }
 
 export function Card({ children }: { children: ReactNode }) {
   return (
-    <div className="mb-3 rounded-2xl border-2 border-neutral-300 p-4">{children}</div>
+    <div
+      style={{
+        border: "1px solid var(--border-color)",
+        borderRadius: "var(--radius)",
+        padding: 16,
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
-export function Indietro({ a }: { a: string }) {
+export function Indietro({ onClick }: { onClick: () => void }) {
   return (
-    <Link to={a} className="mb-2 inline-block min-h-[48px] py-2 pr-4 text-neutral-500">
+    <Button
+      variant="transparent"
+      size="sm"
+      compact
+      icon={{ data: ArrowLeftIcon }}
+      onClick={onClick}
+      style={{ minHeight: 32 }}
+    >
       {TESTI.indietro}
-    </Link>
+    </Button>
   );
 }
 
 export function Titolo({ children }: { children: ReactNode }) {
-  return <h1 className="mb-4 text-[23px] font-bold">{children}</h1>;
+  return <h1 style={{ fontSize: 23, fontWeight: 700, margin: "12px 0 20px" }}>{children}</h1>;
+}
+
+/** La domanda del passo corrente: una sola per schermata. */
+export function Domanda({ children }: { children: ReactNode }) {
+  return <p style={{ fontSize: 19, fontWeight: 700, margin: 0 }}>{children}</p>;
+}
+
+export function Spiegazione({ children }: { children: ReactNode }) {
+  return <p style={{ color: "var(--text-secondary)", margin: 0 }}>{children}</p>;
+}
+
+export function Avviso({ children }: { children: ReactNode }) {
+  return (
+    <p style={{ color: "var(--color-error)", fontWeight: 700, margin: "0 0 16px" }}>{children}</p>
+  );
+}
+
+export const COLORE_SEMAFORO: Record<Semaforo, string> = {
+  verde: "var(--color-success)",
+  giallo: "var(--color-warning)",
+  rosso: "var(--color-error)",
+};
+
+/** Il semaforo del documento: un pallino, senza parole tecniche accanto. */
+export function Pallino({ semaforo, alto = false }: { semaforo: Semaforo; alto?: boolean }) {
+  return (
+    <span
+      style={{
+        width: 14,
+        height: 14,
+        borderRadius: 999,
+        flexShrink: 0,
+        marginTop: alto ? 5 : 0,
+        background: COLORE_SEMAFORO[semaforo],
+      }}
+    />
+  );
+}
+
+/** Colonna con spazio uniforme: il ritmo verticale di tutte le schermate. */
+export function Colonna({ gap = 16, children }: { gap?: number; children: ReactNode }) {
+  return <div style={{ display: "flex", flexDirection: "column", gap }}>{children}</div>;
 }
