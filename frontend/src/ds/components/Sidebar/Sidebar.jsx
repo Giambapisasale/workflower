@@ -2,9 +2,11 @@ import React, { useState } from "react";
 import { ArrowUpIcon, ArrowDownIcon } from "../Icons/Icons";
 import { Spinner } from "../Spinner/Spinner";
 
-/* Nota di divergenza dal design system: il `menuConfig` (menu a tre punti su
+/* Note di divergenza dal design system: il `menuConfig` (menu a tre punti su
    ogni voce, basato su DropdownMenu) non è portato — Workflower non lo usa e
-   avrebbe trascinato dentro un altro componente. Tutto il resto è identico. */
+   avrebbe trascinato dentro un altro componente. In più le voci accettano
+   `heading: true`: intestazione di sezione non cliccabile, per raggruppare le
+   voci senza introdurre un secondo componente. Tutto il resto è identico. */
 
 const sidebarCss = `
 .aitho-sidebar__root {
@@ -58,6 +60,15 @@ const sidebarCss = `
   background: none; border: none; flex-shrink: 0;
 }
 .aitho-sidebar__item-menu-btn:hover { background-color: var(--background-tertiary); color: var(--text-primary); }
+
+.aitho-sidebar__heading {
+  padding: 1.25rem 0.75rem 0.25rem; font-size: var(--font-size-sm);
+  font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-secondary); white-space: nowrap; box-sizing: border-box;
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+}
+.aitho-sidebar__heading:first-child { padding-top: 0.5rem; }
+.aitho-sidebar__heading[data-state="closed"] { opacity: 0; visibility: hidden; }
 `;
 
 function ensureSidebarStyles() {
@@ -182,17 +193,27 @@ export function Sidebar({
     if (items.length > 0)
       return (
         <nav className="aitho-sidebar__nav">
-          {items.map((item) => (
-            <SidebarItemComponent
-              key={item.key}
-              item={item}
-              level={0}
-              isOpen={isOpen}
-              expandedItems={expandedItems}
-              lastSelectedKey={lastSelectedKey}
-              toggleSubItems={toggleSubItems}
-            />
-          ))}
+          {items.map((item) =>
+            item.heading ? (
+              <div
+                key={item.key}
+                className="aitho-sidebar__heading"
+                data-state={isOpen ? "open" : "closed"}
+              >
+                {item.text}
+              </div>
+            ) : (
+              <SidebarItemComponent
+                key={item.key}
+                item={item}
+                level={0}
+                isOpen={isOpen}
+                expandedItems={expandedItems}
+                lastSelectedKey={lastSelectedKey}
+                toggleSubItems={toggleSubItems}
+              />
+            ),
+          )}
         </nav>
       );
     return null;

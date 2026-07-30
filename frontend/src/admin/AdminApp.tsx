@@ -54,20 +54,38 @@ type Voce = {
   anche?: string[];
 };
 
-const VOCI: Voce[] = [
-  { chiave: "cruscotto", a: "/admin", etichetta: "Cruscotto", icona: HomeIcon, anche: ["/admin/cantiere"] },
-  { chiave: "dati", a: "/admin/dati", etichetta: "Dati", icona: FileIcon },
-  { chiave: "scostamenti", a: "/admin/scostamenti", etichetta: "Scostamenti", icona: ArrowUpIcon },
-  { chiave: "revisione", a: "/admin/revisione", etichetta: "Revisione", icona: CheckCircledIcon },
-  { chiave: "segnalazioni", a: "/admin/segnalazioni", etichetta: "Segnalazioni", icona: BellIcon },
-  { chiave: "interroga", a: "/admin/interroga", etichetta: "Interroga", icona: MagnifyingGlassIcon },
-  { chiave: "workflows", a: "/admin/workflows", etichetta: "Workflows", icona: GearIcon },
-  { chiave: "run", a: "/admin/run", etichetta: "Run", icona: TriangleRightIcon },
-  { chiave: "tools", a: "/admin/tools", etichetta: "Skills & Tools", icona: ClipboardCopyIcon },
-  { chiave: "dataset", a: "/admin/dataset", etichetta: "Dataset", icona: DotsHorizontalIcon },
-  { chiave: "erp", a: "/admin/erp", etichetta: "Contabilità", icona: Link2Icon },
-  { chiave: "log", a: "/admin/log", etichetta: "Log", icona: CalendarIcon },
-  { chiave: "diagnosi", a: "/admin/diagnosi", etichetta: "Diagnosi", icona: InfoCircledIcon },
+type Sezione = {
+  titolo: string;
+  voci: Voce[];
+};
+
+/** Due menu separati: il lavoro quotidiano sui dati del cantiere sopra, la
+ *  manutenzione tecnica del sistema sotto — chi entra per validare fatture non
+ *  deve attraversare workflow, log e diagnosi per orientarsi. */
+const SEZIONI: Sezione[] = [
+  {
+    titolo: "Operatività",
+    voci: [
+      { chiave: "cruscotto", a: "/admin", etichetta: "Cruscotto", icona: HomeIcon, anche: ["/admin/cantiere"] },
+      { chiave: "dati", a: "/admin/dati", etichetta: "Dati", icona: FileIcon },
+      { chiave: "scostamenti", a: "/admin/scostamenti", etichetta: "Scostamenti", icona: ArrowUpIcon },
+      { chiave: "revisione", a: "/admin/revisione", etichetta: "Revisione", icona: CheckCircledIcon },
+      { chiave: "segnalazioni", a: "/admin/segnalazioni", etichetta: "Segnalazioni", icona: BellIcon },
+      { chiave: "interroga", a: "/admin/interroga", etichetta: "Interroga", icona: MagnifyingGlassIcon },
+      { chiave: "erp", a: "/admin/erp", etichetta: "Contabilità", icona: Link2Icon },
+    ],
+  },
+  {
+    titolo: "Sistema",
+    voci: [
+      { chiave: "workflows", a: "/admin/workflows", etichetta: "Workflows", icona: GearIcon },
+      { chiave: "run", a: "/admin/run", etichetta: "Run", icona: TriangleRightIcon },
+      { chiave: "tools", a: "/admin/tools", etichetta: "Skills & Tools", icona: ClipboardCopyIcon },
+      { chiave: "dataset", a: "/admin/dataset", etichetta: "Dataset", icona: DotsHorizontalIcon },
+      { chiave: "log", a: "/admin/log", etichetta: "Log", icona: CalendarIcon },
+      { chiave: "diagnosi", a: "/admin/diagnosi", etichetta: "Diagnosi", icona: InfoCircledIcon },
+    ],
+  },
 ];
 
 /** "/admin" è acceso solo su se stesso; le altre voci anche sui figli. */
@@ -135,16 +153,19 @@ export default function AdminApp() {
     );
   }
 
-  const voci = VOCI.map((v) => {
-    const Icona = v.icona;
-    return {
-      key: v.chiave,
-      text: v.etichetta,
-      icon: <Icona width={18} height={18} />,
-      selected: vociAccese(pathname, v),
-      onClick: () => naviga(v.a),
-    };
-  });
+  const voci = SEZIONI.flatMap((sezione) => [
+    { key: `sezione-${sezione.titolo}`, text: sezione.titolo, heading: true },
+    ...sezione.voci.map((v) => {
+      const Icona = v.icona;
+      return {
+        key: v.chiave,
+        text: v.etichetta,
+        icon: <Icona width={18} height={18} />,
+        selected: vociAccese(pathname, v),
+        onClick: () => naviga(v.a),
+      };
+    }),
+  ]);
 
   return (
     <div
