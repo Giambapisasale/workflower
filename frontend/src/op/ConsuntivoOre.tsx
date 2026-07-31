@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { CalendarIcon, CheckIcon, HomeIcon } from "@radix-ui/react-icons";
 import {
   api,
@@ -15,6 +14,7 @@ import {
   type ConsuntivoContesto,
 } from "../shared/api";
 import { Button, Input, Spinner, Step, Stepper } from "../ds";
+import { useRitorno } from "../shared/navigazione";
 import { TESTI, dataBreve } from "./testi";
 import {
   BottoneGrande,
@@ -60,7 +60,7 @@ const PASSO_STEPPER: Partial<Record<Fase["tipo"], number>> = {
 };
 
 export default function ConsuntivoOre() {
-  const naviga = useNavigate();
+  const torna = useRitorno("/op", "/op");
   const oggi = isoLocale(new Date());
   const ieri = isoLocale(new Date(Date.now() - 86_400_000));
 
@@ -143,7 +143,7 @@ export default function ConsuntivoOre() {
 
   return (
     <div>
-      <Indietro onClick={() => naviga("/op")} />
+      <Indietro a="/op" />
       <Titolo>{TESTI.titoloOre}</Titolo>
 
       {passo !== undefined ? (
@@ -170,7 +170,7 @@ export default function ConsuntivoOre() {
         <Card>
           <b>{TESTI.oreNessunDip}</b>
           <div style={{ marginTop: 16 }}>
-            <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+            <BottoneGrande icona={HomeIcon} onClick={torna}>
               {TESTI.tornaHome}
             </BottoneGrande>
           </div>
@@ -307,7 +307,7 @@ export default function ConsuntivoOre() {
             {TESTI.oreInviatoSotto}
           </p>
           <div style={{ marginTop: 16 }}>
-            <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+            <BottoneGrande icona={HomeIcon} onClick={torna}>
               {TESTI.tornaHome}
             </BottoneGrande>
           </div>
@@ -322,7 +322,7 @@ export default function ConsuntivoOre() {
               <BottonePieno onClick={() => setFase({ tipo: "giorno" })}>
                 {TESTI.riprova}
               </BottonePieno>
-              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+              <BottoneGrande icona={HomeIcon} onClick={torna}>
                 {TESTI.tornaHome}
               </BottoneGrande>
             </Colonna>

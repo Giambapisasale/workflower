@@ -1,18 +1,21 @@
 /** Crea/modifica una voce a mano (M13), con il form generato dallo schema. */
 
 import { type FormEvent, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
 import { admin } from "./api";
 import CampiSchema from "./CampiSchema";
 import { useCarica } from "./formato";
 import { caricaMetaForm } from "./metaForm";
+import { useRitorno } from "./provenienza";
 import { Bottone, Card, Errore, IntestazionePagina, Stato } from "./ui";
 
 export default function EntitaForm() {
   const { tipo = "", id } = useParams();
   const nuovo = !id;
-  const navigate = useNavigate();
+  // Qui si arriva anche dal Cruscotto o dalla Contabilità: salva e annulla
+  // riportano lì, non per forza alla lista del tipo.
+  const esci = useRitorno(`/admin/dati/${tipo}`);
 
   const { dati: setup, errore, inCorso } = useCarica(async () => {
     const meta = await caricaMetaForm(tipo);
@@ -41,7 +44,7 @@ export default function EntitaForm() {
     try {
       if (nuovo) await admin.entitiesCrea(tipo, valore);
       else await admin.entitiesAggiorna(tipo, id!, valore);
-      navigate(`/admin/dati/${tipo}`);
+      esci();
     } catch (err) {
       setErroreSalva(err instanceof ErroreApi ? err.message : "Errore di salvataggio");
     } finally {
@@ -74,7 +77,7 @@ export default function EntitaForm() {
         <Bottone variante="primario" type="submit" disabled={salvando}>
           {salvando ? "Salvo…" : "Salva"}
         </Bottone>
-        <Bottone onClick={() => navigate(`/admin/dati/${tipo}`)}>Annulla</Bottone>
+        <Bottone onClick={esci}>Annulla</Bottone>
       </div>
     </form>
   );

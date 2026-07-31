@@ -6,11 +6,11 @@
  * quelle che si vogliono vedere. */
 
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { admin, type RigaRun } from "./api";
 import { useCarica } from "./formato";
 import TracePanel from "./TracePanel";
-import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
+import { Badge, Bottone, Card, Errore, Kpi, LinkVerso, Stato } from "./ui";
 
 const ESITI = [
   { valore: "", etichetta: "Tutti" },
@@ -170,12 +170,12 @@ function RigaEsecuzione({
         <td className="py-2 pr-3">
           <div className="text-slate-700">{documento(run.input)}</div>
           {run.entity_id ? (
-            <Link
-              to={`/admin/revisione/${run.entity_id}`}
+            <LinkVerso
+              a={`/admin/revisione/${run.entity_id}`}
               className="font-mono text-xs text-sky-700 hover:underline"
             >
               {run.entity_id}
-            </Link>
+            </LinkVerso>
           ) : null}
         </td>
         <td className="py-2 pr-3">

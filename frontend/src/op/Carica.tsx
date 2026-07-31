@@ -5,7 +5,6 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -14,6 +13,7 @@ import {
   HomeIcon,
 } from "@radix-ui/react-icons";
 import { api, type DocumentoVista, type EsempioDoc, scaricaFile } from "../shared/api";
+import { useRitorno } from "../shared/navigazione";
 import { Spinner } from "../ds";
 import { CardGrazie, PannelloVerdetto, RigheRiepilogo } from "./RiepilogoCard";
 import { useSessione } from "./sessione";
@@ -44,7 +44,7 @@ const pausa = (ms: number) => new Promise((fine) => setTimeout(fine, ms));
 
 export default function Carica() {
   const { sessione } = useSessione();
-  const naviga = useNavigate();
+  const torna = useRitorno("/op", "/op");
   const cantieri = sessione.utente.cantieri;
   const [fase, setFase] = useState<Fase>({ tipo: "scegli" });
   const [esempi, setEsempi] = useState<EsempioDoc[]>([]);
@@ -93,7 +93,7 @@ export default function Carica() {
 
   return (
     <div>
-      <Indietro onClick={() => naviga("/op")} />
+      <Indietro a="/op" />
       <Titolo>{TESTI.titoloCarica}</Titolo>
 
       {fase.tipo === "scegli" ? (
@@ -179,7 +179,7 @@ export default function Carica() {
               {fase.doc.messaggio}
             </p>
             <div style={{ marginTop: 16 }}>
-              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+              <BottoneGrande icona={HomeIcon} onClick={torna}>
                 {TESTI.tornaHome}
               </BottoneGrande>
             </div>
@@ -187,7 +187,7 @@ export default function Carica() {
         )
       ) : null}
 
-      {fase.tipo === "grazie" ? <CardGrazie onHome={() => naviga("/op")} /> : null}
+      {fase.tipo === "grazie" ? <CardGrazie onHome={torna} /> : null}
 
       {fase.tipo === "avviso" ? (
         <Card>
@@ -197,7 +197,7 @@ export default function Carica() {
               <BottonePieno onClick={() => setFase({ tipo: "scegli" })}>
                 {TESTI.riprova}
               </BottonePieno>
-              <BottoneGrande icona={HomeIcon} onClick={() => naviga("/op")}>
+              <BottoneGrande icona={HomeIcon} onClick={torna}>
                 {TESTI.tornaHome}
               </BottoneGrande>
             </Colonna>

@@ -10,6 +10,7 @@ import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { Button } from "../ds";
 import type { Icona } from "../ds";
 import type { Semaforo } from "../shared/api";
+import { useRitorno } from "../shared/navigazione";
 import { TESTI } from "./testi";
 
 /* Tutti i bottoni qui dichiarano `type="button"`: l'Operatore ha due form (il
@@ -182,7 +183,15 @@ export function Card({ children }: { children: ReactNode }) {
   );
 }
 
-export function Indietro({ onClick }: { onClick: () => void }) {
+/** Il ritorno alla schermata di prima.
+ *
+ *  Con `a` fa da indietro di navigazione: torna nella history se ci si è
+ *  arrivati da dentro l'app, altrimenti va su `a`. Così il tasto Indietro del
+ *  telefono non riporta dentro la schermata appena lasciata. Con `onClick`
+ *  serve invece a tornare di un passo dentro la stessa schermata (il codice
+ *  nell'accesso). */
+export function Indietro({ a, onClick }: { a?: string; onClick?: () => void }) {
+  const ritorna = useRitorno(a ?? "/op", "/op");
   return (
     <Button
       variant="transparent"
@@ -190,7 +199,7 @@ export function Indietro({ onClick }: { onClick: () => void }) {
       type="button"
       compact
       icon={{ data: ArrowLeftIcon }}
-      onClick={onClick}
+      onClick={onClick ?? ritorna}
       style={{ minHeight: 32 }}
     >
       {TESTI.indietro}

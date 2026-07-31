@@ -1,13 +1,14 @@
 /** "I miei documenti": elenco a semaforo, tap per il dettaglio. */
 
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api, type DocumentoVista } from "../shared/api";
+import { usePercorsoCorrente } from "../shared/navigazione";
 import { quandoLeggibile, TESTI } from "./testi";
 import { Card, Colonna, Indietro, Pallino, Titolo } from "./ui";
 
 export default function Documenti() {
-  const naviga = useNavigate();
+  const da = usePercorsoCorrente();
   const [documenti, setDocumenti] = useState<DocumentoVista[] | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
 
@@ -20,7 +21,7 @@ export default function Documenti() {
 
   return (
     <div>
-      <Indietro onClick={() => naviga("/op")} />
+      <Indietro a="/op" />
       <Titolo>{TESTI.titoloDocumenti}</Titolo>
 
       {avviso ? (
@@ -37,6 +38,7 @@ export default function Documenti() {
             <Link
               key={doc.id}
               to={`/op/documenti/${doc.id}`}
+              state={{ da }}
               className="wf-riga-documento"
               style={{
                 display: "flex",

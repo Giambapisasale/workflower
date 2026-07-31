@@ -8,6 +8,8 @@ export interface SidebarItem {
   selected?: boolean;
   disabled?: boolean;
   subItems?: SidebarItem[];
+  /** Intestazione di sezione: non cliccabile, ignora icon/onClick/selected. */
+  heading?: boolean;
 }
 
 export interface SidebarProps extends HTMLAttributes<HTMLElement> {
