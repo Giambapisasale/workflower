@@ -38,10 +38,59 @@ services:
       ERP_PARENT_COST_CENTER: ${ERP_PARENT_COST_CENTER:-}
       ERP_ITEM_DDT: ${ERP_ITEM_DDT:-}
       ERP_SUPPLIER_GROUP: ${ERP_SUPPLIER_GROUP:-}
+      # Parser documenti (opzionale): se DOCLING_URL è vuota il tool
+      # `leggi_documento` non viene registrato e tutto funziona come prima —
+      # l'LLM legge le pagine come immagini. Con il profilo `docling` attivo
+      # (vedi sotto) il valore giusto è http://docling:5001.
+      DOCLING_URL: ${DOCLING_URL:-}
+      DOCLING_TIMEOUT: ${DOCLING_TIMEOUT:-}
+      DOCLING_MAX_CARATTERI: ${DOCLING_MAX_CARATTERI:-}
     volumes:
       - workflower-data:/data
     expose:
       - "8000"
+    restart: unless-stopped
+
+  # Parser documenti su GPU (opzionale). Si avvia solo chiedendolo:
+  #     docker compose --profile docling up -d
+  # e in .env: DOCLING_URL=http://docling:5001
+  #
+  # Senza questo servizio Workflower funziona esattamente come prima. Con questo,
+  # i PDF nati al computer, i Word e gli Excel vengono letti come testo con le
+  # tabelle ricostruite, invece che come immagini.
+  #
+  # ATTENZIONE all'immagine: la variante `-cu130` porta kernel CUDA fino a sm_120.
+  # Va bene per RTX 3080/4090; sul **DGX Spark (GB10, sm_121) NON parte sulla GPU**
+  # e serve un'immagine ricostruita su base NGC pytorch (vedi analisi-docling.md).
+  # Verificare sempre prima: docker manifest inspect <immagine> | grep arm64
+  docling:
+    profiles: [docling]
+    image: ${DOCLING_IMAGE:-quay.io/docling-project/docling-serve-cu130:v1.29.0}
+    environment:
+      DOCLING_DEVICE: cuda
+      # L'endpoint sincrono interroga la coda interna a questo intervallo: col
+      # default (2) si pagano 2 secondi anche per una conversione da 130 ms.
+      # È un intero: un valore decimale fa fallire l'avvio del container.
+      DOCLING_SERVE_SYNC_POLL_INTERVAL: "1"
+    volumes:
+      # I pesi dei modelli sono già dentro l'immagine (nessun download a runtime):
+      # il volume serve solo a non riscaricarli se un domani cambiasse.
+      - docling-models:/opt/app-root/src/.cache
+    expose:
+      - "5001"
+    ports:
+      # Pubblicato **solo su loopback**: serve allo sviluppo, dove il backend gira
+      # sull'host (`make dev`) e non dentro al compose — con DOCLING_URL puntata a
+      # http://127.0.0.1:5001. In rete non è esposto: l'app in compose lo raggiunge
+      # comunque per nome di servizio, senza passare da qui.
+      - "127.0.0.1:5001:5001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
 
   caddy:
@@ -61,5 +110,6 @@ services:
 
 volumes:
   workflower-data:
+  docling-models:
   caddy-data:
   caddy-config:

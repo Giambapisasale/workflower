@@ -9,7 +9,17 @@ quantità, di solito **senza prezzi né IVA**. Non confonderlo con una fattura.
 
 ## Procedura
 
-1. Leggi il documento con il tool `ocr_pdf`: ti restituisce le pagine come immagini.
+1. Leggi il documento. Hai due strumenti, per casi diversi:
+   - `leggi_documento` — **prima scelta** per i PDF nati al computer e per i file
+     Word (`.docx`) ed Excel (`.xlsx`): ti restituisce il testo con le tabelle
+     già ricostruite, ed è il modo più preciso di leggere righe e importi.
+   - `ocr_pdf` — per le **foto** scattate col telefono (`.jpg`, `.png`), per le
+     scansioni storte, e ogni volta che `leggi_documento` dà errore o ti
+     restituisce un testo incompleto: ti restituisce le pagine come immagini.
+
+   Usane **uno solo**: chiama il secondo soltanto se il primo non ti è bastato.
+   Se `leggi_documento` ti avvisa che la lettura è di bassa qualità o che il
+   testo è troncato, ricontrolla con `ocr_pdf` prima di trascrivere.
 2. Individua chi spedisce la merce (il mittente / fornitore): usa `cerca_fornitore`
    con la ragione sociale o la partita IVA che leggi sull'intestazione. Se c'è un
    candidato affidabile (vedi «Riferimenti non risolti»), metti il suo `id` nel

@@ -25,24 +25,31 @@ ERP_ENV = (
     "ERP_SUPPLIER_GROUP",
 )
 
+# Stesso problema dell'ERP, stessa cura: il sidecar Docling dello sviluppatore
+# non deve mai finire dentro a un test. Con ``DOCLING_URL`` ereditata dal ``.env``
+# il tool ``leggi_documento`` comparirebbe nel Toolset e i test che contano le
+# tool call fallirebbero a caso — o peggio, passerebbero solo su questa macchina.
+DOCLING_ENV = ("DOCLING_URL", "DOCLING_TIMEOUT", "DOCLING_MAX_CARATTERI")
+
 
 @pytest.fixture(autouse=True)
-def erp_non_configurato(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Nessun test parte con l'ERP dello sviluppatore già collegato.
+def integrazioni_non_configurate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Nessun test parte con le integrazioni dello sviluppatore già collegate.
 
     **litellm chiama ``load_dotenv()`` all'import**: importare il gateway porta
-    dentro al processo il ``.env`` del progetto, ``ERP_*`` comprese. Senza questa
-    pulizia un test che crede l'integrazione spenta la troverebbe accesa e
-    puntata sull'istanza reale — nel migliore dei casi fallirebbe a caso, nel
-    peggiore scriverebbe documenti veri.
+    dentro al processo il ``.env`` del progetto, ``ERP_*`` e ``DOCLING_*``
+    comprese. Senza questa pulizia un test che crede l'integrazione spenta la
+    troverebbe accesa e puntata sull'istanza reale — nel migliore dei casi
+    fallirebbe a caso, nel peggiore scriverebbe documenti veri.
 
-    Chi *vuole* un ERP lo inietta (``crea_client(erp=...)``) o imposta le env da
-    sé con ``monkeypatch``, dentro al corpo del test: succede dopo questa fixture.
+    Chi *vuole* un'integrazione la inietta (``crea_client(erp=…, docling=…)``) o
+    imposta le env da sé con ``monkeypatch``, dentro al corpo del test: succede
+    dopo questa fixture.
 
     L'import di ``Gateway`` qui sopra ha già fatto scattare il ``load_dotenv``: a
     questo punto le variabili ci sono, e vanno tolte.
     """
-    for nome in ERP_ENV:
+    for nome in (*ERP_ENV, *DOCLING_ENV):
         monkeypatch.delenv(nome, raising=False)
 
 
@@ -95,11 +102,17 @@ def ambiente_llm(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def crea_client(dati_rw: Path, ambiente_llm: None) -> Callable[..., TestClient]:
-    """Factory di TestClient sull'app, con i trasporti (LLM ed ERP) che servono al test."""
+    """Factory di TestClient sull'app, coi trasporti (LLM, ERP, Docling) che servono."""
 
-    def _crea(completer: object | None = None, erp: object | None = None) -> TestClient:
+    def _crea(
+        completer: object | None = None,
+        erp: object | None = None,
+        docling: object | None = None,
+    ) -> TestClient:
         gateway = Gateway(completer=completer or FakeCompleter(dati_rw), attesa_retry=0)
-        return TestClient(create_app(data_dir=dati_rw, gateway=gateway, erp=erp))
+        return TestClient(
+            create_app(data_dir=dati_rw, gateway=gateway, erp=erp, docling=docling)
+        )
 
     return _crea
 

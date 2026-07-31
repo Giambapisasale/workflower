@@ -16,6 +16,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import BaseModel
 
 from app.core.dal import DAL
+from app.core.docling import DoclingClient
 from app.core.gateway import Gateway, GatewayError, RispostaLLM, estrai_json
 from app.core.logbook import ottieni_logger
 from app.core.rules import valuta_regole
@@ -70,11 +71,14 @@ def schema_contratto(schema_entita: dict[str, Any]) -> dict[str, Any]:
 
 
 class WorkflowRuntime:
-    def __init__(self, dal: DAL, gateway: Gateway) -> None:
+    def __init__(self, dal: DAL, gateway: Gateway, docling: DoclingClient | None = None) -> None:
         self.dal = dal
         self.data_dir = dal.data_dir
         self.gateway = gateway
-        self.toolset = Toolset(dal)
+        # Tenuto a portata di mano oltre che dentro il Toolset: lo usa anche il
+        # classificatore d'ingresso, che non passa dai tool (vedi api/documents.py).
+        self.docling = docling if docling is not None else DoclingClient()
+        self.toolset = Toolset(dal, docling=self.docling)
 
     def esegui(self, workflow: str, doc: str, run_id: str | None = None) -> RunResult:
         """Esegue il workflow sul documento ``doc`` (percorso relativo al repo dati)."""
@@ -279,6 +283,19 @@ class WorkflowRuntime:
         # (sotto), che completa comunque lo step: mai un single-point-of-failure.
         nomi_tool = list(step.get("tools") or [])
         nomi_tool += [n for n in self.toolset.nomi_consolidati() if n not in nomi_tool]
+        # Un manifest può dichiarare una capacità opzionale (``leggi_documento``
+        # esiste solo dove il sidecar Docling è cablato): i tool non disponibili si
+        # tolgono dall'offerta e si dichiarano nel log, invece di far fallire lo
+        # step. Vale anche da rete di sicurezza per un refuso nel manifest, che
+        # così si vede nel logbook invece di sparire.
+        nomi_tool, mancanti = self.toolset.disponibili(nomi_tool)
+        if mancanti:
+            _log.info(
+                "tool dichiarati ma non disponibili nello step %s: %s",
+                step["id"],
+                ", ".join(mancanti),
+                extra={"step": step["id"], "workflow": manifest["name"], "documento": doc},
+            )
         schemi_tool = self.toolset.schemi(nomi_tool) or None
 
         messages: list[dict[str, Any]] = [

@@ -13,7 +13,7 @@ ingest:
 steps:
   - id: estrai
     skill: skills/estrazione-rapportino.md
-    tools: [ocr_pdf, cerca_cantiere, cerca_dipendente]
+    tools: [leggi_documento, ocr_pdf, cerca_cantiere, cerca_dipendente]
     output_schema: schemas/rapportino.schema.json
   - id: valida
     rules:

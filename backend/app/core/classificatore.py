@@ -16,6 +16,8 @@ from typing import Any
 import yaml
 
 from app.core.dal import DAL
+from app.core.docling import ESTENSIONI as ESTENSIONI_DOCLING
+from app.core.docling import DoclingClient, DoclingError
 from app.core.gateway import Gateway, estrai_json
 from app.core.tools import ocr_pdf
 
@@ -23,12 +25,20 @@ logger = logging.getLogger("workflower.classificatore")
 
 FALLBACK_PREDEFINITO = "carica-fattura"
 
+# Per dire "è una fattura" bastano l'intestazione e le prime righe: mandare al
+# modello l'intero documento è spesa pura. Il taglio è generoso — su una fattura
+# reale ci stanno intestazione, numero, data e le prime voci.
+MAX_CARATTERI_CLASSIFICA = 4_000
+
 
 class Classificatore:
-    def __init__(self, dal: DAL, gateway: Gateway) -> None:
+    def __init__(
+        self, dal: DAL, gateway: Gateway, docling: DoclingClient | None = None
+    ) -> None:
         self.dal = dal
         self.data_dir = dal.data_dir
         self.gateway = gateway
+        self.docling = docling if docling is not None else DoclingClient()
         self.wf_dir = self.data_dir / "workflows" / "classifica-documento"
 
     # ------------------------------------------------------------- pubblico
@@ -75,10 +85,27 @@ class Classificatore:
             return str(candidato)
         return catalogo[0]["workflow"] if catalogo else FALLBACK_PREDEFINITO
 
-    def _chiedi(self, catalogo: list[dict[str, str]], doc: str) -> str | None:
-        manifest = self._manifest()
-        skill = (self.wf_dir / manifest["skill"]).read_text(encoding="utf-8")
-        skill = skill.replace("{catalogo}", self._catalogo_testo(catalogo))
+    def _parti_documento(self, doc: str) -> list[dict[str, Any]]:
+        """Il documento come lo vedrà il classificatore: testo se si può, immagini altrimenti.
+
+        Il testo strutturato è la scelta giusta qui più che altrove: la domanda si
+        decide sulle prime righe ("Fattura", "DDT", la partita IVA in testa), e
+        mandare tutte le pagine come immagini costa 16–34 volte tanto per la stessa
+        risposta. Su Word ed Excel è anche l'**unica** strada: nessun modello vision
+        apre un ``.docx``.
+
+        Se Docling non c'è o inciampa, si torna alle immagini senza far rumore: una
+        classificazione è comunque recuperabile (c'è il fallback del manifest),
+        mentre un'eccezione qui bloccherebbe l'ingestione.
+        """
+        testo = self._testo_docling(doc)
+        if testo is not None:
+            return [
+                {
+                    "type": "text",
+                    "text": f"Documento da classificare: {doc}\n\n{testo}",
+                }
+            ]
         immagini = ocr_pdf.esegui(self.data_dir, doc).get("immagini_png_base64") or []
         parti: list[dict[str, Any]] = [
             {"type": "text", "text": f"Documento da classificare: {doc}"}
@@ -87,6 +114,25 @@ class Classificatore:
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}
             for img in immagini
         ]
+        return parti
+
+    def _testo_docling(self, doc: str) -> str | None:
+        """L'inizio del documento come Markdown, o ``None`` se non è la strada giusta."""
+        percorso = self.data_dir / doc
+        if percorso.suffix.lower() not in ESTENSIONI_DOCLING or not self.docling.attivo():
+            return None
+        try:
+            markdown = self.docling.converti(percorso)["markdown"]
+        except (DoclingError, OSError) as exc:
+            logger.info("classificazione su testo non riuscita per %s: %s", doc, exc)
+            return None
+        return markdown[:MAX_CARATTERI_CLASSIFICA]
+
+    def _chiedi(self, catalogo: list[dict[str, str]], doc: str) -> str | None:
+        manifest = self._manifest()
+        skill = (self.wf_dir / manifest["skill"]).read_text(encoding="utf-8")
+        skill = skill.replace("{catalogo}", self._catalogo_testo(catalogo))
+        parti = self._parti_documento(doc)
         risposta = self.gateway.complete(
             tier=manifest.get("tier", "T2"),
             messages=[

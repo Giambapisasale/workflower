@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.api.deps import (
     get_dal,
     get_data_dir,
+    get_docling,
     get_eval_interroga,
     get_eval_t3,
     richiedi_admin,
@@ -40,6 +41,7 @@ from app.core.dataset import (
     fingerprint,
     statistiche,
 )
+from app.core.docling import DoclingClient
 from app.core.eval_interroga import EvalInterroga, unisci
 from app.core.eval_t3 import EvalT3
 from app.core.golden import casi_domanda
@@ -335,14 +337,18 @@ def eval_t3(
 def elenco_tool(
     _admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
+    docling: DoclingClient = Depends(get_docling),
 ) -> dict[str, Any]:
     """Registry dei tool nativi con i contatori d'uso + i candidati al consolidamento."""
     usi = conteggio_tool(dal.data_dir)
+    # Stesso ``Toolset`` che vede il runtime, sidecar compreso: la pagina deve
+    # mostrare i tool che il modello può davvero chiamare su *questa* macchina,
+    # non un elenco teorico.
     # ``elenco()`` porta già ciclo e origine (nativa | pytool): non li sovrascriviamo,
     # così i tool Python consolidati compaiono col loro stato di ciclo reale (M15).
     tools = [
         {**voce, "usi": usi.get(voce["name"], 0)}
-        for voce in Toolset(dal).elenco()
+        for voce in Toolset(dal, docling=docling).elenco()
     ]
     tools.sort(key=lambda t: t["usi"], reverse=True)
     return {

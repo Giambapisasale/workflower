@@ -12,7 +12,7 @@ ingest:
 steps:
   - id: estrai
     skill: skills/estrazione-sal.md
-    tools: [ocr_pdf, cerca_cantiere]
+    tools: [leggi_documento, ocr_pdf, cerca_cantiere]
     output_schema: schemas/sal.schema.json
   - id: valida
     rules:

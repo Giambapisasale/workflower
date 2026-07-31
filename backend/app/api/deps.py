@@ -16,6 +16,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
 from app.core.diagnostico import Diagnostico
+from app.core.docling import DoclingClient
 from app.core.erp import ErpClient
 from app.core.eval_interroga import EvalInterroga
 from app.core.eval_t3 import EvalT3
@@ -68,10 +69,21 @@ def get_erp(request: Request) -> ErpClient:
     return request.app.state.erp
 
 
+def get_docling(request: Request) -> DoclingClient:
+    """Il client Docling condiviso dell'app (uno solo, iniettabile nei test).
+
+    Sempre presente: se ``DOCLING_URL`` non è configurata il client è inattivo e
+    il tool ``leggi_documento`` non viene registrato nel ``Toolset``.
+    """
+    return request.app.state.docling
+
+
 def get_runtime(
-    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+    dal: DAL = Depends(get_dal),
+    gateway: Gateway = Depends(get_gateway),
+    docling: DoclingClient = Depends(get_docling),
 ) -> WorkflowRuntime:
-    return WorkflowRuntime(dal, gateway)
+    return WorkflowRuntime(dal, gateway, docling=docling)
 
 
 def get_interroga(

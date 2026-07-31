@@ -11,7 +11,7 @@ ingest:
 steps:
   - id: estrai
     skill: skills/estrazione-fattura.md
-    tools: [ocr_pdf, cerca_fornitore, cerca_cantiere]
+    tools: [leggi_documento, ocr_pdf, cerca_fornitore, cerca_cantiere]
     output_schema: schemas/fattura.schema.json
   - id: valida
     rules:

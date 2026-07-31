@@ -1,6 +1,7 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
 .PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
-        seed reseed fixtures samples demo lint testbook-ask
+        docling-up docling-down docling-check \
+        seed reseed data-sync-workflows fixtures samples demo lint testbook-ask
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -51,8 +52,24 @@ erp-dev-setup: ## Prepara l'ERPNext di sviluppo (company, conti, articolo, API k
 	docker compose -f docker-compose.erpnext.yml cp scripts/erp_dev_setup.py backend:/tmp/erp_dev_setup.py
 	docker compose -f docker-compose.erpnext.yml exec -T backend bash -lc "cd /home/frappe/frappe-bench/sites && ../env/bin/python /tmp/erp_dev_setup.py"
 
+docling-up: ## Avvia il parser documenti su GPU (serve il NVIDIA Container Toolkit)
+	docker compose --profile docling up -d docling
+
+docling-down: ## Ferma il parser documenti (aggiungi ARGS=-v per togliere anche i modelli)
+	docker compose --profile docling down $(ARGS)
+
+docling-check: ## Verifica che il parser risponda e che stia davvero usando la GPU
+	$(PY) scripts/docling_check.py $(ARGS)
+
 seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed
+
+# Il seed crea il repo dati una volta sola: aggiornare l'applicazione NON
+# aggiorna manifest e skill già scritti in ./data. Questo comando li riallinea.
+# In produzione, dove il repo dati sta in un volume:
+#     docker compose exec app python -m app.sync_workflows [--applica]
+data-sync-workflows: ## Mostra (e con ARGS=--applica scrive) i workflow da allineare in ./data
+	$(PY) -m app.sync_workflows $(ARGS)
 
 # Ambiente da zero. Il `-` davanti alla rimozione è voluto: su Windows un handle
 # residuo (git.exe di GitPython, una connessione DuckDB, una shell col cwd dentro

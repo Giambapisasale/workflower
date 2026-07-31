@@ -228,6 +228,7 @@ locale candidato contro T1 e indica i workflow "pronti".
 | `make dev` | Backend (:8000) + frontend (:5173) |
 | `make seed` | Crea il repo dati `./data` (git separato) |
 | `make reseed` | **Azzera** `./data` e lo ricrea dal seed (perde i dati e la loro storia) |
+| `make data-sync-workflows` | Allinea manifest e skill di `./data` a quelli dell'applicazione (`ARGS=--applica` per scrivere) |
 | `make fixtures` | Genera i PDF sintetici in `./fixtures` (fatture + DDT/SAL/rapportino) |
 | `make demo` | Seed + fixtures + istruzioni del giro |
 | `make test` | Test backend (pytest) |
@@ -334,13 +335,102 @@ comunque lanciare a mano.
   `POST /api/diagnoses/analyze`, `POST /api/diagnoses/{id}/resolve`,
   `POST /api/diagnoses/{id}/archive`.
 
+## Parser documenti su GPU (Docling) — opzionale
+
+Di serie il modello legge i documenti **come immagini** (`ocr_pdf`: pagine → PNG →
+LLM multimodale). Con un sidecar [Docling](https://github.com/docling-project/docling)
+acceso guadagna un secondo strumento, `leggi_documento`, che restituisce il
+documento come **testo con le tabelle ricostruite**:
+
+```bash
+make docling-up      # container con la GPU (profilo compose "docling")
+make docling-check   # risponde? converte? sta usando davvero la GPU?
+```
+
+e in `.env`: `DOCLING_URL=http://127.0.0.1:5001` (in compose: `http://docling:5001`).
+
+| | `leggi_documento` | `ocr_pdf` |
+|---|---|---|
+| **Per cosa** | PDF nati al computer, Word `.docx`, Excel `.xlsx` | foto dal cantiere, scansioni storte |
+| **Cosa dà** | Markdown con tabelle e ordine di lettura | pagine come immagini PNG |
+| **Costo** | 16–34x meno token | ~2.300 token per pagina |
+
+I due **convivono**: è la skill (dato) a dire quale usare, e su una foto il
+modello vision resta la strada migliore. Senza `DOCLING_URL` il tool non viene
+nemmeno registrato e il sistema si comporta esattamente come prima — Word ed
+Excel tornano a essere rifiutati in caricamento, perché nessun altro sa aprirli.
+
+Misure, limiti e il caso DGX Spark (`sm_121`) in
+[`analisi-docling.md`](analisi-docling.md); messa in opera in
+[`docs/deploy.md`](docs/deploy.md).
+
+## Aggiornare un'installazione esistente
+
+Aggiornare il codice **non** aggiorna il repo dati. Il seed crea `data/` una volta
+sola — `make seed` rifiuta una cartella non vuota — quindi manifest e skill già
+scritti restano quelli del giorno dell'installazione. È una conseguenza voluta di
+"`/data` è la fonte di verità": quei file sono dato, e là dentro scrive anche
+l'Improver quando l'ufficio approva una proposta di miglioramento.
+
+La conseguenza pratica è che **una funzione nuova può restare invisibile**: se una
+versione aggiunge un tool, il modello non lo userà mai finché il manifest nel repo
+dati non lo dichiara. Non dà errore — dà risultati peggiori, in silenzio.
+
+Dopo ogni aggiornamento che tocca `backend/app/seed_assets/workflows/`:
+
+```bash
+make data-sync-workflows                 # elenca e mostra il diff, non scrive niente
+make data-sync-workflows ARGS=--applica  # copia e committa nel repo dati
+```
+
+In produzione il repo dati sta in un volume, quindi lo stesso modulo si invoca
+dentro il container (non serve `make`, non serve il venv):
+
+```bash
+git pull && docker compose build app && docker compose up -d app
+```
+
+```bash
+docker compose exec app python -m app.sync_workflows
+```
+
+```bash
+docker compose exec app python -m app.sync_workflows --applica
+```
+
+Non serve riavviare: i manifest si rileggono da disco a ogni run.
+
+Il comando è **conservativo** per costruzione:
+
+- di suo non scrive niente, mostra solo cosa cambierebbe;
+- **non cancella mai**: i workflow che esistono solo nel repo dati (scritti a mano)
+  non vengono nemmeno segnalati;
+- **non sovrascrive ciò che l'Improver ha migliorato**: se un file ha nel repo dati
+  un commit che non viene dal seed né da un allineamento precedente, viene marcato
+  `!` e saltato. Per includerlo serve `--forza`, e si perde quella miglioria;
+- differenze di solo fine-riga (repo dati creato su Windows, immagine costruita su
+  Linux) non contano come modifiche.
+
+Ed è reversibile, perché è un commit come gli altri:
+
+```bash
+docker compose exec app sh -c 'cd /data/repo && git revert HEAD'
+```
+
+Se un'estrazione non riconosce niente, il posto dove guardare è il **trace del run**
+(visibile dalla UI dell'ufficio, o in `data/traces/AAAA/MM/run-*.jsonl`): elenca gli
+strumenti chiamati e come sono andati, ed è lì che si vede se il modello ha provato
+lo strumento sbagliato perché il manifest era indietro.
+
 ## Deploy (versione di prova)
 
 Workflower gira come **singolo container** (il backend FastAPI serve anche il
-frontend buildato). Sono pronti tre target — **Render**, **Fly.io**, **VPS con
-Docker Compose** — tutti con lo stesso `Dockerfile`. Vincolo chiave: lo stato è un
-**repo git su disco**, quindi serve un **volume persistente** (niente serverless;
-sul piano Free di Render il filesystem è effimero e si ri-seed a ogni riavvio).
+frontend buildato), avviato con `docker compose` sul `Dockerfile` del repo su una
+macchina che controlliamo noi — il server aziendale o una VPS. Vincolo chiave: lo
+stato è un **repo git su disco**, quindi serve un **volume persistente** (niente
+serverless, niente filesystem effimero). L'infrastruttura di riferimento è
+**on-premise con GPU NVIDIA** (DGX Spark `arm64`, RTX 4090, RTX 3080 di sviluppo):
+l'app non usa la GPU, la usano i servizi affiancati (parser documenti, tier T3).
 Guida passo-passo, variabili d'ambiente e note operative (un solo worker, backup
 via `git push`, cambio dei PIN demo, costi LLM) in
 [`docs/deploy.md`](docs/deploy.md).
@@ -353,7 +443,7 @@ via `git push`, cambio dei PIN demo, costi LLM) in
   prova su tutti i casi d'uso, con ambiente, baseline attesa, matrice di copertura,
   limiti noti e foglio esiti.
 - [`docs/deploy.md`](docs/deploy.md) — mettere in piedi una versione di prova
-  (Render, Fly.io, VPS).
+  (compose su server aziendale o VPS, infrastruttura GPU on-premise).
 - [`piano-implementazione.md`](piano-implementazione.md),
   [`piano-implementazione-fase2.md`](piano-implementazione-fase2.md),
   [`piano-implementazione-fase3.md`](piano-implementazione-fase3.md) — contratti e
