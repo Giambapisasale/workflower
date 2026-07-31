@@ -7,11 +7,12 @@
  * questi pezzi in un posto solo, tutte le pagine cambiano pelle insieme.
  */
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { Button, Table } from "../ds";
 import type { TableColumn, TableRow } from "../ds";
+import { etichettaPercorso, usePercorsoCorrente, useProvenienza } from "./provenienza";
 
 /* ---------- superfici ---------- */
 
@@ -237,26 +238,59 @@ export function BottoneVerso({
   children: ReactNode;
 }) {
   const naviga = useNavigate();
+  const da = usePercorsoCorrente();
   return (
-    <Bottone variante={variante} onClick={() => naviga(a)}>
+    <Bottone variante={variante} onClick={() => naviga(a, { state: { da } })}>
       {children}
     </Bottone>
   );
 }
 
+/** Un `<Link>` che lascia la provenienza, come `BottoneVerso`: la pagina di
+ *  arrivo può così tornare qui e non alla sua rotta di ripiego. */
+export function LinkVerso({
+  a,
+  className,
+  style,
+  children,
+}: {
+  a: string;
+  className?: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  const da = usePercorsoCorrente();
+  return (
+    <Link to={a} state={{ da }} className={className} style={style}>
+      {children}
+    </Link>
+  );
+}
+
 /** Il ritorno alla pagina di sopra: un bottone con la freccia, non un link di
- *  testo. Sta in cima alla pagina, dentro `IntestazionePagina`. */
+ *  testo. Sta in cima alla pagina, dentro `IntestazionePagina`.
+ *
+ *  Se c'è una provenienza torna indietro *nella history* (`-1`) invece di
+ *  spingere una voce nuova: altrimenti la pila cresce (elenco → dettaglio →
+ *  elenco) e il tasto Indietro del browser riporta dentro il dettaglio appena
+ *  lasciato. Senza provenienza — URL aperto a mano, ricarica in una scheda
+ *  nuova — non c'è nulla da cui tornare e si spinge il ripiego `a`. */
 export function BottoneIndietro({ a, etichetta }: { a: string; etichetta?: string }) {
   const naviga = useNavigate();
+  const da = useProvenienza();
+  // Quando si torna dove porterebbe comunque il ripiego, l'etichetta passata
+  // dalla pagina è più precisa di quella dedotta dalla rotta ("Fatture" invece
+  // del generico "Dati"): si deduce solo per una provenienza diversa.
+  const altrove = da !== null && da.split("?")[0] !== a;
   return (
     <Button
       variant="transparent"
       size="sm"
       type="button"
       icon={{ data: ArrowLeftIcon }}
-      onClick={() => naviga(a)}
+      onClick={() => (da !== null ? naviga(-1) : naviga(a))}
     >
-      {etichetta ?? "Indietro"}
+      {altrove ? etichettaPercorso(da) : etichetta ?? "Indietro"}
     </Button>
   );
 }
@@ -372,9 +406,9 @@ export function Riquadro({
 
   if (a) {
     return (
-      <Link to={a} className="wf-riquadro" style={stile}>
+      <LinkVerso a={a} className="wf-riquadro" style={stile}>
         {contenuto}
-      </Link>
+      </LinkVerso>
     );
   }
   return (

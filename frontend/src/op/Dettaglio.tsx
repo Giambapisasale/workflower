@@ -1,8 +1,9 @@
 /** Dettaglio semplificato di un documento; da qui si può ancora dire la propria. */
 
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { api, type DocumentoVista } from "../shared/api";
+import { useRitorno } from "../shared/navigazione";
 import { CardGrazie, PannelloVerdetto, RigheRiepilogo } from "./RiepilogoCard";
 import { quandoLeggibile, TESTI } from "./testi";
 import { Card, Indietro, Pallino, Titolo } from "./ui";
@@ -11,7 +12,7 @@ const RITMO_ATTESA_MS = 2000;
 
 export default function Dettaglio() {
   const { id } = useParams();
-  const naviga = useNavigate();
+  const torna = useRitorno("/op/documenti", "/op");
   const [doc, setDoc] = useState<DocumentoVista | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
   const [grazie, setGrazie] = useState(false);
@@ -40,7 +41,7 @@ export default function Dettaglio() {
 
   return (
     <div>
-      <Indietro onClick={() => naviga("/op/documenti")} />
+      <Indietro a="/op/documenti" />
       {avviso ? (
         <Card>
           <b>{avviso}</b>
@@ -48,7 +49,7 @@ export default function Dettaglio() {
       ) : doc === null ? (
         <p style={{ color: "var(--text-secondary)" }}>{TESTI.caricamento}</p>
       ) : grazie ? (
-        <CardGrazie onHome={() => naviga("/op/documenti")} />
+        <CardGrazie onHome={torna} />
       ) : (
         <div>
           <Titolo>{doc.titolo}</Titolo>

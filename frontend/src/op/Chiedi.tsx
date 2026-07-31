@@ -1,7 +1,6 @@
 /** "Chiedi qualcosa": domanda libera → risposta in italiano semplice. Stop. */
 
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ChatBubbleIcon } from "@radix-ui/react-icons";
 import { api } from "../shared/api";
 import { Input, Spinner } from "../ds";
@@ -9,7 +8,6 @@ import { TESTI } from "./testi";
 import { BottonePieno, Card, Indietro, Titolo } from "./ui";
 
 export default function Chiedi() {
-  const naviga = useNavigate();
   const [domanda, setDomanda] = useState("");
   const [attesa, setAttesa] = useState(false);
   const [risposta, setRisposta] = useState<string | null>(null);
@@ -30,7 +28,7 @@ export default function Chiedi() {
 
   return (
     <div>
-      <Indietro onClick={() => naviga("/op")} />
+      <Indietro a="/op" />
       <Titolo>{TESTI.titoloChiedi}</Titolo>
       <form
         onSubmit={(e) => {

@@ -1,6 +1,6 @@
 /** Registro di cantiere (M10): il fascicolo consolidato — spesa, ore, avanzamento. */
 
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { admin } from "./api";
 import { dataBreve, euro, percento, useCarica } from "./formato";
 import {
@@ -11,6 +11,7 @@ import {
   Griglia,
   IntestazionePagina,
   Kpi,
+  LinkVerso,
   NUMERI,
   RigaElenco,
   Stato,
@@ -35,7 +36,7 @@ const COL_FATTURE: TableColumn<RigaFattura>[] = [
   {
     title: "Numero",
     dataIndex: "numero",
-    render: (_v, r) => <Link to={`/admin/revisione/${r.id}`}>{r.numero ?? r.id}</Link>,
+    render: (_v, r) => <LinkVerso a={`/admin/revisione/${r.id}`}>{r.numero ?? r.id}</LinkVerso>,
   },
   { title: "Fornitore", dataIndex: "fornitore", render: (_v, r) => r.fornitore ?? "—" },
   {

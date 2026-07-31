@@ -1,4 +1,3 @@
-import { useNavigate } from "react-router-dom";
 import {
   ArrowUpIcon,
   CalendarIcon,
@@ -6,12 +5,13 @@ import {
   FileIcon,
 } from "@radix-ui/react-icons";
 import { Button } from "../ds";
+import { useVaiA } from "../shared/navigazione";
 import { TESTI } from "./testi";
 import { BottoneGrande, Colonna } from "./ui";
 import { useSessione } from "./sessione";
 
 export default function Home() {
-  const naviga = useNavigate();
+  const vaiA = useVaiA();
   const { sessione, esci } = useSessione();
   const { nome, cantieri } = sessione.utente;
   const primoNome = nome.split(" ")[0];
@@ -62,16 +62,16 @@ export default function Home() {
       </div>
 
       <Colonna>
-        <BottoneGrande primario icona={ArrowUpIcon} onClick={() => naviga("/op/carica")}>
+        <BottoneGrande primario icona={ArrowUpIcon} onClick={() => vaiA("/op/carica")}>
           {TESTI.bottoneCarica}
         </BottoneGrande>
-        <BottoneGrande icona={CalendarIcon} onClick={() => naviga("/op/ore")}>
+        <BottoneGrande icona={CalendarIcon} onClick={() => vaiA("/op/ore")}>
           {TESTI.bottoneOre}
         </BottoneGrande>
-        <BottoneGrande icona={FileIcon} onClick={() => naviga("/op/documenti")}>
+        <BottoneGrande icona={FileIcon} onClick={() => vaiA("/op/documenti")}>
           {TESTI.bottoneDocumenti}
         </BottoneGrande>
-        <BottoneGrande icona={ChatBubbleIcon} onClick={() => naviga("/op/chiedi")}>
+        <BottoneGrande icona={ChatBubbleIcon} onClick={() => vaiA("/op/chiedi")}>
           {TESTI.bottoneChiedi}
         </BottoneGrande>
       </Colonna>

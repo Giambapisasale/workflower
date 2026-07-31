@@ -5,7 +5,7 @@ import { admin, type EsitoApprovazione, type Patch } from "./api";
 import DiffView from "./DiffView";
 import { dataBreve, euro, useCarica } from "./formato";
 import MiglioraWorkflow from "./MiglioraWorkflow";
-import { Badge, Bottone, Card, Errore, Stato } from "./ui";
+import { Badge, Bottone, Card, Errore, LinkVerso, Stato } from "./ui";
 
 /** "blobs/golden/fattura-edil-sud.pdf" → "fattura-edil-sud.pdf"
  *
@@ -99,9 +99,9 @@ function CasiGolden() {
                 </td>
                 <td className="py-2 pr-3 text-xs text-slate-500">
                   {c.entity_id ? (
-                    <Link className="font-mono hover:underline" to={`/admin/revisione/${c.entity_id}`}>
+                    <LinkVerso className="font-mono hover:underline" a={`/admin/revisione/${c.entity_id}`}>
                       {c.entity_id}
-                    </Link>
+                    </LinkVerso>
                   ) : (
                     "—"
                   )}

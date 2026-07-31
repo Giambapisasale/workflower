@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { admin } from "./api";
 import { euro, useCarica } from "./formato";
 import {
@@ -10,6 +9,7 @@ import {
   Griglia,
   IntestazionePagina,
   Kpi,
+  LinkVerso,
   NUMERI,
   RigaElenco,
   Stato,
@@ -38,9 +38,9 @@ const COL_CANTIERI: TableColumn<RigaCantiere>[] = [
     title: "Cantiere",
     dataIndex: "cantiere",
     render: (_v, r) => (
-      <Link to={`/admin/cantiere/${r.cantiere_id}`} style={{ fontWeight: 700 }}>
+      <LinkVerso a={`/admin/cantiere/${r.cantiere_id}`} style={{ fontWeight: 700 }}>
         {r.cantiere}
-      </Link>
+      </LinkVerso>
     ),
   },
   { title: "Fatture", dataIndex: "n_fatture", render: (_v, r) => <span style={NUMERI}>{r.n_fatture}</span> },
@@ -125,7 +125,7 @@ export default function Cruscotto() {
         <Kpi
           etichetta="Fatture"
           valore={t.n_fatture}
-          nota={<Link to="/admin/revisione">{t.da_validare} da validare →</Link>}
+          nota={<LinkVerso a="/admin/revisione">{t.da_validare} da validare →</LinkVerso>}
         />
         <Kpi
           etichetta="Totale documenti"

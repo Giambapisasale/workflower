@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { ErroreApi } from "../shared/api";
 import { admin, type JsonSchema, type VoceEntita } from "./api";
 import CampiSchema from "./CampiSchema";
@@ -8,7 +8,8 @@ import { caricaMetaForm } from "./metaForm";
 import MiglioraWorkflow from "./MiglioraWorkflow";
 import RiferimentiDaCompletare from "./RiferimentiDaCompletare";
 import TracePanel from "./TracePanel";
-import { Badge, Bottone, BottoneIndietro, Card, Errore, Stato } from "./ui";
+import { useRitorno } from "./provenienza";
+import { Badge, Bottone, BottoneIndietro, Card, Errore, LinkVerso, Stato } from "./ui";
 
 type MetaEdit = {
   schema: JsonSchema;
@@ -39,7 +40,7 @@ function cella(campo: string, v: unknown): string {
 
 export default function RevisioneDettaglio() {
   const { id = "" } = useParams();
-  const navigate = useNavigate();
+  const esci = useRitorno("/admin/revisione");
   const { dati: rev, errore, inCorso, ricarica } = useCarica(() => admin.revisione(id), [id]);
   const [urlOriginale, setUrlOriginale] = useState<string | null>(null);
   const [mostraJson, setMostraJson] = useState(false);
@@ -152,7 +153,9 @@ export default function RevisioneDettaglio() {
     setErroreScarto(null);
     try {
       await admin.scarta(id, motivo);
-      navigate("/admin/revisione");
+      // Si torna da dove si era arrivati: chi scarta partendo da un cantiere
+      // o da una segnalazione non deve ritrovarsi nella coda di revisione.
+      esci();
     } catch (e) {
       // Il 409 della contabilità è un'istruzione operativa («annullalo prima in
       // ERPNext»), non un guasto: va mostrato per intero.
@@ -230,7 +233,7 @@ export default function RevisioneDettaglio() {
           <p className="mb-3 text-sm text-slate-600">
             Il documento esce dai costi, dalla revisione e dai report, ma{" "}
             <strong>non viene cancellato</strong>: lo ritrovi in{" "}
-            <Link className="underline" to="/admin/dati/scartati">Dati → Scartati</Link> e da lì
+            <LinkVerso className="underline" a="/admin/dati/scartati">Dati → Scartati</LinkVerso> e da lì
             puoi ripristinarlo. Se è già arrivato in contabilità, va prima sistemato in ERPNext:
             in quel caso qui sotto compare cosa fare.
           </p>

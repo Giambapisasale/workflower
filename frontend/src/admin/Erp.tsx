@@ -7,11 +7,10 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import type { ErpStato } from "./api";
 import { admin } from "./api";
 import { dataBreve } from "./formato";
-import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
+import { Badge, Bottone, Card, Errore, Kpi, LinkVerso, Stato } from "./ui";
 
 export default function Erp() {
   const [stato, setStato] = useState<ErpStato | null>(null);
@@ -148,12 +147,12 @@ export default function Erp() {
               {arretrati.map((d) => (
                 <li key={d.id} className="flex items-center justify-between gap-3 py-2">
                   <span className="flex items-center gap-2">
-                    <Link
-                      to={`/admin/dati/${d.tipo}/${d.id}`}
+                    <LinkVerso
+                      a={`/admin/dati/${d.tipo}/${d.id}`}
                       className="font-mono text-sm text-sky-700 hover:underline"
                     >
                       {d.id}
-                    </Link>
+                    </LinkVerso>
                     <Badge tono="grigio">{d.tipo === "ddt" ? "DDT" : d.tipo}</Badge>
                   </span>
                   <Bottone disabled={occupato} onClick={() => risincronizzaUno(d.id)}>
