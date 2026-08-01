@@ -168,8 +168,48 @@ class DoclingClient:
         :class:`DoclingError` per qualunque fallimento: chi chiama deve poter
         ricadere su ``ocr_pdf`` senza distinguere il motivo.
         """
+        corpo, markdown = self._chiedi(file, "md")
+        troncato = len(markdown) > self._max_caratteri()
+        if troncato:
+            markdown = markdown[: self._max_caratteri()]
+        return {
+            "markdown": markdown,
+            "troncato": troncato,
+            "qualita": _qualita(corpo),
+            "secondi": round(float(corpo.get("processing_time") or 0.0), 2),
+        }
+
+    def anteprima_html(self, file: Path) -> str:
+        """Il documento come pagina HTML autonoma, per l'anteprima umana.
+
+        Serve alla revisione: Word ed Excel il browser non li disegna (li fa
+        scaricare), e chi controlla una bozza resta senza il documento a fianco.
+
+        **Non è l'originale**: è la lettura che Docling ne ha fatto — la stessa
+        da cui il modello ha estratto i campi. Per la revisione è un vantaggio
+        (un errore del parser si vede subito, invece di dedurlo dai numeri), ma
+        va detto a chi guarda, e chi chiama non deve spacciarla per l'originale.
+
+        Nessun tetto ai caratteri: qui non si riempie la finestra di contesto di
+        un modello, e troncare HTML a metà tag darebbe una pagina rotta. Il
+        limite vero resta quello sulla dimensione dell'upload.
+        """
+        return self._chiedi(file, "html")[1]
+
+    # ------------------------------------------------------------- interni
+
+    def _max_caratteri(self) -> int:
+        return self.config.max_caratteri if self.config else MAX_CARATTERI_DEFAULT
+
+    def _chiedi(self, file: Path, formato: str) -> tuple[dict[str, Any], str]:
+        """Un POST al sidecar; ritorna ``(corpo, contenuto)`` o solleva.
+
+        Unico punto in cui si parla col sidecar: Markdown e HTML differiscono
+        solo per il formato chiesto e per la chiave da leggere nella risposta.
+        """
         if self.config is None:
             raise DoclingError("Docling non configurato (DOCLING_URL assente)")
+        chiave = f"{formato}_content"
 
         url = self.config.base_url.rstrip("/") + "/v1/convert/file"
         try:
@@ -177,7 +217,7 @@ class DoclingClient:
                 risposta = self._transport(
                     url,
                     files={"files": (file.name, contenuto, "application/octet-stream")},
-                    data={"to_formats": "md"},
+                    data={"to_formats": formato},
                     timeout=self.config.timeout,
                 )
         except DoclingError:
@@ -202,8 +242,8 @@ class DoclingClient:
         documento = corpo.get("document")
         if not isinstance(documento, dict):
             raise DoclingError(f"Docling non ha prodotto un documento per {file.name}")
-        markdown = documento.get("md_content")
-        if not isinstance(markdown, str) or not markdown.strip():
+        contenuto_estratto = documento.get(chiave)
+        if not isinstance(contenuto_estratto, str) or not contenuto_estratto.strip():
             # Non è un errore di trasporto ma il risultato è inutilizzabile: meglio
             # dirlo e lasciare che il modello guardi le pagine come immagini.
             raise DoclingError(
@@ -211,17 +251,7 @@ class DoclingClient:
             )
         if esito in ("failure", "error"):
             raise DoclingError(f"Docling ha fallito la conversione di {file.name}")
-
-        troncato = len(markdown) > self.config.max_caratteri
-        if troncato:
-            markdown = markdown[: self.config.max_caratteri]
-
-        return {
-            "markdown": markdown,
-            "troncato": troncato,
-            "qualita": _qualita(corpo),
-            "secondi": round(float(corpo.get("processing_time") or 0.0), 2),
-        }
+        return corpo, contenuto_estratto
 
 
 def _qualita(corpo: dict[str, Any]) -> str | None:

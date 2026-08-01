@@ -2,7 +2,12 @@
 
 Copre **tutti i casi d'uso della piattaforma allo stato attuale** (M0–M29): le due
 interfacce, il ciclo di auto-miglioramento, il consolidamento, l'integrazione
-contabile con ERPNext, log e diagnosi.
+contabile con ERPNext, log e diagnosi, il parser documenti su GPU e il controllo
+che il documento sia intestato a noi.
+
+Per la parte «come si usa e come si mostra a un cliente» c'è
+[`guida_utente/`](../guida_utente/README.md), che condivide con questo test-book i
+documenti d'esempio (`guida_utente/esempi/`).
 
 È pensato per essere eseguito a mano, in ordine, da una persona sola in una
 sessione. Serve a rispondere a una domanda: *cosa funziona davvero quando lo tocchi
@@ -101,6 +106,40 @@ make erp-smoke ARGS=--full
 
 L'entrypoint del container fa il seed da solo quando il volume è vuoto. `make reseed`
 serve al `data/` locale, per l'ambiente A e per `pytest`.
+
+**Il parser documenti su GPU** (serve ai casi con Word ed Excel — B9b–B9d, D2b):
+
+```bash
+make docling-up
+```
+```bash
+make docling-check
+```
+
+Deve stampare solo `PASS`, compresa la riga sulla GPU. In `.env` va il valore per
+l'**host** (`DOCLING_URL=http://127.0.0.1:5001`): il compose lo riscrive da sé nel
+nome di servizio per il container.
+
+**Su un ambiente che esisteva già** — cioè quasi sempre, tranne la prima
+installazione — il seed non tocca il repo dati, quindi manifest e schemi restano
+quelli del giorno in cui è stato creato. Prima di iniziare:
+
+```bash
+make data-sync
+```
+```bash
+make data-sync ARGS=--applica
+```
+
+Se lo salti, i casi che riguardano funzioni nuove falliscono **senza dare
+errore** — il che è peggio di un KO, perché sembra un problema del prodotto.
+
+**Per rifare la demo senza perdere i golden** (alternativa a `make reseed`, che
+azzera anche quelli):
+
+```bash
+make demo-reset ARGS=--applica
+```
 
 ### 1.3 Ambiente A — locale
 
@@ -324,10 +363,32 @@ se non ancora date.
 `☐ OK ☐ KO`
 
 **B9 · Formato che il sistema non sa leggere**
-Carica un `.zip`, un `.docx` o un `.txt` (i formati letti sono solo `.pdf`, `.png`,
-`.jpg`, `.jpeg`).
+Carica un `.zip` o un `.txt` (`guida_utente/esempi/12-file-non-leggibile.txt`).
 **Atteso:** semaforo 🔴 con «Serve una mano: se ne occupa l'ufficio», e una
 segnalazione automatica in Admin → Segnalazioni. **Nessun crash, nessun 500.**
+`☐ OK ☐ KO`
+
+**B9b · Word ed Excel senza il parser su GPU**
+Con il sidecar **spento** (`make docling-down`), carica
+`guida_utente/esempi/03-fattura-word.docx`.
+**Atteso:** stesso esito di B9 — rifiutato subito, 🔴 e segnalazione. Il rifiuto è
+voluto: senza parser nessuno saprebbe leggerlo, e accettarlo darebbe un semaforo
+rosso mezz'ora dopo invece di un no chiaro adesso.
+`☐ OK ☐ KO`
+
+**B9c ⭐ · Word con il parser su GPU acceso** 🔑 💶
+`make docling-up && make docling-check` (tutto PASS), poi ricarica
+`guida_utente/esempi/03-fattura-word.docx`.
+**Atteso:** viene **accettato** e letto come una fattura: fornitore «Ferramenta
+Siciliana S.r.l.», numero `512/2026`, imponibile `3250`, IVA `715`, totale `3965`,
+tre righe. In Admin → Run il trace mostra `leggi_documento` (non `ocr_pdf`).
+`☐ OK ☐ KO`
+
+**B9d · DDT in Word: il tipo lo capisce leggendo il testo** 🔑 💶
+Carica `guida_utente/esempi/09-ddt-word.docx`.
+**Atteso:** instradato su **carica-ddt**, non su carica-fattura. È la prova che il
+classificatore ha letto il testo: su un `.docx` nessun modello che guarda le
+pagine potrebbe farlo.
 `☐ OK ☐ KO`
 
 **B10 · File troppo pesante**
@@ -422,10 +483,24 @@ validate.»
 `☐ OK ☐ KO`
 
 **D2 ⭐ · Dettaglio: originale a fianco dei campi**
-Apri una bozza.
-**Atteso:** a sinistra il **PDF originale** in anteprima, a destra i campi estratti
-con un badge di confidenza per campo (verde ≥90%, giallo ≥75%, rosso sotto) e la
-tabella delle righe.
+Apri una bozza nata da un PDF o da una foto.
+**Atteso:** a sinistra il **PDF originale** in anteprima (riquadro «Originale»), a
+destra i campi estratti con un badge di confidenza per campo (verde ≥90%, giallo
+≥75%, rosso sotto) e la tabella delle righe.
+`☐ OK ☐ KO`
+
+**D2b · Anteprima di un Word** 🔑
+Apri la bozza nata da `03-fattura-word.docx` (B9c).
+**Atteso:** il riquadro si intitola **«Lettura del documento»** e mostra il
+contenuto — testo e tabella — **non** una richiesta di scaricare il file. Sotto,
+la riga: «Word ed Excel non si possono mostrare così come sono: questa è la
+lettura del documento, la stessa da cui sono stati estratti i campi.»
+`☐ OK ☐ KO`
+
+**D2c · Anteprima con il parser spento**
+Con il sidecar spento, riapri la stessa bozza.
+**Atteso:** si torna al comportamento di prima (il browser propone il download);
+**nessun errore 500**. Non è un KO: è il ripiego previsto.
 `☐ OK ☐ KO`
 
 **D3 ⭐ · Valida**
@@ -543,6 +618,47 @@ il ripristino andrebbe a sbattere contro il nuovo documento.
 Via API: `POST /api/review/FRN-001/scarta`.
 **Atteso:** `409`, «non è un documento in arrivo: le anagrafiche si correggono o si
 eliminano da Dati». Lo scarto è per i documenti, non per il master data.
+`☐ OK ☐ KO`
+
+### D20–D24 · Il documento è intestato a noi?
+
+Prima di questi casi: Admin → Sistema → **La nostra azienda** dev'essere
+compilata (denominazione «Costruzioni Aitho S.r.l.»).
+
+**D20 ⭐ · Fattura intestata a un'altra impresa** 🔑 💶
+Carica `guida_utente/esempi/05-fattura-intestata-ad-altri.pdf`.
+**Atteso:** la bozza **si salva lo stesso** (esito ok, non errore), parte **in
+revisione**, e in Admin → Segnalazioni compare: «Il documento risulta intestato a
+«Costruzioni Delta S.r.l.», non a «Costruzioni Aitho S.r.l.»: da controllare prima
+di registrarlo.» Il campo `destinatario` della bozza contiene «Costruzioni Delta
+S.r.l.».
+`☐ OK ☐ KO`
+
+**D21 ⭐ · Fattura intestata a noi: nessun rumore** 🔑 💶
+Carica `guida_utente/esempi/01-fattura-digitale.pdf`.
+**Atteso:** nessuna segnalazione sul destinatario, e — se le confidenze sono
+alte — **non** finisce in revisione. Un controllo che si accende sempre non lo
+guarda più nessuno.
+`☐ OK ☐ KO`
+
+**D22 · Varianti della stessa ragione sociale** ⌨
+Non serve un documento: `pytest backend/tests/test_azienda.py -k varianti`.
+**Atteso:** passano come «noi» le scritture `COSTRUZIONI AITHO SRL`, `Aitho
+Costruzioni S.r.l.`, `Costruzioni Aiho S.r.l.` (refuso), e la riga intera
+`Spett.le Costruzioni Aitho S.r.l. - Viale Africa 31, Catania`.
+`☐ OK ☐ KO`
+
+**D23 · Un'omonimia parziale non passa** ⌨
+`pytest backend/tests/test_azienda.py -k altre_imprese`.
+**Atteso:** «Costruzioni Etna S.r.l.» e «Costruzioni Delta S.r.l.» **non** sono
+riconosciute come noi, benché condividano la parola «Costruzioni».
+`☐ OK ☐ KO`
+
+**D24 · Azienda non configurata = controllo spento**
+Svuota la denominazione in **La nostra azienda** (o prova su un repo dati creato
+prima che la sezione esistesse), poi ricarica il documento di D20.
+**Atteso:** nessuna segnalazione sul destinatario; tutto il resto invariato. Poi
+rimetti la denominazione.
 `☐ OK ☐ KO`
 
 ---
@@ -676,6 +792,27 @@ sposta prima i collegamenti.» L'elenco dei documenti è mostrato (max 8, poi «
 Apri i pozzetti (3 dal seed) e il cronoprogramma (1).
 **Atteso:** i pozzetti hanno uno **stato**; il cronoprogramma mostra pianificato vs
 consuntivo, allineato all'ultimo SAL.
+`☐ OK ☐ KO`
+
+**F10 ⭐ · La nostra azienda**
+Admin → Sistema → **La nostra azienda**.
+**Atteso:** dopo il seed la denominazione è già «Costruzioni Aitho S.r.l.» e la
+partita IVA è **vuota** (il seed non inventa un identificativo fiscale). Modifica
+un campo e salva: *Salvato*, e in `data/config/azienda.json` il valore è
+cambiato, con un commit intestato a chi ha salvato.
+`☐ OK ☐ KO`
+
+**F11 · Denominazione obbligatoria**
+Svuota la denominazione e salva.
+**Atteso:** rifiutato con «la denominazione è obbligatoria», nessun traceback.
+Finché è vuota, la pagina avvisa che il controllo del destinatario non viene
+fatto.
+`☐ OK ☐ KO`
+
+**F12 · È riservata all'ufficio** ⌨
+Con il token di un operatore: `GET /api/config/azienda`.
+**Atteso:** `403`. È il riferimento con cui si giudicano i documenti: non lo
+cambia chi carica le foto dal cantiere.
 `☐ OK ☐ KO`
 
 ---
@@ -1247,7 +1384,8 @@ lasciati.
 |---|---|
 | Accesso, ruoli, isolamento per cantiere | A1–A9 |
 | Acquisizione documenti (foto/PDF) | B1, B12, B13 |
-| Classificazione automatica del tipo | B2 |
+| **Word ed Excel via parser su GPU** | B9b, B9c, B9d, D2b, D2c |
+| Classificazione automatica del tipo | B2, B9d |
 | Estrazione LLM + confidence per campo | B1, D2 |
 | Riepilogo leggibile / lessico non tecnico | B1, B7, B15 |
 | Conferma e segnalazione dell'operatore | B4, B5, B6 |
@@ -1265,11 +1403,13 @@ lasciati.
 | Correzione manuale dei dati | D6 |
 | Collegamento fattura ↔ computo | D7, E6 |
 | Anagrafica mancante creata dal documento | D8, D9 |
+| **Il documento è intestato a noi?** | D20–D24, F10–F12 |
+| **Allineamento del repo dati all'applicazione** | §1.2 (`make data-sync`) |
 | Trace per-run (costo, latenza, tool call) | D12, H10, H15 |
 | Cruscotto costi, ritenute, ore, manodopera | E1–E4 |
 | Registro di cantiere | E5 |
 | Preventivo vs consuntivo (scostamenti) | E6, E7 |
-| Report Excel (6 fogli) | E8, E9 |
+| Report Excel (12 fogli) | E8, E9 |
 | CRUD generico guidato dagli schemi | F1–F6, F8 |
 | Integrità referenziale (no cancellazioni orfane) | F7, F7b |
 | Registri automatici (pozzetti, cronoprogramma) | F9 |
@@ -1336,6 +1476,23 @@ noto.
     KO su B1/B12 può essere il modello, non il codice. E con un T1 forte lo scenario
     didattico della ritenuta (B3 → H3) **non si riproduce**: il modello la estrae già
     alla v1.0. Annota sempre **quale modello** stavi usando (T0.3).
+11. **Il parser documenti è opzionale.** Senza sidecar, B9b–B9d e D2b non sono
+    eseguibili e Word/Excel vengono rifiutati: è il comportamento previsto, non un
+    KO. E l'OCR dentro il sidecar gira su CPU (solo layout e tabelle usano la GPU),
+    quindi una scansione costa circa un secondo a pagina.
+12. **Il controllo del destinatario guarda solo la ragione sociale** letta sul
+    documento, e la partita IVA quando c'è su entrambi i lati. Non verifica
+    l'indirizzo. Un documento intestato a una società del gruppo con nome diverso
+    finisce in revisione: è voluto, ma va spiegato a chi revisiona.
+13. **`destinatario` non è un campo obbligatorio** dello schema fattura, perché le
+    fatture registrate prima che il controllo esistesse devono restare valide. Se
+    un modello lo omette del tutto, il controllo diventa un no-op: lo si vede nel
+    logbook («il workflow … verifica il destinatario ma l'estrazione non l'ha
+    prodotto»), non in interfaccia.
+14. **Il repo dati non si aggiorna da solo.** Manifest e schemi restano quelli
+    dell'installazione finché non si lancia `make data-sync ARGS=--applica`. È la
+    causa più probabile di un caso che fallisce «senza motivo» su un ambiente
+    vecchio: vedi §1.2.
 
 ---
 
@@ -1345,11 +1502,11 @@ noto.
 |---|---|---|---|---|---|
 | T0 Pre-flight | 5 | | | | |
 | A Accesso e permessi | 9 | | | | |
-| B Caricamento documenti | 16 | | | | |
+| B Caricamento documenti | 19 | | | | |
 | C Ore e domande | 7 | | | | |
-| D Revisione e scarto | 19 | | | | |
+| D Revisione, scarto e destinatario | 26 | | | | |
 | E Costi e report | 10 | | | | |
-| F Dati e anagrafiche | 10 | | | | |
+| F Dati, anagrafiche e azienda | 13 | | | | |
 | G Interrogazione | 8 | | | | |
 | H Improver, golden e run | 18 | | | | |
 | I Consolidamento e Toolsmith | 13 | | | | |
@@ -1357,10 +1514,11 @@ noto.
 | K Contabilità ERP | 17 | | | | |
 | L Log e diagnosi | 11 | | | | |
 | M Robustezza e audit | 9 | | | | |
-| **Totale** | **160** | | | | |
+| **Totale** | **173** | | | | |
 
 **Ambiente usato:** ☐ A locale ☐ B Docker
 **Modello T1:** ______________ **T2:** ______________ **T3:** ______________
+**Parser documenti (Docling):** ☐ acceso ☐ spento
 **ERPNext:** ☐ collegato ☐ spento — versione: ______________
 **Data:** ____ / ____ / ________ **Eseguito da:** ______________________
 

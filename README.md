@@ -228,7 +228,8 @@ locale candidato contro T1 e indica i workflow "pronti".
 | `make dev` | Backend (:8000) + frontend (:5173) |
 | `make seed` | Crea il repo dati `./data` (git separato) |
 | `make reseed` | **Azzera** `./data` e lo ricrea dal seed (perde i dati e la loro storia) |
-| `make data-sync-workflows` | Allinea manifest e skill di `./data` a quelli dell'applicazione (`ARGS=--applica` per scrivere) |
+| `make data-sync` | Allinea workflow e schemi di `./data` a quelli dell'applicazione (`ARGS=--applica` per scrivere) |
+| `make demo-reset` | Rifà `./data` dal seed **conservando** golden, dataset e azienda (`ARGS=--applica`) |
 | `make fixtures` | Genera i PDF sintetici in `./fixtures` (fatture + DDT/SAL/rapportino) |
 | `make demo` | Seed + fixtures + istruzioni del giro |
 | `make test` | Test backend (pytest) |
@@ -367,20 +368,24 @@ Misure, limiti e il caso DGX Spark (`sm_121`) in
 ## Aggiornare un'installazione esistente
 
 Aggiornare il codice **non** aggiorna il repo dati. Il seed crea `data/` una volta
-sola — `make seed` rifiuta una cartella non vuota — quindi manifest e skill già
-scritti restano quelli del giorno dell'installazione. È una conseguenza voluta di
-"`/data` è la fonte di verità": quei file sono dato, e là dentro scrive anche
+sola — `make seed` rifiuta una cartella non vuota — quindi manifest, skill e schemi
+già scritti restano quelli del giorno dell'installazione. È una conseguenza voluta
+di "`/data` è la fonte di verità": quei file sono dato, e là dentro scrive anche
 l'Improver quando l'ufficio approva una proposta di miglioramento.
 
 La conseguenza pratica è che **una funzione nuova può restare invisibile**: se una
 versione aggiunge un tool, il modello non lo userà mai finché il manifest nel repo
-dati non lo dichiara. Non dà errore — dà risultati peggiori, in silenzio.
+dati non lo dichiara; se aggiunge un campo, non verrà mai estratto finché lo schema
+è quello vecchio. Non dà errore — dà risultati peggiori, in silenzio.
 
-Dopo ogni aggiornamento che tocca `backend/app/seed_assets/workflows/`:
+Dopo ogni aggiornamento che tocca `backend/app/seed_assets/`:
 
 ```bash
-make data-sync-workflows                 # elenca e mostra il diff, non scrive niente
-make data-sync-workflows ARGS=--applica  # copia e committa nel repo dati
+make data-sync                 # elenca e mostra il diff, non scrive niente
+```
+
+```bash
+make data-sync ARGS=--applica  # copia e committa nel repo dati
 ```
 
 In produzione il repo dati sta in un volume, quindi lo stesso modulo si invoca
@@ -391,20 +396,20 @@ git pull && docker compose build app && docker compose up -d app
 ```
 
 ```bash
-docker compose exec app python -m app.sync_workflows
+docker compose exec app python -m app.sync_dati
 ```
 
 ```bash
-docker compose exec app python -m app.sync_workflows --applica
+docker compose exec app python -m app.sync_dati --applica
 ```
 
-Non serve riavviare: i manifest si rileggono da disco a ogni run.
+Non serve riavviare: manifest e schemi si rileggono da disco a ogni run.
 
 Il comando è **conservativo** per costruzione:
 
 - di suo non scrive niente, mostra solo cosa cambierebbe;
-- **non cancella mai**: i workflow che esistono solo nel repo dati (scritti a mano)
-  non vengono nemmeno segnalati;
+- **non cancella mai**: i workflow e gli schemi che esistono solo nel repo dati
+  (scritti a mano) non vengono nemmeno segnalati;
 - **non sovrascrive ciò che l'Improver ha migliorato**: se un file ha nel repo dati
   un commit che non viene dal seed né da un allineamento precedente, viene marcato
   `!` e saltato. Per includerlo serve `--forza`, e si perde quella miglioria;
@@ -439,7 +444,11 @@ via `git push`, cambio dei PIN demo, costi LLM) in
 
 - [`analisi-progettazione.md`](analisi-progettazione.md) — architettura, principi e
   decisioni chiave (ADR).
-- [`docs/test-book.md`](docs/test-book.md) — il **test-book manuale**: 160 casi di
+- [`guida_utente/`](guida_utente/README.md) — **come si usa e come si mostra**:
+  guida passo passo per caso d'uso, dodici documenti d'esempio con l'esito
+  misurato di ciascuno, copione di demo da trenta minuti e le risposte alle
+  obiezioni ricorrenti.
+- [`docs/test-book.md`](docs/test-book.md) — il **test-book manuale**: 173 casi di
   prova su tutti i casi d'uso, con ambiente, baseline attesa, matrice di copertura,
   limiti noti e foglio esiti.
 - [`docs/deploy.md`](docs/deploy.md) — mettere in piedi una versione di prova

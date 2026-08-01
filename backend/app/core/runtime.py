@@ -15,6 +15,8 @@ import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 from pydantic import BaseModel
 
+from app.core.azienda import blocco_per_il_modello as blocco_azienda
+from app.core.azienda import leggi as leggi_azienda
 from app.core.dal import DAL
 from app.core.docling import DoclingClient
 from app.core.gateway import Gateway, GatewayError, RispostaLLM, estrai_json
@@ -120,7 +122,8 @@ class WorkflowRuntime:
 
         entity_id = contesto["entity_id"]
         stato = contesto["stato"]
-        revisione = self._sotto_soglia(manifest, contesto["confidence"])
+        estraneo = self._destinatario_estraneo(manifest, contesto["dati"])
+        revisione = self._sotto_soglia(manifest, contesto["confidence"]) or estraneo is not None
         if contesto["motivo_flag"]:
             motivo = contesto["motivo_flag"]
             _log.warning(
@@ -156,8 +159,26 @@ class WorkflowRuntime:
                 richiede_revisione=revisione,
             )
 
+        # Documento intestato a un'altra impresa: **non** è un errore — capita che
+        # un fornitore sbagli intestazione, e bloccare l'ingestione per questo
+        # farebbe più danni del problema. Si registra la bozza, si manda in
+        # revisione e si apre una segnalazione con scritto cosa non torna.
+        issue_estraneo = None
+        if estraneo is not None:
+            _log.warning(
+                "destinatario estraneo su %s: %s",
+                doc,
+                estraneo,
+                extra={"run_id": run_id, "workflow": manifest["name"], "documento": doc},
+            )
+            issue_estraneo = self._apri_issue(estraneo, run_id, doc, entity_id)
+
         tracer.run_end(
-            outcome="ok", entity_id=entity_id, stato=stato, richiede_revisione=revisione
+            outcome="ok",
+            entity_id=entity_id,
+            stato=stato,
+            issue_id=issue_estraneo,
+            richiede_revisione=revisione,
         )
         _log.info(
             "run ok su %s → %s%s",
@@ -177,7 +198,40 @@ class WorkflowRuntime:
             esito="ok",
             entity_id=entity_id,
             stato=stato,
+            issue_id=issue_estraneo,
             richiede_revisione=revisione,
+        )
+
+    def _destinatario_estraneo(
+        self, manifest: dict[str, Any], dati: dict[str, Any] | None
+    ) -> str | None:
+        """Il documento risulta intestato a un'altra impresa? Il motivo, o ``None``.
+
+        Il confronto lo fa il codice, non il modello: la domanda «è la stessa
+        impresa?» ha una risposta deterministica una volta letto il nome, e un
+        modello che la risolve da sé è persuasivo anche quando sbaglia. Il
+        modello trascrive, il codice giudica.
+        """
+        if not manifest.get("verifica_destinatario") or not dati:
+            return None
+        if "destinatario" not in dati:
+            # Il campo non è obbligatorio nello schema (le fatture registrate
+            # prima di questo controllo devono restare valide), quindi un modello
+            # può ometterlo — e il controllo diventerebbe un no-op silenzioso.
+            # Meglio saperlo: è un difetto della skill, non del documento.
+            _log.warning(
+                "il workflow %s verifica il destinatario ma l'estrazione non l'ha prodotto",
+                manifest["name"],
+                extra={"workflow": manifest["name"]},
+            )
+            return None
+        letto = str(dati.get("destinatario") or "").strip()
+        azienda = leggi_azienda(self.data_dir)
+        if azienda.riconosce(letto):
+            return None
+        return (
+            f"Il documento risulta intestato a «{letto}», non a "
+            f"«{azienda.denominazione}»: da controllare prima di registrarlo."
         )
 
     # ---------------------------------------------------------------- step
@@ -298,8 +352,15 @@ class WorkflowRuntime:
             )
         schemi_tool = self.toolset.schemi(nomi_tool) or None
 
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": skill},
+        messages: list[dict[str, Any]] = [{"role": "system", "content": skill}]
+        # Chi siamo, se il workflow lo chiede (``verifica_destinatario``): serve
+        # al modello per trascrivere il destinatario sapendo a che pro. Non è nel
+        # testo della skill perché è dato che l'ufficio modifica dalla UI.
+        if manifest.get("verifica_destinatario"):
+            blocco = blocco_azienda(leggi_azienda(self.data_dir))
+            if blocco:
+                messages.append({"role": "system", "content": blocco})
+        messages += [
             {
                 "role": "system",
                 "content": CONTRATTO_OUTPUT.format(

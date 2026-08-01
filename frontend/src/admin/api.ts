@@ -542,6 +542,15 @@ export type VoceEntita = {
   dati: Record<string, unknown>;
 };
 
+export type DatiAzienda = {
+  denominazione: string;
+  indirizzo: string;
+  partita_iva: string;
+};
+
+/** `configurata` la calcola il backend: qui non si duplica quella regola. */
+export type Azienda = DatiAzienda & { configurata: boolean };
+
 export const admin = {
   cruscotto: () => richiesta<Cruscotto>("/dashboard/costs"),
 
@@ -762,6 +771,13 @@ export const admin = {
 
   erpRileggiPagamenti: () =>
     richiesta<ErpEsitoPagamenti>("/erp/rileggi-pagamenti", metodoJson("POST")),
+
+  // L'azienda che usa il sistema: il riferimento per riconoscere i documenti
+  // intestati a noi. Dato in data/config/azienda.json, non variabile d'ambiente.
+  azienda: () => richiesta<Azienda>("/config/azienda"),
+
+  salvaAzienda: (dati: DatiAzienda) =>
+    richiesta<Azienda>("/config/azienda", metodoJson("PUT", dati)),
 
   // Gestione manuale dei dati (M13): CRUD generico guidato dagli schemi.
   entitiesMeta: () => richiesta<{ tipi: MetaTipo[] }>("/entities/meta").then((r) => r.tipi),

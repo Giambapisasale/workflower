@@ -40,9 +40,16 @@ services:
       ERP_SUPPLIER_GROUP: ${ERP_SUPPLIER_GROUP:-}
       # Parser documenti (opzionale): se DOCLING_URL è vuota il tool
       # `leggi_documento` non viene registrato e tutto funziona come prima —
-      # l'LLM legge le pagine come immagini. Con il profilo `docling` attivo
-      # (vedi sotto) il valore giusto è http://docling:5001.
-      DOCLING_URL: ${DOCLING_URL:-}
+      # l'LLM legge le pagine come immagini.
+      #
+      # La sintassi `${VAR:+valore}` significa «se DOCLING_URL è valorizzata usa
+      # http://docling:5001, altrimenti niente». Serve perché lo **stesso**
+      # indirizzo non può valere da tutte e due le parti: in .env sta il valore
+      # per lo sviluppo (backend sull'host → 127.0.0.1:5001), ma dentro al
+      # container 127.0.0.1 è il container stesso, e il sidecar si raggiunge
+      # per nome di servizio. Senza questa riga l'app in compose accetterebbe i
+      # Word e poi fallirebbe la conversione: peggio di averla spenta.
+      DOCLING_URL: ${DOCLING_URL:+http://docling:5001}
       DOCLING_TIMEOUT: ${DOCLING_TIMEOUT:-}
       DOCLING_MAX_CARATTERI: ${DOCLING_MAX_CARATTERI:-}
     volumes:

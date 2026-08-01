@@ -394,6 +394,82 @@ def test_docx_accettato_col_sidecar(
     assert documento.dati["issue_id"] is None
 
 
+# -------------------------------------------------------- anteprima in revisione
+
+
+def _docx_da_rivedere(client: TestClient, dati_rw: Path) -> str:
+    corpo = client.post(
+        "/api/documents",
+        headers=accedi(client, "giovanna"),
+        files={"file": ("fattura.docx", DOCX, "application/octet-stream")},
+    ).json()
+    entity_id = DAL(dati_rw).read("documento", corpo["doc_id"]).dati["entity_id"]
+    assert entity_id, "senza entità non c'è niente da revisionare"
+    return str(entity_id)
+
+
+def test_anteprima_docx_e_html_non_un_download(
+    crea_client: Callable[..., TestClient], dati_rw: Path
+) -> None:
+    """Word il browser lo scarica: chi revisiona resterebbe senza documento."""
+    client = crea_client(docling=client_docling())
+    entity_id = _docx_da_rivedere(client, dati_rw)
+
+    risposta = client.get(f"/api/review/{entity_id}/originale", headers=accedi(client, "giovanna"))
+    assert risposta.status_code == 200
+    assert risposta.headers["content-type"].startswith("text/html")
+    assert "<table" in risposta.text
+
+
+def test_anteprima_chiede_html_non_markdown(
+    crea_client: Callable[..., TestClient], dati_rw: Path
+) -> None:
+    """Il formato chiesto al sidecar è quello che serve al browser."""
+    trasporto = FakeDocling()
+    client = crea_client(docling=client_docling(trasporto))
+    entity_id = _docx_da_rivedere(client, dati_rw)
+    trasporto.chiamate.clear()
+
+    client.get(f"/api/review/{entity_id}/originale", headers=accedi(client, "giovanna"))
+    assert [c["data"]["to_formats"] for c in trasporto.chiamate] == ["html"]
+
+
+def test_sidecar_giu_non_toglie_il_documento_a_chi_revisiona(
+    crea_client: Callable[..., TestClient], dati_rw: Path
+) -> None:
+    """Peggio del previsto (il file com'è), mai un 500 in faccia all'ufficio."""
+    client = crea_client(docling=client_docling())
+    entity_id = _docx_da_rivedere(client, dati_rw)
+    client.app.state.docling = client_docling(FakeDocling(errore=RuntimeError("sidecar giù")))
+
+    risposta = client.get(f"/api/review/{entity_id}/originale", headers=accedi(client, "giovanna"))
+    assert risposta.status_code == 200
+    assert risposta.content == DOCX
+
+
+def test_pdf_resta_il_file_originale(
+    crea_client: Callable[..., TestClient], dati_rw: Path, fixtures_dir: Path
+) -> None:
+    """Il PDF il browser lo disegna: convertirlo perderebbe l'originale per nulla."""
+    client = crea_client(docling=client_docling())
+    corpo = client.post(
+        "/api/documents",
+        headers=accedi(client, "giovanna"),
+        files={
+            "file": (
+                "fattura-calcestruzzi-etna.pdf",
+                (fixtures_dir / "fattura-calcestruzzi-etna.pdf").read_bytes(),
+                "application/pdf",
+            )
+        },
+    ).json()
+    entity_id = DAL(dati_rw).read("documento", corpo["doc_id"]).dati["entity_id"]
+
+    risposta = client.get(f"/api/review/{entity_id}/originale", headers=accedi(client, "giovanna"))
+    assert risposta.headers["content-type"] == "application/pdf"
+    assert risposta.content[:4] == b"%PDF"
+
+
 def test_registro_tool_mostra_il_sidecar(
     crea_client: Callable[..., TestClient],
 ) -> None:

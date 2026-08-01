@@ -76,6 +76,18 @@ def _data_iso(giorno: str, mese: str, anno: str) -> str:
     return f"{anno}-{mese}-{giorno}"
 
 
+def _destinatario(testo: str) -> str | None:
+    """La ragione sociale dopo «Spett.le», senza l'indirizzo che la segue.
+
+    Come chiede la skill: solo il nome, non la riga intera. Un finto che
+    restituisse la riga completa renderebbe il confronto più facile del vero.
+    """
+    match = re.search(r"Spett\.le\s+(.+)", testo)
+    if not match:
+        return None
+    return re.split(r"\s+[-—]\s+", match.group(1).strip())[0].strip() or None
+
+
 def _leggi_fattura(sorgente: Path | str) -> dict[str, Any]:
     testo = _testo_documento(sorgente)
     righe_doc = _righe_utili(testo)
@@ -111,6 +123,7 @@ def _leggi_fattura(sorgente: Path | str) -> dict[str, Any]:
     return {
         "fornitore": righe_doc[0],
         "cantiere": re.search(r"Cantiere: (.+)", testo).group(1).strip(),
+        "destinatario": _destinatario(testo),
         "numero": testata.group(1),
         "data_iso": _data_iso(testata.group(2), testata.group(3), testata.group(4)),
         "imponibile": euro("Imponibile"),
@@ -409,6 +422,7 @@ class FakeCompleter:
             "iva": campi["iva"],
             "totale": campi["totale"],
             "ritenuta_acconto": self._ritenuta(messages, skill, campi, usa_tool),
+            "destinatario": campi["destinatario"],
             "righe": campi["righe"],
         }
         self.risposte_finali += 1

@@ -13,6 +13,8 @@ from pathlib import Path
 from git import Repo
 
 from app.core.auth import hash_pin
+from app.core.azienda import Azienda
+from app.core.azienda import scrivi as scrivi_azienda
 from app.core.dal import DAL, GIT_AUTHOR
 from app.models.envelope import Envelope, Meta
 from app.seed_data import (
@@ -35,6 +37,12 @@ from app.seed_data import (
 )
 
 ASSETS = Path(__file__).parent / "seed_assets"
+
+# L'azienda destinataria dei documenti d'esempio (le fixture la intestano così).
+AZIENDA_DEMO = Azienda(
+    denominazione="Costruzioni Aitho S.r.l.",
+    indirizzo="Viale Africa 31, 95129 Catania",
+)
 
 SKELETON = [
     "entities/cantieri",
@@ -101,6 +109,11 @@ def init_data_repo(data_dir: Path) -> None:
     (data_dir / "config" / "utenti.json").write_text(
         json.dumps(_utenti_config(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    # L'azienda che usa il sistema, come la scrivono i documenti d'esempio. La
+    # partita IVA resta vuota di proposito: è un identificativo fiscale vero, e
+    # inventarne uno nel seed significherebbe piazzare un dato falso in un campo
+    # che serve a *riconoscere* — lo compila l'ufficio dalla sua sezione.
+    scrivi_azienda(data_dir, AZIENDA_DEMO)
     shutil.copytree(ASSETS / "workflows", data_dir / "workflows", dirs_exist_ok=True)
     (data_dir / "dataset" / "toolcalls.jsonl").touch()
     (data_dir / "README.md").write_text(README, encoding="utf-8")

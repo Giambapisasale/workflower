@@ -1,7 +1,7 @@
 # Workflower — comandi di sviluppo (vedi CLAUDE.md)
 .PHONY: setup dev dev-api dev-web test test-erp erp-smoke erp-up erp-down erp-dev-setup \
         docling-up docling-down docling-check \
-        seed reseed data-sync-workflows fixtures samples demo lint testbook-ask
+        seed reseed data-sync demo-reset fixtures samples demo lint testbook-ask
 
 ifeq ($(OS),Windows_NT)
 SHELL := cmd.exe
@@ -65,11 +65,14 @@ seed: ## Crea il repo dati d'esempio in ./data (repo git separato)
 	$(PY) -m app.seed
 
 # Il seed crea il repo dati una volta sola: aggiornare l'applicazione NON
-# aggiorna manifest e skill già scritti in ./data. Questo comando li riallinea.
+# aggiorna manifest, skill e schemi già scritti in ./data. Questo li riallinea.
 # In produzione, dove il repo dati sta in un volume:
-#     docker compose exec app python -m app.sync_workflows [--applica]
-data-sync-workflows: ## Mostra (e con ARGS=--applica scrive) i workflow da allineare in ./data
-	$(PY) -m app.sync_workflows $(ARGS)
+#     docker compose exec app python -m app.sync_dati [--applica]
+data-sync: ## Mostra (e con ARGS=--applica scrive) workflow e schemi da allineare in ./data
+	$(PY) -m app.sync_dati $(ARGS)
+
+demo-reset: ## Rifà ./data dal seed CONSERVANDO golden, dataset e azienda (ARGS=--applica)
+	$(PY) scripts/demo_reset.py $(ARGS)
 
 # Ambiente da zero. Il `-` davanti alla rimozione è voluto: su Windows un handle
 # residuo (git.exe di GitPython, una connessione DuckDB, una shell col cwd dentro
@@ -95,5 +98,5 @@ demo: ## Prepara la demo: seed (se serve) + fixtures + giro guidato
 	@$(PY) -c "print('\n== Demo pronta ==\n- Utenti: salvo/1111 (operatore, cantiere Le Palme), giovanna/9999 (ufficio/admin)\n- Avvia tutto con:  make dev\n- Operatore: http://localhost:5173/op   Admin: http://localhost:5173/admin\n- Carica fixtures/fattura-studio-bianchi.pdf (ha la ritenuta): la v1.0 non la estrae.\n- Il giro completo (segnala -> Improver -> approva v1.1 -> ritenuta estratta) e in README.md\n')"
 
 lint: ## Ruff (backend, scripts, training) + ESLint (frontend)
-	$(PY) -m ruff check backend scripts training
+	$(PY) -m ruff check backend scripts training guida_utente
 	npm --prefix frontend run lint

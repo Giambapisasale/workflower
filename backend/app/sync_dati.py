@@ -1,15 +1,17 @@
-"""Allinea i workflow del repo dati a quelli distribuiti con l'applicazione.
+"""Allinea il repo dati a ciò che l'applicazione distribuisce (workflow e schemi).
 
 Il seed crea ``data/`` una volta sola: ``app.seed`` rifiuta una cartella non
-vuota, quindi un aggiornamento dell'applicazione **non** aggiorna manifest e
-skill di un repo dati che esiste già. Senza questo comando le due copie
-divergono in silenzio, e un tool nuovo non arriva mai al modello perché il
-manifest nel repo dati non lo dichiara.
+vuota, quindi un aggiornamento dell'applicazione **non** aggiorna manifest,
+skill e schemi già scritti. Senza questo comando le due copie divergono in
+silenzio, e il difetto non si vede: un tool nuovo non arriva mai al modello
+perché il manifest nel repo dati non lo dichiara, un campo nuovo non viene mai
+estratto perché lo schema è quello vecchio. Non dà errore — dà risultati
+peggiori.
 
-Uso: ``make data-sync-workflows`` (sviluppo) oppure, in produzione::
+Uso: ``make data-sync`` (sviluppo) oppure, in produzione::
 
-    docker compose exec app python -m app.sync_workflows            # mostra il diff
-    docker compose exec app python -m app.sync_workflows --applica  # copia e committa
+    docker compose exec app python -m app.sync_dati            # mostra il diff
+    docker compose exec app python -m app.sync_dati --applica  # copia e committa
 
 Destinazione: ``$DATA_DIR`` (default ``./data``).
 
@@ -31,11 +33,16 @@ from git import Repo
 
 from app.core.dal import GIT_AUTHOR
 
-ASSETS = Path(__file__).parent / "seed_assets" / "workflows"
+ASSETS = Path(__file__).parent / "seed_assets"
+
+# Cosa viaggia con l'applicazione e deve poter raggiungere un repo dati che
+# esiste già. `config/` no: views.sql a parte, lì dentro ci sono gli utenti e
+# l'azienda, che sono dell'installazione e non nostri.
+CARTELLE = ("workflows", "schemas")
 
 # I commit che questo comando e il seed producono: tutto il resto della storia
 # di un file è, per definizione, una modifica fatta a valle (Improver o umano).
-MARCATORI_NOSTRI = ("[seed]", "[sync-workflows]")
+MARCATORI_NOSTRI = ("[seed]", "[sync-workflows]", "[sync-dati]")
 
 UGUALE, AGGIORNA, NUOVO, DIVERGENTE = "uguale", "aggiorna", "nuovo", "divergente"
 
@@ -68,34 +75,38 @@ def _modificato_a_valle(repo: Repo, rel: str) -> bool:
 
 
 def confronta(data_dir: Path, assets: Path = ASSETS) -> list[Confronto]:
-    """Confronta i workflow distribuiti con quelli nel repo dati.
+    """Confronta ciò che l'applicazione distribuisce con ciò che c'è nel repo dati.
 
     Guarda solo i file presenti negli asset: quelli che esistono soltanto nel
-    repo dati (un workflow scritto a mano) non vengono toccati né segnalati
-    come da rimuovere — questo comando aggiunge e aggiorna, non cancella mai.
+    repo dati (un workflow scritto a mano, uno schema su misura) non vengono
+    toccati né segnalati come da rimuovere — questo comando aggiunge e aggiorna,
+    non cancella mai.
     """
     repo = Repo(data_dir)
     esiti: list[Confronto] = []
-    for sorgente in sorted(assets.rglob("*")):
-        if not sorgente.is_file():
-            continue
-        rel = f"workflows/{sorgente.relative_to(assets).as_posix()}"
-        destinazione = data_dir / rel
-        if not destinazione.exists():
-            esiti.append(Confronto(rel, NUOVO, []))
-            continue
-        atteso, corrente = _testo(sorgente), _testo(destinazione)
-        if atteso == corrente:
-            esiti.append(Confronto(rel, UGUALE, []))
-            continue
-        diff = list(
-            difflib.unified_diff(
-                corrente.splitlines(), atteso.splitlines(), "repo dati", "applicazione", lineterm=""
-            )
-        )
-        stato = DIVERGENTE if _modificato_a_valle(repo, rel) else AGGIORNA
-        esiti.append(Confronto(rel, stato, diff))
+    for cartella in CARTELLE:
+        for sorgente in sorted((assets / cartella).rglob("*")):
+            if not sorgente.is_file():
+                continue
+            rel = f"{cartella}/{sorgente.relative_to(assets / cartella).as_posix()}"
+            esiti.append(_confronta_uno(repo, data_dir, sorgente, rel))
     return esiti
+
+
+def _confronta_uno(repo: Repo, data_dir: Path, sorgente: Path, rel: str) -> Confronto:
+    destinazione = data_dir / rel
+    if not destinazione.exists():
+        return Confronto(rel, NUOVO, [])
+    atteso, corrente = _testo(sorgente), _testo(destinazione)
+    if atteso == corrente:
+        return Confronto(rel, UGUALE, [])
+    diff = list(
+        difflib.unified_diff(
+            corrente.splitlines(), atteso.splitlines(), "repo dati", "applicazione", lineterm=""
+        )
+    )
+    stato = DIVERGENTE if _modificato_a_valle(repo, rel) else AGGIORNA
+    return Confronto(rel, stato, diff)
 
 
 def applica(data_dir: Path, da_copiare: list[Confronto], assets: Path = ASSETS) -> None:
@@ -103,14 +114,13 @@ def applica(data_dir: Path, da_copiare: list[Confronto], assets: Path = ASSETS) 
     if not da_copiare:
         return
     for esito in da_copiare:
-        sorgente = assets / Path(esito.rel).relative_to("workflows")
         destinazione = data_dir / esito.rel
         destinazione.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(sorgente, destinazione)
+        shutil.copyfile(assets / esito.rel, destinazione)
     repo = Repo(data_dir)
     repo.index.add([esito.rel for esito in da_copiare])
     repo.index.commit(
-        f"workflows: allinea {len(da_copiare)} file all'applicazione [sync-workflows]",
+        f"dati: allinea {len(da_copiare)} file all'applicazione [sync-dati]",
         author=GIT_AUTHOR,
         committer=GIT_AUTHOR,
     )
@@ -135,7 +145,7 @@ def _stampa(esiti: list[Confronto], righe_diff: int) -> None:
 
 
 def main() -> int:
-    argomenti = argparse.ArgumentParser(description="Allinea i workflow del repo dati.")
+    argomenti = argparse.ArgumentParser(description="Allinea il repo dati all'applicazione.")
     argomenti.add_argument(
         "--applica", action="store_true", help="scrive le modifiche (di suo mostra e basta)"
     )
@@ -166,10 +176,10 @@ def main() -> int:
         divergenti = []
 
     if not da_copiare and not divergenti:
-        print("\nNiente da fare: i workflow sono allineati.")
+        print("\nNiente da fare: il repo dati è allineato.")
         return 0
     if not opzioni.applica:
-        print("\nNiente è stato scritto. Per applicare: python -m app.sync_workflows --applica")
+        print("\nNiente è stato scritto. Per applicare: python -m app.sync_dati --applica")
         if divergenti:
             print("I file modificati nel repo dati restano fuori: per includerli aggiungi --forza.")
         return 0

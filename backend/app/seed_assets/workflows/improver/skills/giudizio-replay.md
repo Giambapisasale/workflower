@@ -10,6 +10,11 @@ Decidi se sono **equivalenti dal punto di vista sostanziale**: stessi importi
 stesso numero e stessa data. Differenze di sola formattazione non contano; conta
 che i dati economici e i collegamenti coincidano.
 
+Un campo presente in `OTTENUTO` e **assente** in `ATTESO` non è una differenza:
+il contratto di estrazione può essersi arricchito dopo la validazione, e un
+esempio più vecchio non poteva contenerlo. Guarda solo i campi che ci sono in
+`ATTESO`.
+
 Rispondi con un unico oggetto JSON, senza testo prima o dopo:
 
 {"uguale": true, "differenze": []}

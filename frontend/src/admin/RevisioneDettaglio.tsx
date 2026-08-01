@@ -84,6 +84,11 @@ export default function RevisioneDettaglio() {
     ([k]) => k !== "righe" && k !== "riferimenti_estratti",
   );
   const noteDi = (campo: string) => rev.feedback.filter((f) => f.campo === campo);
+  // Word ed Excel il browser non li disegna: il backend li serve come lettura
+  // Docling in HTML. Va detto a chi revisiona — sta guardando ciò che il modello
+  // ha visto, non l'impaginato originale — e va servito in sandbox, perché quel
+  // markup nasce da un documento che ci ha mandato un fornitore.
+  const anteprimaConvertita = /\.(docx|xlsx)$/i.test(rev.blob ?? "");
 
   async function valida() {
     setAzione("valida");
@@ -298,9 +303,22 @@ export default function RevisioneDettaglio() {
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card titolo="Originale">
+        <Card titolo={anteprimaConvertita ? "Lettura del documento" : "Originale"}>
           {urlOriginale ? (
-            <iframe title="originale" src={urlOriginale} className="h-[640px] w-full rounded-lg border border-slate-200" />
+            <>
+              <iframe
+                title={anteprimaConvertita ? "lettura del documento" : "originale"}
+                src={urlOriginale}
+                sandbox={anteprimaConvertita ? "" : undefined}
+                className="h-[640px] w-full rounded-lg border border-slate-200"
+              />
+              {anteprimaConvertita ? (
+                <p className="mt-2 text-sm text-slate-500">
+                  Word ed Excel non si possono mostrare così come sono: questa è la
+                  lettura del documento, la stessa da cui sono stati estratti i campi.
+                </p>
+              ) : null}
+            </>
           ) : (
             <Stato>Anteprima non disponibile.</Stato>
           )}

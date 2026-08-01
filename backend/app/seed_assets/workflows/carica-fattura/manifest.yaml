@@ -8,6 +8,12 @@ ingest:
   descrizione: >-
     Fattura passiva di un fornitore: riporta imponibile, IVA e totale, con la
     dicitura "Fattura" e la partita IVA in testa. È il documento di spesa.
+# Controlla che il documento sia intestato a noi (dati in config/azienda.json,
+# modificabili da «La nostra azienda»). Accende due cose: la skill riceve chi
+# siamo, e a estrazione finita il runtime confronta `dati.destinatario`. Se non
+# corrisponde NON blocca: manda in revisione e apre una segnalazione. Togliere
+# questa riga riporta il workflow al comportamento precedente.
+verifica_destinatario: true
 steps:
   - id: estrai
     skill: skills/estrazione-fattura.md

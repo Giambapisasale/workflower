@@ -1,0 +1,3 @@
+Questo non e' un documento di cantiere.
+Serve a mostrare cosa succede quando si carica un file che il sistema
+non sa leggere: nessun errore in faccia a chi carica, se ne occupa l'ufficio.

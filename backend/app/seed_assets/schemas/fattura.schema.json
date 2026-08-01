@@ -31,6 +31,10 @@
       "type": ["number", "null"],
       "description": "Ritenuta d'acconto indicata in calce, in euro; null se assente"
     },
+    "destinatario": {
+      "type": ["string", "null"],
+      "description": "Ragione sociale a cui è intestata la fattura, come stampata sul documento (spesso dopo «Spett.le»); null se non leggibile. Serve a controllare che il documento sia intestato a noi. Fuori dai campi obbligatori di proposito: le fatture registrate prima che questo controllo esistesse restano valide."
+    },
     "righe": {
       "type": "array",
       "minItems": 1,

@@ -60,20 +60,39 @@ class RispostaFinta:
         return self._corpo
 
 
+# L'anteprima per la revisione: docling-serve restituisce una pagina autonoma,
+# con il suo foglio di stile. Qui basta che sia HTML e contenga la tabella.
+HTML_FATTURA = (
+    "<!DOCTYPE html><html><head><title>fattura</title></head><body>"
+    "<h1>Studio Tecnico Ing. Bianchi</h1>"
+    "<table><tr><td>Direzione lavori strutture - II acconto</td><td>EUR 4.000,00</td></tr></table>"
+    "</body></html>"
+)
+
+
 def corpo_ok(
-    markdown: str = MARKDOWN_FATTURA,
+    contenuto: str | None = None,
     *,
+    formato: str = "md",
     qualita: str = "good",
     secondi: float = 0.13,
 ) -> dict[str, Any]:
-    """La risposta di docling-serve a una conversione riuscita."""
+    """La risposta di docling-serve a una conversione riuscita.
+
+    Il campo valorizzato è **solo** quello del formato chiesto, come fa il server
+    vero: chiedendo ``html`` la chiave ``md_content`` resta vuota. Un finto che
+    riempisse tutto nasconderebbe un client che legge la chiave sbagliata.
+    """
+    predefinito = MARKDOWN_FATTURA if formato == "md" else HTML_FATTURA
+    documento: dict[str, Any] = {
+        "filename": "documento.pdf",
+        "md_content": None,
+        "json_content": None,
+        "html_content": None,
+    }
+    documento[f"{formato}_content"] = contenuto if contenuto is not None else predefinito
     return {
-        "document": {
-            "filename": "documento.pdf",
-            "md_content": markdown,
-            "json_content": None,
-            "html_content": None,
-        },
+        "document": documento,
         "status": "success",
         "errors": [],
         "processing_time": secondi,
@@ -129,4 +148,4 @@ class FakeDocling:
             raise self._errore
         if self._risposte:
             return self._risposte.pop(0)
-        return RispostaFinta(200, corpo_ok())
+        return RispostaFinta(200, corpo_ok(formato=data.get("to_formats", "md")))

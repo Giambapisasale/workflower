@@ -66,8 +66,8 @@ docker compose up -d --build
   `SITE_ADDRESS`, il certificato HTTPS è automatico; con `:80` resti in HTTP.
 - Dati nel volume `workflower-data`. Log: `docker compose logs -f app`.
 - Aggiornare: `git pull && docker compose up -d --build`, **seguito da**
-  `docker compose exec app python -m app.sync_workflows` (mostra i manifest e le
-  skill rimasti indietro) e `… --applica` per riallinearli. Il seed non tocca un
+  `docker compose exec app python -m app.sync_dati` (mostra workflow e schemi
+  rimasti indietro) e `… --applica` per riallinearli. Il seed non tocca un
   repo dati che esiste già: senza questo passaggio una funzione nuova può restare
   inattiva senza dare errore. Dettagli e garanzie nel README, sezione
   «Aggiornare un'installazione esistente».

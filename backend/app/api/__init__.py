@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.ask import router as ask_router
 from app.api.auth import router as auth_router
+from app.api.azienda import router as azienda_router
 from app.api.cantieri import router as cantieri_router
 from app.api.consuntivo import router as consuntivo_router
 from app.api.dashboard import router as dashboard_router
@@ -45,3 +46,4 @@ api_router.include_router(logs_router)
 api_router.include_router(diagnoses_router)
 api_router.include_router(samples_router)
 api_router.include_router(erp_router)
+api_router.include_router(azienda_router)

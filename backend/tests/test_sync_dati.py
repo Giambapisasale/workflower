@@ -1,4 +1,4 @@
-"""Allineamento dei workflow del repo dati (``python -m app.sync_workflows``).
+"""Allineamento del repo dati all'applicazione (``python -m app.sync_dati``).
 
 Il rischio che questi test presidiano non è la copia — è *cosa non va copiato*:
 in ``workflows/`` scrive anche l'Improver, e un allineamento che sovrascrive
@@ -10,10 +10,11 @@ from pathlib import Path
 from git import Repo
 
 from app.core.dal import GIT_AUTHOR
-from app.sync_workflows import AGGIORNA, DIVERGENTE, NUOVO, UGUALE, applica, confronta
+from app.sync_dati import AGGIORNA, DIVERGENTE, NUOVO, UGUALE, applica, confronta
 
 MANIFEST = "workflows/carica-ddt/manifest.yaml"
 SKILL = "workflows/carica-ddt/skills/estrazione-ddt.md"
+SCHEMA = "schemas/fattura.schema.json"
 
 
 def _committa(data_dir: Path, rel: str, contenuto: str, messaggio: str) -> None:
@@ -48,7 +49,7 @@ def test_manifest_indietro_viene_riconosciuto_e_allineato(dati_rw: Path) -> None
 
     applica(dati_rw, [e for e in esiti if e.stato == AGGIORNA])
     assert (dati_rw / MANIFEST).read_text(encoding="utf-8") == atteso
-    assert "[sync-workflows]" in str(Repo(dati_rw).head.commit.message)
+    assert "[sync-dati]" in str(Repo(dati_rw).head.commit.message)
 
 
 def test_file_modificato_a_valle_non_viene_sovrascritto(dati_rw: Path) -> None:
@@ -80,6 +81,19 @@ def test_workflow_mancante_nel_repo_dati_e_nuovo(dati_rw: Path) -> None:
 
     applica(dati_rw, [e for e in esiti if e.stato == NUOVO])
     assert percorso.is_file()
+
+
+def test_anche_gli_schemi_si_allineano(dati_rw: Path) -> None:
+    """Uno schema vecchio è insidioso quanto un manifest vecchio: un campo nuovo
+    non verrebbe mai estratto, e non lo direbbe nessun errore."""
+    atteso = (dati_rw / SCHEMA).read_text(encoding="utf-8")
+    _committa(dati_rw, SCHEMA, '{"type": "object"}\n', "schema vecchio [seed]")
+
+    esiti = confronta(dati_rw)
+    assert _stato(esiti, SCHEMA) == AGGIORNA
+
+    applica(dati_rw, [e for e in esiti if e.stato == AGGIORNA])
+    assert (dati_rw / SCHEMA).read_text(encoding="utf-8") == atteso
 
 
 def test_workflow_solo_nel_repo_dati_non_viene_toccato(dati_rw: Path) -> None:
