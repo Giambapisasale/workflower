@@ -127,7 +127,9 @@ Il terzo punto è quello da dire ad alta voce. *Ogni volta che l'ufficio valida 
 documento, il sistema guadagna un esame che dovrà superare per sempre.*
 
 Se l'integrazione con la contabilità è accesa, la validazione è anche il momento
-in cui il documento parte verso l'ERP.
+in cui il documento parte verso l'ERP — vale per fatture e DDT, come bozze da
+confermare a valle. Cosa parte e cosa no:
+[08-contabilita-erpnext.md](08-contabilita-erpnext.md).
 
 ---
 

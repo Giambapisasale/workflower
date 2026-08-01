@@ -182,6 +182,12 @@ class ErpClient:
             "Authorization": f"token {self.config.api_key}:{self.config.api_secret}",
             "Accept": "application/json",
         }
+        # Gli errori qui sotto riportano l'URL **intero**, non solo il percorso: un
+        # "timed out" sul solo percorso non distingue «ERP spento» da «indirizzo
+        # sbagliato», e il secondo caso è il più frequente in sviluppo (una
+        # ERP_BASE_URL ereditata dalla shell vince sul .env — load_dotenv non
+        # sovrascrive ciò che è già nell'ambiente).
+        _log.debug("%s %s (timeout %ss)", metodo, url, self.timeout)
         try:
             risposta = self._transport(
                 metodo, url, headers=headers, json=json, timeout=self.timeout
@@ -189,18 +195,18 @@ class ErpClient:
         except ErpError:
             raise
         except Exception as exc:  # trasporto irraggiungibile / timeout
-            raise ErpError(f"ERP non raggiungibile ({metodo} {percorso}): {exc}") from exc
+            raise ErpError(f"ERP non raggiungibile ({metodo} {url}): {exc}") from exc
 
         stato = getattr(risposta, "status_code", None)
         if stato is None or stato >= 400:
             raise ErpError(
-                f"ERP ha risposto {stato} a {metodo} {percorso}: {_corpo_sicuro(risposta)}",
+                f"ERP ha risposto {stato} a {metodo} {url}: {_corpo_sicuro(risposta)}",
                 stato=stato,
             )
         try:
             return risposta.json()
         except Exception as exc:
-            raise ErpError(f"risposta ERP non JSON a {metodo} {percorso}: {exc}") from exc
+            raise ErpError(f"risposta ERP non JSON a {metodo} {url}: {exc}") from exc
 
     # ------------------------------------------------------------- REST DocType
 

@@ -16,6 +16,7 @@ parte da quello che una persona vuole ottenere e si arriva a dove si clicca.
 | [05-sistema-e-qualita.md](05-sistema-e-qualita.md) | Workflow, run, strumenti, dataset, miglioramento automatico, diagnosi, log |
 | [06-copione-demo.md](06-copione-demo.md) | **Il copione**: 30 minuti, minuto per minuto, con cosa dire |
 | [07-domande-difficili.md](07-domande-difficili.md) | Le obiezioni che arrivano davvero, e la risposta onesta |
+| [08-contabilita-erpnext.md](08-contabilita-erpnext.md) | ERPNext: quando parte la sincronizzazione, cosa ci va, cosa resta qui, dove ritrovi ogni dato |
 | [esempi/](esempi/) | I documenti di prova, uno per ogni strada del sistema |
 
 Se hai poco tempo: [00](00-preparare-la-demo.md) per accendere, poi

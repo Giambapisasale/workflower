@@ -131,7 +131,9 @@ manda i documenti validati al gestionale. L'integrazione realizzata è verso
 **ERPNext**; il punto di attacco è isolato, quindi un altro gestionale è lavoro,
 non riprogettazione.
 
-Regola ferma: **niente si sincronizza senza validazione umana**.
+Regola ferma: **niente si sincronizza senza validazione umana**. Il dettaglio di
+cosa passa il confine (fatture e DDT) e cosa resta di qua (computo, ore, mezzi,
+SAL) è in [08-contabilita-erpnext.md](08-contabilita-erpnext.md).
 
 ---
 

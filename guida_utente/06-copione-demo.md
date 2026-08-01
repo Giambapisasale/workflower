@@ -188,4 +188,5 @@ esercizio, e conviene dirlo prima che lo chiedano.
 Aggiungi, in quest'ordine: il parser Word spento e poi acceso; il collegamento al
 computo e lo scostamento che ne esce; la creazione di un fornitore dai dati letti
 sulla fattura; il trace completo di un documento; la pagina Log; e la
-sincronizzazione verso la contabilità.
+sincronizzazione verso la contabilità — quest'ultima ha il suo pezzo di copione
+in [08-contabilita-erpnext.md](08-contabilita-erpnext.md), caso 10.

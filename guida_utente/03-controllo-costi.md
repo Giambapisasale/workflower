@@ -122,3 +122,7 @@ documento entra in contabilità senza essere passato da una validazione umana.
 Se l'ERP non è configurato la pagina lo dice, e il resto del sistema funziona
 uguale. In demo, se il cliente ha già un gestionale, è il momento di chiedere
 quale — l'integrazione è modellata su ERPNext ma il punto di attacco è isolato.
+
+Il capitolo intero — quando parte la sincronizzazione, cosa ci va e cosa resta
+qui, come ritrovare ogni dato di là — è
+[08-contabilita-erpnext.md](08-contabilita-erpnext.md).

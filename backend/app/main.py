@@ -40,12 +40,36 @@ def create_app(
     ottieni_logger("avvio").info(
         "app avviata (data_dir=%s, log=%s)", app.state.data_dir, livello
     )
+    _log_integrazioni(app)
     _installa_osservabilita(app)
     if os.environ.get("DIAGNOSTICA_AUTO", "").strip().lower() in ("1", "true", "on", "si"):
         _avvia_trigger_diagnostica(app)
     app.include_router(api_router, prefix="/api")
     _monta_frontend(app)
     return app
+
+
+def _log_integrazioni(app: FastAPI) -> None:
+    """A quale ERP e a quale parser è cablata *questa* istanza, con l'indirizzo.
+
+    Sembra ridondante — l'indirizzo sta nel ``.env`` — ma il ``.env`` non è
+    l'ultima parola: ``load_dotenv()`` **non sovrascrive** una variabile già
+    presente nell'ambiente, quindi una ``ERP_BASE_URL`` esportata in una shell
+    (per esempio quella per il container, ``host.docker.internal``, che sull'host
+    non si raggiunge) vince in silenzio sul file. Il sintomo è un timeout che
+    somiglia a un ERP spento, e senza questa riga si cerca dalla parte sbagliata.
+    """
+    log = ottieni_logger("avvio")
+    erp = app.state.erp
+    log.info(
+        "ERP: %s",
+        f"attivo su {erp.config.base_url}" if erp.attivo() else "non configurato",
+    )
+    docling = app.state.docling
+    log.info(
+        "parser documenti: %s",
+        f"attivo su {docling.config.base_url}" if docling.attivo() else "non configurato",
+    )
 
 
 def _monta_frontend(app: FastAPI) -> None:

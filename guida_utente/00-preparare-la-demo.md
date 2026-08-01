@@ -10,6 +10,12 @@ Due modi, a seconda di dove sei.
 make dev
 ```
 
+**Per pulire variabili.**
+
+```bash
+Remove-Item Env:ERP_BASE_URL, Env:ERP_API_KEY, Env:ERP_API_SECRET, Env:ERP_COMPANY, Env:ERP_CONTO_IVA, Env:ERP_CONTO_RITENUTA, Env:ERP_ITEM_DDT -ErrorAction SilentlyContinue
+```
+
 Operatore su `http://localhost:5173/op`, ufficio su `http://localhost:5173/admin`.
 
 **Con Docker, come in produzione** (un solo container che serve anche la UI,
@@ -27,9 +33,24 @@ che permette di leggere Word ed Excel):
 ```bash
 make docling-up && make docling-check
 ```
+oppure specificando url docling
+```bash
+make docling-check ARGS="--url http://127.0.0.1:5001"
+```
 
 `make docling-check` deve stampare solo `PASS`, compresa la riga sulla GPU. Se
 qualcosa è rosso, la demo funziona lo stesso ma senza i due esempi in Word.
+
+**La contabilità** (facoltativo: serve solo se vuoi mostrare dove finiscono i
+documenti validati):
+
+```bash
+make erp-up && make erp-dev-setup && make erp-smoke
+```
+
+Il secondo comando stampa le variabili `ERP_*` da mettere nel `.env` — senza
+quelle l'integrazione parte **spenta senza dirlo**. Procedura completa e
+copione in [08-contabilita-erpnext.md](08-contabilita-erpnext.md).
 
 ## 2. Credenziali
 
@@ -101,6 +122,8 @@ fra una dimostrazione e una figuraccia.
 - [ ] Login `salvo` / `1111` funziona e mostra i quattro bottoni
 - [ ] Ufficio → La nostra azienda è compilata
 - [ ] La coda di Revisione **non** è vuota (se lo è, carica prima l'esempio 05)
+- [ ] Se mostri la contabilità: `make erp-smoke` verde e la pagina
+      Operatività → Contabilità **non** dice «spenta»
 - [ ] Hai i file di `esempi/` a portata di mano, sul desktop
 - [ ] Sai già cosa risponderai su costi, privacy e «e se sbaglia?»
       ([07](07-domande-difficili.md))
