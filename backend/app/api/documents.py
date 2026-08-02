@@ -32,6 +32,12 @@ router = APIRouter(tags=["documents"])
 # instrada l'upload al workflow giusto (carica-fattura, carica-ddt, …). Aggiungere
 # un tipo documento = aggiungere un manifest con blocco `ingest`, zero codice qui.
 ESTENSIONI_LEGGIBILI = {".pdf", ".png", ".jpg", ".jpeg"}
+
+# Formati d'ufficio: leggibili **solo** dove il sidecar Docling è cablato (nessun
+# modello vision sa aprire un .docx). Accettarli senza il sidecar significherebbe
+# prendere in carico un file che poi nessuno sa leggere — e l'operatore vedrebbe
+# un semaforo rosso invece di un rifiuto immediato e comprensibile.
+ESTENSIONI_UFFICIO = {".docx", ".xlsx"}
 MAX_BYTES = 15 * 1024 * 1024
 ETICHETTE_TIPO = {
     "fattura": "Fattura",
@@ -93,7 +99,7 @@ def _accetta(
 ) -> EsitoUpload:
     run_id = f"run-{uuid.uuid4().hex[:12]}"
     nome = _nome_sicuro(nome_originale)
-    leggibile = Path(nome).suffix.lower() in ESTENSIONI_LEGGIBILI
+    leggibile = _leggibile(nome, runtime)
     blob_rel = f"blobs/caricati/{datetime.now(UTC).year}/{uuid.uuid4().hex[:8]}-{nome}"
     percorso = dal.data_dir / blob_rel
     percorso.parent.mkdir(parents=True, exist_ok=True)
@@ -141,7 +147,8 @@ def _accetta(
 
 def _elabora(dal: DAL, runtime: WorkflowRuntime, doc_id: str, blob_rel: str, run_id: str) -> None:
     """Task in background: classifica il documento, esegue il workflow, aggiorna."""
-    workflow = Classificatore(dal, runtime.gateway).workflow_per(blob_rel)  # non solleva mai
+    classificatore = Classificatore(dal, runtime.gateway, docling=runtime.docling)
+    workflow = classificatore.workflow_per(blob_rel)  # non solleva mai
     esito = runtime.esegui(workflow, blob_rel, run_id=run_id)  # non solleva mai
     try:
         envelope = dal.read("documento", doc_id)
@@ -160,6 +167,24 @@ def _elabora(dal: DAL, runtime: WorkflowRuntime, doc_id: str, blob_rel: str, run
         dal.update(envelope, run_id=run_id)
     except Exception:
         logger.exception("aggiornamento documento %s fallito dopo il run %s", doc_id, run_id)
+
+
+def _leggibile(nome: str, runtime: WorkflowRuntime) -> bool:
+    """Sappiamo leggere questo file, su *questa* macchina?
+
+    La risposta dipende da com'è configurato il sistema, non solo dall'estensione:
+    Word ed Excel sono leggibili se e solo se il sidecar Docling è cablato. Si
+    interroga il ``Toolset`` del runtime — la stessa fonte di verità che il
+    modello userà fra un istante — invece di rileggere l'ambiente per conto
+    proprio: così non possono divergere.
+    """
+    suffisso = Path(nome).suffix.lower()
+    if suffisso in ESTENSIONI_LEGGIBILI:
+        return True
+    if suffisso in ESTENSIONI_UFFICIO:
+        _, mancanti = runtime.toolset.disponibili(["leggi_documento"])
+        return not mancanti
+    return False
 
 
 def _nome_sicuro(nome: str | None) -> str:

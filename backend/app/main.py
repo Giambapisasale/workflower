@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api import api_router
+from app.core.docling import DoclingClient
 from app.core.erp import ErpClient
 from app.core.gateway import Gateway
 from app.core.logbook import configura_logging, ottieni_logger, registra_osservatore
@@ -21,27 +22,54 @@ def create_app(
     data_dir: Path | str | None = None,
     gateway: Gateway | None = None,
     erp: ErpClient | None = None,
+    docling: DoclingClient | None = None,
 ) -> FastAPI:
-    """App FastAPI. ``data_dir``, ``gateway`` ed ``erp`` sono iniettabili per i test.
+    """App FastAPI. ``data_dir``, ``gateway``, ``erp`` e ``docling`` sono iniettabili.
 
     Il DAL nasce alla prima richiesta che ne ha bisogno (vedi api/deps.py):
-    l'app parte anche senza repo dati, l'health check non lo richiede. Il client
-    ERP è sempre presente ma inattivo finché le env ``ERP_*`` non sono configurate.
+    l'app parte anche senza repo dati, l'health check non lo richiede. I client
+    ERP e Docling sono sempre presenti ma inattivi finché le rispettive variabili
+    d'ambiente (``ERP_*``, ``DOCLING_URL``) non sono configurate.
     """
     app = FastAPI(title="Workflower", version="0.1.0")
     app.state.data_dir = Path(data_dir or os.environ.get("DATA_DIR", "./data")).resolve()
     app.state.gateway = gateway or Gateway()
     app.state.erp = erp or ErpClient()
+    app.state.docling = docling or DoclingClient()
     livello = configura_logging(app.state.data_dir)
     ottieni_logger("avvio").info(
         "app avviata (data_dir=%s, log=%s)", app.state.data_dir, livello
     )
+    _log_integrazioni(app)
     _installa_osservabilita(app)
     if os.environ.get("DIAGNOSTICA_AUTO", "").strip().lower() in ("1", "true", "on", "si"):
         _avvia_trigger_diagnostica(app)
     app.include_router(api_router, prefix="/api")
     _monta_frontend(app)
     return app
+
+
+def _log_integrazioni(app: FastAPI) -> None:
+    """A quale ERP e a quale parser è cablata *questa* istanza, con l'indirizzo.
+
+    Sembra ridondante — l'indirizzo sta nel ``.env`` — ma il ``.env`` non è
+    l'ultima parola: ``load_dotenv()`` **non sovrascrive** una variabile già
+    presente nell'ambiente, quindi una ``ERP_BASE_URL`` esportata in una shell
+    (per esempio quella per il container, ``host.docker.internal``, che sull'host
+    non si raggiunge) vince in silenzio sul file. Il sintomo è un timeout che
+    somiglia a un ERP spento, e senza questa riga si cerca dalla parte sbagliata.
+    """
+    log = ottieni_logger("avvio")
+    erp = app.state.erp
+    log.info(
+        "ERP: %s",
+        f"attivo su {erp.config.base_url}" if erp.attivo() else "non configurato",
+    )
+    docling = app.state.docling
+    log.info(
+        "parser documenti: %s",
+        f"attivo su {docling.config.base_url}" if docling.attivo() else "non configurato",
+    )
 
 
 def _monta_frontend(app: FastAPI) -> None:

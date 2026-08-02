@@ -6,17 +6,20 @@ la bozza è corretta — la valida. Validare aggiunge il run al golden set: da q
 momento è un caso di regressione contro cui si misurano le nuove versioni.
 """
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, get_erp, richiedi_admin
+from app.api.deps import get_dal, get_docling, get_erp, richiedi_admin
+from app.api.documents import ESTENSIONI_UFFICIO
 from app.core.auth import Utente
 from app.core.collega import Collega
 from app.core.dal import DAL, TIPI_INGRESSO, DalError, tipo_da_id
 from app.core.dataset import estratto_del_run, registra_derivazione
+from app.core.docling import DoclingClient, DoclingError
 from app.core.erp import ErpClient, applica_sincronizzazione
 from app.core.tracer import appendi_feedback_campo, leggi_eventi
 from app.models.envelope import Envelope
@@ -26,6 +29,7 @@ TIPI_REVISIONABILI = TIPI_INGRESSO
 # Entità con righe collegabili alle voci di computo (hanno voce_computo_id).
 TIPI_COLLEGABILI = ("fattura", "ddt")
 
+logger = logging.getLogger("workflower.review")
 router = APIRouter(tags=["review"])
 
 # Entità prodotte dai workflow d'ingresso che passano dalla revisione umana.
@@ -152,14 +156,31 @@ def originale(
     entity_id: str,
     _admin: Utente = Depends(richiedi_admin),
     dal: DAL = Depends(get_dal),
-) -> FileResponse:
-    """Il blob originale (PDF/immagine), da mostrare a fianco dei campi estratti."""
+    docling: DoclingClient = Depends(get_docling),
+) -> Response:
+    """Il documento da mostrare a fianco dei campi estratti.
+
+    PDF e immagini escono come sono: il browser li disegna nell'iframe della
+    revisione. Word ed Excel **no** — il browser li scarica, e chi controlla la
+    bozza resta senza documento a fianco. Per quelli si restituisce la lettura
+    fatta da Docling come pagina HTML: non è l'originale impaginato, ma è
+    esattamente ciò che il modello ha visto, che per una revisione è il
+    confronto più utile (chi guarda deve saperlo: lo dichiara la UI).
+
+    Se il sidecar è spento o fallisce si torna al file com'è: peggio del
+    previsto, mai un 500 in faccia a chi sta revisionando.
+    """
     _tipo, entita = _entita(dal, entity_id)
     origine = entita.meta.origine
     percorso = (dal.data_dir / origine).resolve() if origine else None
     base = (dal.data_dir / "blobs").resolve()
     if percorso is None or base not in percorso.parents or not percorso.is_file():
         raise HTTPException(status_code=404, detail="originale non trovato")
+    if percorso.suffix.lower() in ESTENSIONI_UFFICIO and docling.attivo():
+        try:
+            return HTMLResponse(docling.anteprima_html(percorso))
+        except DoclingError as exc:
+            logger.warning("anteprima non convertita per %s: %s", entity_id, exc)
     return FileResponse(percorso)
 
 

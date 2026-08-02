@@ -1,8 +1,10 @@
 # Mettere in piedi una versione di prova
 
 Guida al deploy di Workflower come **singolo container** (il backend FastAPI
-serve anche il frontend buildato). Tre target pronti: **VPS con Docker Compose**,
-**Render**, **Fly.io**. Tutti usano lo stesso `Dockerfile`.
+serve anche il frontend buildato), con `docker compose` sul `Dockerfile` del repo.
+Il target è una **macchina che controlliamo noi** — il server aziendale o una VPS —
+non una piattaforma managed: lo stato è un repo git su disco e l'infrastruttura di
+riferimento è on-premise con GPU NVIDIA (vedi §B).
 
 ## Il vincolo da tenere presente
 
@@ -18,8 +20,7 @@ workflow); ai successivi lo trova già presente e parte e basta.
 
 ## Prima di esporre l'app (vale per tutti)
 
-- **`JWT_SECRET`**: metti una stringa lunga e casuale (su Render è
-  `generateValue`, altrove la imposti tu).
+- **`JWT_SECRET`**: metti una stringa lunga e casuale (la imposti tu in `.env`).
 - **PIN demo**: `salvo/1111`, `giovanna/9999`… sono in `backend/app/seed_data.py`.
   Se l'URL è pubblico, cambiali **prima** del seed (il seed li legge da lì).
 - **Modelli/costi LLM**: ogni documento elaborato è una chiamata al tier T1
@@ -49,9 +50,9 @@ Variabili d'ambiente (tutte le piattaforme):
 
 ---
 
-## A) VPS con Docker Compose (il più prevedibile)
+## A) Docker Compose su una macchina nostra (il target)
 
-Su una macchina con Docker (Hetzner ~€4/mese, DigitalOcean, o la tua):
+Su una macchina con Docker — il server aziendale, o una VPS:
 
 ```bash
 git clone <repo> && cd workflower
@@ -64,42 +65,76 @@ docker compose up -d --build
 - App dietro **Caddy** (`docker-compose.yml` + `Caddyfile`): con un dominio in
   `SITE_ADDRESS`, il certificato HTTPS è automatico; con `:80` resti in HTTP.
 - Dati nel volume `workflower-data`. Log: `docker compose logs -f app`.
-- Aggiornare: `git pull && docker compose up -d --build`.
+- Aggiornare: `git pull && docker compose up -d --build`, **seguito da**
+  `docker compose exec app python -m app.sync_dati` (mostra workflow e schemi
+  rimasti indietro) e `… --applica` per riallinearli. Il seed non tocca un
+  repo dati che esiste già: senza questo passaggio una funzione nuova può restare
+  inattiva senza dare errore. Dettagli e garanzie nel README, sezione
+  «Aggiornare un'installazione esistente».
 
-## B) Render (managed, veloce)
+## B) Infrastruttura on-premise (il riferimento)
 
-Il `render.yaml` è configurato sul **piano Free** (filesystem **effimero**: nessuna
-carta richiesta, ma a ogni avvio a freddo l'app si ri-seed e gli upload non
-sopravvivono allo sleep/redeploy — ottimo per una prova).
+Il deploy di riferimento è **in azienda**, su hardware con GPU NVIDIA:
 
-1. Su Render: **New → Blueprint**, punta al repo (branch `main`): legge
-   `render.yaml` e crea il servizio Docker `workflower`.
-2. Ti chiede il valore di **`OPENAI_API_KEY`** (unico segreto; `JWT_SECRET` è
-   generato in automatico). I modelli sono `openai/gpt-5.6-sol` (T1) e
-   `openai/gpt-5.6-terra` (T2) — cambiali se il tuo account usa altri id.
-3. **Apply** → build dell'immagine → deploy. Health check su `/api/health`.
-   URL pubblico fornito da Render.
-4. **Per conservare i dati**: sali a un piano a pagamento e aggiungi un disco su
-   `/data` (istruzioni in coda a `render.yaml`); `DATA_DIR` resta `/data/repo`.
+| Macchina | Ruolo | Note |
+|---|---|---|
+| **DGX Spark** (GB10, `arm64`) | server dei modelli locali: tier T3, parser documenti | memoria unificata: ci sta molto più di quanto sembri, ma è `aarch64` — **ogni immagine deve essere multi-arch** |
+| **RTX 4090** (24 GB, `x86_64`) | secondo nodo GPU / staging | |
+| **RTX 3080** (8 GB, `x86_64`) | PC di sviluppo | il banco di prova quotidiano |
 
-> Nota risorse: il Free ha 512 MB di RAM e va in sleep dopo ~15 min (primo
-> caricamento dopo lo sleep lento, con re-seed). Se risultasse stretto, valuta
-> Hugging Face Spaces (Docker, free, più RAM) o un piano a pagamento.
+Conseguenze pratiche sul deploy:
 
-## C) Fly.io (VM leggera con volume)
+- Il container dell'app **non** ha bisogno di GPU: resta quello di §A. Ciò che va
+  sulla GPU sono i **servizi affiancati** (parser documenti, endpoint T3), come
+  container separati nello stesso compose o su un host dedicato.
+- Per usare la GPU da Docker serve il **NVIDIA Container Toolkit** sull'host e,
+  nel compose, la risorsa dichiarata:
+
+  ```yaml
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+  ```
+
+  In alternativa, per un `docker run` una tantum: `--gpus all`.
+- **Multi-arch**: qualunque immagine di terze parti destinata allo Spark va
+  verificata **prima** con `docker manifest inspect <img> | grep arm64`. Un'immagine
+  solo `amd64` non gira sullo Spark, e l'emulazione non è un'opzione per la GPU.
+- Niente HTTPS pubblico obbligatorio: in LAN aziendale `SITE_ADDRESS=:80` basta;
+  con un dominio interno e DNS, Caddy fa il certificato come in §A.
+
+### Il parser documenti (Docling) su GPU
+
+Servizio **opzionale**: acceso, i PDF nati al computer, i Word e gli Excel vengono
+letti come testo con le tabelle ricostruite (16–34 volte meno token delle stesse
+pagine come immagini, e i `.docx`/`.xlsx` diventano caricabili). Spento, tutto
+funziona come prima: le pagine vanno all'LLM come immagini.
 
 ```bash
-fly launch --no-deploy --copy-config           # crea l'app da fly.toml
-fly volumes create workflower_data --size 1 --region fra
-fly secrets set JWT_SECRET=$(openssl rand -hex 32) \
-                OPENAI_API_KEY=... \
-                LLM_T1_MODEL=openai/gpt-5.6-sol \
-                LLM_T2_MODEL=openai/gpt-5.6-terra
-fly deploy
-fly scale count 1                              # una sola macchina (un volume)
+make docling-up          # docker compose --profile docling up -d docling
+make docling-check       # risponde? converte? sta usando la GPU?
 ```
 
-Fly gestisce HTTPS in automatico sul dominio `*.fly.dev`.
+Poi in `.env`: `DOCLING_URL=http://docling:5001` (dentro al compose l'host è il
+**nome del servizio**). In sviluppo fuori da compose, `http://127.0.0.1:5001` —
+e **non** `localhost`, che su Windows costa ~21 s di timeout IPv6 per chiamata.
+
+Serve il **NVIDIA Container Toolkit** sull'host. Verifica in un colpo solo:
+
+```bash
+docker run --rm --gpus all quay.io/docling-project/docling-serve-cu130:v1.29.0 python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+> **DGX Spark**: l'immagine ufficiale `-cu130` (sia amd64 sia arm64) porta kernel
+> CUDA fino a `sm_120`, mentre il GB10 è `sm_121`: sullo Spark **non parte sulla
+> GPU** (`no kernel image is available for execution on the device`). Serve
+> un'immagine ricostruita su base NGC `nvcr.io/nvidia/pytorch`, da mettere in
+> `DOCLING_IMAGE`. Su RTX 4090 e 3080 l'immagine di serie va così com'è.
+> Dettagli e misure in [`analisi-docling.md`](../analisi-docling.md).
 
 ---
 

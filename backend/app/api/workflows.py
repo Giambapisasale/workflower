@@ -14,9 +14,10 @@ import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.api.deps import get_dal, get_data_dir, get_improver, richiedi_admin
+from app.api.deps import get_dal, get_data_dir, get_docling, get_improver, richiedi_admin
 from app.core.auth import Utente
 from app.core.dal import DAL, DalError, tipo_da_id
+from app.core.docling import DoclingClient
 from app.core.golden import carica_golden
 from app.core.improver import Improver, ImproverError
 from app.core.runtime import RunResult, WorkflowRuntime
@@ -144,6 +145,7 @@ def approva(
     patch_id: str,
     admin: Utente = Depends(richiedi_admin),
     improver: Improver = Depends(get_improver),
+    docling: DoclingClient = Depends(get_docling),
 ) -> dict[str, Any]:
     """Applica la patch (bump versione + commit) e riesegue il documento d'origine."""
     patch = _patch_da_decidere(improver.dal, patch_id)
@@ -151,7 +153,7 @@ def approva(
     return {
         "patch": _vista_patch(patch),
         "versione": patch["a_versione"],
-        "rerun": _riprocessa_origine(improver, patch),
+        "rerun": _riprocessa_origine(improver, patch, docling),
     }
 
 
@@ -178,7 +180,9 @@ def _patch_da_decidere(dal: DAL, patch_id: str) -> dict[str, Any]:
     return patch
 
 
-def _riprocessa_origine(improver: Improver, patch: dict[str, Any]) -> dict[str, Any] | None:
+def _riprocessa_origine(
+    improver: Improver, patch: dict[str, Any], docling: DoclingClient | None = None
+) -> dict[str, Any] | None:
     """Riesegue il documento d'origine con la nuova versione e ne aggiorna lo stato."""
     dal = improver.dal
     origine = patch.get("origine") or {}
@@ -186,7 +190,9 @@ def _riprocessa_origine(improver: Improver, patch: dict[str, Any]) -> dict[str, 
     if not doc or not (dal.data_dir / doc).is_file():
         return None
     run_id = f"run-{uuid.uuid4().hex[:12]}"
-    esito = WorkflowRuntime(dal, improver.gateway).esegui(patch["workflow"], doc, run_id=run_id)
+    esito = WorkflowRuntime(dal, improver.gateway, docling=docling).esegui(
+        patch["workflow"], doc, run_id=run_id
+    )
     _ripunta_documento(dal, origine.get("run_id"), esito)
     if origine.get("issue_id"):
         with contextlib.suppress(DalError):

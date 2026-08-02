@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pymupdf
 
-from app.core.tools.base import ToolError
+from app.core.tools.base import ToolError, percorso_nel_repo
 
 DPI = 150
 MAX_PAGINE = 10
@@ -44,15 +44,7 @@ SCHEMA = {
 
 
 def _percorso_valido(data_dir: Path, path: str) -> Path:
-    base = Path(data_dir).resolve()
-    file = (base / path).resolve()
-    if not file.is_relative_to(base):
-        raise ToolError(f"percorso fuori dal repo dati: {path}")
-    if file.suffix.lower() not in ESTENSIONI:
-        raise ToolError(f"formato non supportato: {file.suffix} (attesi pdf/png/jpg)")
-    if not file.is_file():
-        raise ToolError(f"documento non trovato: {path}")
-    return file
+    return percorso_nel_repo(data_dir, path, ESTENSIONI, "pdf/png/jpg")
 
 
 def esegui(data_dir: Path, path: str) -> dict:

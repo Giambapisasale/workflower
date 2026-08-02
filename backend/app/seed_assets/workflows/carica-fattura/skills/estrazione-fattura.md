@@ -6,7 +6,17 @@ trascrivi solo ciò che leggi sul documento.
 
 ## Procedura
 
-1. Leggi il documento con il tool `ocr_pdf`: ti restituisce le pagine come immagini.
+1. Leggi il documento. Hai due strumenti, per casi diversi:
+   - `leggi_documento` — **prima scelta** per i PDF nati al computer e per i file
+     Word (`.docx`) ed Excel (`.xlsx`): ti restituisce il testo con le tabelle
+     già ricostruite, ed è il modo più preciso di leggere righe e importi.
+   - `ocr_pdf` — per le **foto** scattate col telefono (`.jpg`, `.png`), per le
+     scansioni storte, e ogni volta che `leggi_documento` dà errore o ti
+     restituisce un testo incompleto: ti restituisce le pagine come immagini.
+
+   Usane **uno solo**: chiama il secondo soltanto se il primo non ti è bastato.
+   Se `leggi_documento` ti avvisa che la lettura è di bassa qualità o che il
+   testo è troncato, ricontrolla con `ocr_pdf` prima di trascrivere.
 2. Individua chi emette la fattura: usa `cerca_fornitore` con la ragione sociale
    o la partita IVA che leggi sull'intestazione. Se c'è un candidato affidabile
    (vedi «Riferimenti non risolti»), metti il suo `id` nel campo `fornitore_id`;
@@ -15,7 +25,12 @@ trascrivi solo ciò che leggi sul documento.
    "cantiere", "commessa" o "destinazione". Usa `cerca_cantiere`; se c'è un
    candidato affidabile metti il suo `id` in `cantiere_id`, altrimenti lascialo
    `null` e compila `riferimenti_estratti` (vedi «Riferimenti non risolti»).
-4. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
+4. Trascrivi in `destinatario` l'impresa **a cui la fattura è intestata**: sulle
+   fatture italiane è la ragione sociale dopo «Spett.le», o comunque il
+   nominativo del cliente, che è cosa diversa dal fornitore che la emette. Copia
+   solo la ragione sociale, senza indirizzo né partita IVA. Se il documento non
+   la riporta, metti `null`.
+5. Compila i campi e consegna solo il JSON richiesto dal contratto di output,
    senza testo prima o dopo.
 
 ## Regole sui campi
@@ -29,8 +44,18 @@ trascrivi solo ciò che leggi sul documento.
   `totale = imponibile + iva`: se non torna, ricontrolla di aver letto bene.
 - `ritenuta_acconto`: se non è indicata una ritenuta d'acconto, metti `null`
   esplicito.
+- `destinatario`: la ragione sociale del **cliente**, mai quella del fornitore.
+  Trascrivila come sta scritta anche se non è l'impresa per cui lavori: se il
+  documento è intestato a un'altra ditta lo deve vedere l'ufficio, e correggerlo
+  qui nasconderebbe proprio l'errore che c'è da trovare.
 - `righe`: una voce per ogni riga della tabella prestazioni/materiali;
   `quantita`, `unita_misura` e `voce_computo_id` a `null` quando non presenti.
+- `mezzo_id`: nelle fatture il mezzo non è indispensabile. Valorizzalo solo se
+  nella riga o nel documento leggi un riferimento esplicito a un mezzo
+  identificabile — targa, codice mezzo, matricola, nome del mezzo, o una
+  descrizione chiaramente riferita a un'attrezzatura o a un noleggio specifico.
+  Se non leggi alcun riferimento a mezzi, non proporre associazioni: lascia
+  `mezzo_id` a `null`.
 - Ogni campo assente sul documento va a `null` esplicito: mai omettere una
   chiave prevista dallo schema.
 

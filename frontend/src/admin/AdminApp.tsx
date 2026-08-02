@@ -12,6 +12,7 @@ import {
   FileIcon,
   GearIcon,
   HomeIcon,
+  IdCardIcon,
   InfoCircledIcon,
   Link2Icon,
   MagnifyingGlassIcon,
@@ -26,6 +27,7 @@ import {
 import { Button, Sidebar } from "../ds";
 import type { Icona } from "../ds";
 import AdminLogin from "./AdminLogin";
+import Azienda from "./Azienda";
 import Cantiere from "./Cantiere";
 import Cruscotto from "./Cruscotto";
 import Dataset from "./Dataset";
@@ -84,6 +86,7 @@ const SEZIONI: Sezione[] = [
       { chiave: "dataset", a: "/admin/dataset", etichetta: "Dataset", icona: DotsHorizontalIcon },
       { chiave: "log", a: "/admin/log", etichetta: "Log", icona: CalendarIcon },
       { chiave: "diagnosi", a: "/admin/diagnosi", etichetta: "Diagnosi", icona: InfoCircledIcon },
+      { chiave: "azienda", a: "/admin/azienda", etichetta: "La nostra azienda", icona: IdCardIcon },
     ],
   },
 ];
@@ -230,6 +233,7 @@ export default function AdminApp() {
           <Route path="erp" element={<Erp />} />
           <Route path="log" element={<Log />} />
           <Route path="diagnosi" element={<Diagnosi />} />
+          <Route path="azienda" element={<Azienda />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>
