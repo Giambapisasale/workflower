@@ -48,6 +48,10 @@ TIMEOUT_DEFAULT = 10.0
 # Gruppo Supplier di default (radice ERPNext); la config può passarne uno più specifico.
 SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
 
+# Paese di default degli indirizzi (l'Address di ERPNext lo pretende): i fornitori
+# di cantiere sono italiani salvo config contraria (ERP_PAESE).
+PAESE_DEFAULT = "Italy"
+
 # Tipi di documento Workflower che vengono riflessi nell'ERP (ciclo passivo).
 TIPI_SINCRONIZZABILI = ("fattura", "ddt")
 
@@ -92,6 +96,7 @@ class ErpConfig:
     parent_cost_center: str | None = None
     conto_costo: str | None = None
     item_ddt: str | None = None
+    paese: str = PAESE_DEFAULT
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -113,6 +118,7 @@ class ErpConfig:
             parent_cost_center=os.environ.get("ERP_PARENT_COST_CENTER"),
             conto_costo=os.environ.get("ERP_CONTO_COSTO"),
             item_ddt=os.environ.get("ERP_ITEM_DDT"),
+            paese=os.environ.get("ERP_PAESE") or PAESE_DEFAULT,
         )
 
 
@@ -242,6 +248,16 @@ class ErpClient:
         dati = corpo.get("data") if isinstance(corpo, dict) else None
         return dati or []
 
+    def chiama_metodo(self, nome: str, payload: dict[str, Any]) -> Any:
+        """POST a un metodo whitelisted Frappe (``/api/method/<nome>``).
+
+        Serve dove il REST sui DocType non basta — ad es. ``frappe.client.attach_file``
+        per allegare il documento originale al record contabile. Frappe incapsula il
+        ritorno in ``message``.
+        """
+        corpo = self.richiesta("POST", f"/api/method/{nome}", json=payload)
+        return corpo.get("message", corpo) if isinstance(corpo, dict) else corpo
+
 
 def _corpo_sicuro(risposta: Any, limite: int = 500) -> str:
     """Estrae il corpo della risposta per il messaggio d'errore, senza mai sollevare."""
@@ -301,8 +317,79 @@ def cantiere_a_cost_center(
     return payload
 
 
+def cantiere_a_project(
+    dati: dict[str, Any], *, company: str | None = None, cost_center: str | None = None
+) -> dict[str, Any]:
+    """`cantiere` → payload DocType **Project** (M30, A2).
+
+    Il Cost Center imputa i costi, il Project li *racconta*: date attese, budget
+    (``estimated_costing``) e — quando le righe dei documenti portano ``project`` —
+    l'aggregato nativo del costo d'acquisto per cantiere. Il ``committente`` resta
+    fuori finché il ciclo attivo è un non-goal (niente Customer).
+    """
+    payload: dict[str, Any] = {"project_name": dati["nome"]}
+    if company:
+        payload["company"] = company
+    if cost_center:
+        payload["cost_center"] = cost_center
+    if dati.get("data_inizio"):
+        payload["expected_start_date"] = dati["data_inizio"]
+    if dati.get("data_fine_prevista"):
+        payload["expected_end_date"] = dati["data_fine_prevista"]
+    if dati.get("budget") is not None:
+        payload["estimated_costing"] = dati["budget"]
+    return payload
+
+
+def fornitore_a_address(
+    dati: dict[str, Any], *, supplier: str, paese: str = PAESE_DEFAULT
+) -> dict[str, Any] | None:
+    """`fornitore` → payload DocType **Address** collegato al Supplier (M30, A3).
+
+    ERPNext pretende ``address_line1``, ``city`` e ``country``: senza indirizzo *e*
+    comune estratti non c'è un Address legittimo da creare → ``None`` (meglio nessun
+    indirizzo che un indirizzo inventato). Il legame col Supplier è la tabella
+    ``links`` (Dynamic Link), come fa la UI di ERPNext.
+    """
+    if not (dati.get("indirizzo") and dati.get("comune")):
+        return None
+    return {
+        "address_title": dati["ragione_sociale"],
+        "address_type": "Billing",
+        "address_line1": dati["indirizzo"],
+        "city": dati["comune"],
+        "country": paese,
+        "links": [{"link_doctype": "Supplier", "link_name": supplier}],
+    }
+
+
+def fornitore_a_contact(dati: dict[str, Any], *, supplier: str) -> dict[str, Any] | None:
+    """`fornitore` → payload DocType **Contact** collegato al Supplier (M30, A3).
+
+    Porta PEC e telefono; senza almeno uno dei due non c'è nulla da registrare
+    (``None``). Il nome del contatto è la ragione sociale: i documenti di cantiere
+    non riportano una persona.
+    """
+    pec = dati.get("pec")
+    telefono = dati.get("telefono")
+    if not (pec or telefono):
+        return None
+    payload: dict[str, Any] = {
+        "first_name": dati["ragione_sociale"][:140],
+        "links": [{"link_doctype": "Supplier", "link_name": supplier}],
+    }
+    if pec:
+        payload["email_ids"] = [{"email_id": pec, "is_primary": 1}]
+    if telefono:
+        payload["phone_nos"] = [{"phone": telefono, "is_primary_phone": 1}]
+    return payload
+
+
 def _riga_a_item(
-    riga: dict[str, Any], cost_center: str | None, conto_costo: str | None = None
+    riga: dict[str, Any],
+    cost_center: str | None,
+    conto_costo: str | None = None,
+    project: str | None = None,
 ) -> dict[str, Any]:
     """Una riga fattura → una riga **Purchase Invoice Item**.
 
@@ -329,6 +416,8 @@ def _riga_a_item(
         item["cost_center"] = cost_center
     if conto_costo:
         item["expense_account"] = conto_costo
+    if project:
+        item["project"] = project
     return item
 
 
@@ -340,6 +429,7 @@ def fattura_a_purchase_invoice(
     conto_ritenuta: str | None = None,
     conto_iva: str | None = None,
     conto_costo: str | None = None,
+    project: str | None = None,
 ) -> dict[str, Any]:
     """`fattura` → payload DocType **Purchase Invoice** (+ items + taxes).
 
@@ -357,8 +447,12 @@ def fattura_a_purchase_invoice(
         "supplier": supplier,
         "bill_no": dati["numero"],
         "bill_date": dati["data"],
-        "items": [_riga_a_item(r, cost_center, conto_costo) for r in dati.get("righe", [])],
+        "items": [
+            _riga_a_item(r, cost_center, conto_costo, project) for r in dati.get("righe", [])
+        ],
     }
+    if project:
+        payload["project"] = project
 
     taxes: list[dict[str, Any]] = []
     iva = dati.get("iva")
@@ -396,7 +490,10 @@ def fattura_a_purchase_invoice(
 
 
 def _riga_ddt_a_item(
-    riga: dict[str, Any], cost_center: str | None, item_code: str | None = None
+    riga: dict[str, Any],
+    cost_center: str | None,
+    item_code: str | None = None,
+    project: str | None = None,
 ) -> dict[str, Any]:
     """Una riga DDT → una riga **Purchase Receipt Item**.
 
@@ -420,6 +517,8 @@ def _riga_ddt_a_item(
         item["item_code"] = item_code
     if cost_center:
         item["cost_center"] = cost_center
+    if project:
+        item["project"] = project
     return item
 
 
@@ -429,12 +528,15 @@ def ddt_a_purchase_receipt(
     supplier: str,
     cost_center: str | None = None,
     item_code: str | None = None,
+    project: str | None = None,
 ) -> dict[str, Any]:
     """`ddt` → payload DocType **Purchase Receipt** (merce ricevuta, senza importi)."""
     payload: dict[str, Any] = {
         "supplier": supplier,
         "posting_date": dati["data"],
-        "items": [_riga_ddt_a_item(r, cost_center, item_code) for r in dati.get("righe", [])],
+        "items": [
+            _riga_ddt_a_item(r, cost_center, item_code, project) for r in dati.get("righe", [])
+        ],
     }
     if dati.get("numero"):
         payload["supplier_delivery_note"] = dati["numero"]
@@ -507,8 +609,67 @@ def conto_costo_predefinito(erp: "ErpClient", company: str) -> str | None:
     return erp._master[chiave]
 
 
+def _risolvi_supplier_group(erp: "ErpClient", categoria: Any, config: ErpConfig) -> str:
+    """Il gruppo Supplier per una ``categoria`` di fornitore: trovato, creato o default.
+
+    La categoria merceologica di Workflower diventa un Supplier Group figlio della
+    radice; qualunque intoppo (categoria assente, radice mancante, errore ERP)
+    degrada al gruppo di default — il gruppo è tassonomia, non contabilità.
+    """
+    if not categoria:
+        return config.supplier_group
+    try:
+        esistenti = erp.trova_documenti("Supplier Group", [["name", "=", categoria]])
+        if esistenti:
+            return esistenti[0]["name"]
+        creato = erp.crea_documento(
+            "Supplier Group",
+            {
+                "supplier_group_name": categoria,
+                "parent_supplier_group": SUPPLIER_GROUP_DEFAULT,
+                "is_group": 0,
+            },
+        )
+        return creato["name"]
+    except ErpError as exc:
+        _log.warning("gruppo fornitore '%s' non creabile, uso il default: %s", categoria, exc)
+        return config.supplier_group
+
+
+def _arricchisci_supplier(
+    erp: "ErpClient", forn: dict[str, Any], supplier: str, config: ErpConfig
+) -> None:
+    """Crea Address e Contact del Supplier, se i dati estratti li permettono (A3).
+
+    Best-effort: l'anagrafica di corredo non deve mai far fallire la sincronizzazione
+    del documento — un indirizzo che non passa è un warning nel logbook, non una issue.
+    Idempotente per Dynamic Link: se il Supplier ha già un Address/Contact collegato,
+    non se ne creano di nuovi.
+    """
+    filtro_link = [
+        ["Dynamic Link", "link_doctype", "=", "Supplier"],
+        ["Dynamic Link", "link_name", "=", supplier],
+    ]
+    try:
+        indirizzo = fornitore_a_address(forn, supplier=supplier, paese=config.paese)
+        if indirizzo and not erp.trova_documenti("Address", filtro_link):
+            erp.crea_documento("Address", indirizzo)
+        contatto = fornitore_a_contact(forn, supplier=supplier)
+        if contatto and not erp.trova_documenti("Contact", filtro_link):
+            erp.crea_documento("Contact", contatto)
+    except ErpError as exc:
+        _log.warning(
+            "anagrafica di corredo del Supplier %s non completata: %s", supplier, exc
+        )
+
+
 def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: ErpConfig) -> str:
-    """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea."""
+    """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea.
+
+    Alla creazione porta con sé il corredo (gruppo dalla categoria, Address, Contact);
+    un Supplier già a valle non viene toccato qui — l'arricchimento degli esistenti
+    passa dal carico anagrafiche (M31), fuori dal percorso di validazione.
+    """
     if not fornitore_id:
         raise ErpError("fattura senza fornitore_id: impossibile creare la Purchase Invoice")
     forn = dal.read("fornitore", fornitore_id).dati
@@ -517,9 +678,9 @@ def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: Erp
         esistenti = erp.trova_documenti("Supplier", [["tax_id", "=", piva]])
         if esistenti:
             return esistenti[0]["name"]
-    creato = erp.crea_documento(
-        "Supplier", fornitore_a_supplier(forn, supplier_group=config.supplier_group)
-    )
+    gruppo = _risolvi_supplier_group(erp, forn.get("categoria"), config)
+    creato = erp.crea_documento("Supplier", fornitore_a_supplier(forn, supplier_group=gruppo))
+    _arricchisci_supplier(erp, forn, creato["name"], config)
     return creato["name"]
 
 
@@ -546,6 +707,81 @@ def _risolvi_cost_center(
     return creato["name"]
 
 
+def _risolvi_project(
+    dal: Any,
+    erp: "ErpClient",
+    cantiere_id: Any,
+    config: ErpConfig,
+    cost_center: str | None = None,
+) -> str | None:
+    """Nome ERPNext del Project per un ``CNT-...``: trovato o creato (M30, A2).
+
+    Best-effort come il resto del corredo: se il Project non passa, il documento si
+    sincronizza lo stesso (senza ``project`` sulle righe) — l'imputazione contabile
+    resta garantita dal Cost Center.
+    """
+    if not cantiere_id:
+        return None
+    try:
+        cant = dal.read("cantiere", cantiere_id).dati
+        payload = cantiere_a_project(cant, company=config.company, cost_center=cost_center)
+        esistenti = erp.trova_documenti(
+            "Project", [["project_name", "=", payload["project_name"]]]
+        )
+        if esistenti:
+            return esistenti[0]["name"]
+        creato = erp.crea_documento("Project", payload)
+        return creato["name"]
+    except ErpError as exc:
+        _log.warning("Project del cantiere %s non risolto: %s", cantiere_id, exc)
+        return None
+
+
+def _allega_originale(
+    dal: Any, erp: "ErpClient", envelope: Any, doctype: str, erp_id: str
+) -> str | None:
+    """Allega il blob di ``meta.origine`` al documento a valle (M30, A1).
+
+    Il documento originale (PDF/scansione) è la pezza d'appoggio del record
+    contabile: passa via ``frappe.client.attach_file`` in base64 (JSON puro, nessun
+    multipart). Best-effort: un allegato fallito è un warning, la sincronizzazione
+    resta valida — l'allegato è corredo, non contabilità. Ritorna il nome file
+    allegato, o ``None`` se non c'era un blob o non è passato.
+    """
+    origine = getattr(envelope.meta, "origine", None)
+    if not origine:
+        return None
+    percorso = dal.data_dir / origine
+    if not percorso.is_file():
+        return None
+    import base64
+
+    nome_file = percorso.name
+    try:
+        erp.chiama_metodo(
+            "frappe.client.attach_file",
+            {
+                "filename": nome_file,
+                "filedata": base64.b64encode(percorso.read_bytes()).decode("ascii"),
+                "attached_to_doctype": doctype,
+                "attached_to_name": erp_id,
+                "decode_base64": 1,
+                "is_private": 1,
+            },
+        )
+        return nome_file
+    except ErpError as exc:
+        _log.warning(
+            "allegato %s non caricato su %s %s: %s",
+            nome_file,
+            doctype,
+            erp_id,
+            exc,
+            extra={"entity_id": envelope.id},
+        )
+        return None
+
+
 def sincronizza(
     dal: Any, envelope: Any, erp: "ErpClient", *, config: ErpConfig | None = None
 ) -> dict[str, Any]:
@@ -569,6 +805,7 @@ def sincronizza(
     dati = envelope.dati
     supplier = _risolvi_supplier(dal, erp, dati.get("fornitore_id"), cfg)
     cost_center = _risolvi_cost_center(dal, erp, dati.get("cantiere_id"), cfg)
+    project = _risolvi_project(dal, erp, dati.get("cantiere_id"), cfg, cost_center)
 
     if envelope.tipo == "fattura":
         doctype = "Purchase Invoice"
@@ -582,6 +819,7 @@ def sincronizza(
             conto_ritenuta=cfg.conto_ritenuta,
             conto_iva=cfg.conto_iva,
             conto_costo=conto_costo,
+            project=project,
         )
     else:  # ddt (TIPI_SINCRONIZZABILI garantisce che sia uno di questi)
         doctype = "Purchase Receipt"
@@ -594,19 +832,26 @@ def sincronizza(
                 "generico (consigliato: non di magazzino, is_stock_item=0)."
             )
         payload = ddt_a_purchase_receipt(
-            dati, supplier=supplier, cost_center=cost_center, item_code=cfg.item_ddt
+            dati,
+            supplier=supplier,
+            cost_center=cost_center,
+            item_code=cfg.item_ddt,
+            project=project,
         )
 
     creato = erp.crea_documento(doctype, payload)
     erp_id = creato.get("name")
     if not erp_id:
         raise ErpError(f"ERPNext non ha restituito il name del/della {doctype}")
+    allegato = _allega_originale(dal, erp, envelope, doctype, erp_id)
     return {
         "esito": "ok",
         "erp_id": erp_id,
         "doctype": doctype,
         "supplier": supplier,
         "cost_center": cost_center,
+        "project": project,
+        "allegato": allegato,
     }
 
 

@@ -75,10 +75,30 @@ class FakeTrasporto:
 # così il caso è coperto dai test e non torna più.
 OBBLIGATORI_TESTATA: dict[str, tuple[str, ...]] = {
     "Cost Center": ("parent_cost_center",),
+    "Project": ("project_name",),
+    "Address": ("address_title", "address_line1", "city", "country"),
+    "Contact": ("first_name",),
+    "Supplier Group": ("supplier_group_name",),
 }
 OBBLIGATORI_RIGHE: dict[str, tuple[str, ...]] = {
     "Purchase Invoice": ("expense_account",),
     "Purchase Receipt": ("item_code",),
+}
+
+# Campo del payload che fa da ``name`` del record creato (come l'autoname Frappe).
+_CAMPI_NOME: dict[str, str] = {
+    "Supplier": "supplier_name",
+    "Cost Center": "cost_center_name",
+    "Project": "project_name",
+    "Supplier Group": "supplier_group_name",
+    "Contact": "first_name",
+}
+
+# Filtri su tabella figlia ([DocType figlio, campo, op, valore]): dove guardare
+# dentro al record padre. Come Frappe filtra Address/Contact per Dynamic Link.
+_TABELLE_FIGLIE: dict[str, str] = {
+    "Dynamic Link": "links",
+    "Payment Entry Reference": "references",
 }
 
 
@@ -134,6 +154,8 @@ class ErpServerFinto:
         timeout: float | None = None,
     ) -> RispostaFinta:
         self.chiamate.append({"metodo": metodo, "url": url, "json": json})
+        if "/api/method/" in url:
+            return self._metodo(url, json or {})
         doctype, nome = self._doctype_e_nome(url)
         if doctype in self._errore_su:
             return RispostaFinta(500, {"exc": f"errore simulato su {doctype}"})
@@ -201,6 +223,36 @@ class ErpServerFinto:
 
     # ---------------------------------------------------------------- interni
 
+    def _metodo(self, url: str, payload: dict[str, Any]) -> RispostaFinta:
+        """I metodi whitelisted Frappe che il client usa (per ora ``attach_file``).
+
+        Severo come il reale: allegare a un documento inesistente è un 404, non un
+        200 di cortesia; ``guasta("File")`` simula l'upload che fallisce.
+        """
+        nome_metodo = url.split("/api/method/", 1)[-1].split("?", 1)[0]
+        if nome_metodo != "frappe.client.attach_file":
+            return RispostaFinta(404, {"exc": f"metodo {nome_metodo} non gestito dal finto"})
+        if "File" in self._errore_su:
+            return RispostaFinta(500, {"exc": "errore simulato su File"})
+        for campo in ("filename", "attached_to_doctype", "attached_to_name"):
+            if not payload.get(campo):
+                return RispostaFinta(417, {"exception": f"ValidationError: {campo} è obbligatorio"})
+        if self._per_nome(payload["attached_to_doctype"], payload["attached_to_name"]) is None:
+            return RispostaFinta(
+                404,
+                {"exc": f"{payload['attached_to_doctype']} {payload['attached_to_name']} non trovato"},
+            )
+        self.contatori["File"] = self.contatori.get("File", 0) + 1
+        record = {
+            "name": f"FILE-{self.contatori['File']:04d}",
+            "file_name": payload["filename"],
+            "attached_to_doctype": payload["attached_to_doctype"],
+            "attached_to_name": payload["attached_to_name"],
+            "is_private": payload.get("is_private", 0),
+        }
+        self.per_doctype.setdefault("File", []).append(record)
+        return RispostaFinta(200, {"message": record})
+
     @staticmethod
     def _doctype_e_nome(url: str) -> tuple[str, str | None]:
         """Estrae (DocType, name) da un URL ``/api/resource/<DocType>[/<name>][?...]``."""
@@ -233,11 +285,14 @@ class ErpServerFinto:
 
     def _crea(self, doctype: str, payload: dict[str, Any]) -> dict[str, Any]:
         self.contatori[doctype] = self.contatori.get(doctype, 0) + 1
-        nome = (
-            payload.get("supplier_name")
-            or payload.get("cost_center_name")
-            or f"{doctype}-{self.contatori[doctype]:04d}"
-        )
+        if doctype == "Address" and payload.get("address_title"):
+            # Frappe nomina gli Address "titolo-tipo" (es. "Rossi Srl-Billing").
+            nome = f"{payload['address_title']}-{payload.get('address_type', 'Billing')}"
+        else:
+            campo_nome = _CAMPI_NOME.get(doctype)
+            nome = (payload.get(campo_nome) if campo_nome else None) or (
+                f"{doctype}-{self.contatori[doctype]:04d}"
+            )
         # Come Frappe: un POST senza ``docstatus`` crea una **bozza** (0), non un
         # documento confermato. Workflower non fa submit, quindi è ciò che accade
         # davvero a valle — verificato contro l'istanza reale.
@@ -250,11 +305,25 @@ class ErpServerFinto:
         from urllib.parse import parse_qs, urlparse
 
         q = parse_qs(urlparse(url).query)
-        filtri = _json.loads(q.get("filters", ["[]"])[0])  # coppie [campo, op, valore]
+        # [campo, op, valore] sul record; [DocType figlio, campo, op, valore] sulla
+        # tabella figlia (es. Dynamic Link, Payment Entry Reference) — come Frappe.
+        filtri = _json.loads(q.get("filters", ["[]"])[0])
         # Come Frappe: senza `fields` torna il solo name, altrimenti i campi chiesti.
         campi = _json.loads(q.get("fields", ["[]"])[0]) or ["name"]
         trovati = []
         for rec in self.per_doctype.get(doctype, []):
-            if all(rec.get(campo) == valore for campo, op, valore in filtri if op == "="):
+            if all(self._filtro_passa(rec, f) for f in filtri):
                 trovati.append({c: rec.get(c) for c in campi})
         return trovati
+
+    @staticmethod
+    def _filtro_passa(rec: dict[str, Any], filtro: list[Any]) -> bool:
+        if len(filtro) == 4:
+            figlio, campo, op, valore = filtro
+            chiave = _TABELLE_FIGLIE.get(figlio)
+            if chiave is None:
+                return False
+            righe = rec.get(chiave) or []
+            return op == "=" and any(r.get(campo) == valore for r in righe)
+        campo, op, valore = filtro
+        return op != "=" or rec.get(campo) == valore

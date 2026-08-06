@@ -12,9 +12,12 @@ import pytest
 from app.core.dal import DAL
 from app.core.erp import (
     cantiere_a_cost_center,
+    cantiere_a_project,
     ddt_a_purchase_receipt,
     fattura_a_purchase_invoice,
     fattura_coerente,
+    fornitore_a_address,
+    fornitore_a_contact,
     fornitore_a_supplier,
 )
 
@@ -96,6 +99,100 @@ def test_cantiere_a_cost_center_con_padre() -> None:
         CANTIERE, company="Edile SpA", parent_cost_center="Edile SpA - E"
     )
     assert payload["parent_cost_center"] == "Edile SpA - E"
+
+
+# ------------------------------------------------------------ project / address / contact (M30)
+
+CANTIERE_COMPLETO = {
+    "nome": "Residenza Le Palme",
+    "indirizzo": "Via delle Palme 12",
+    "comune": "Catania",
+    "committente": "Immobiliare Mediterranea S.r.l.",
+    "budget": 1850000.0,
+    "data_inizio": "2026-01-12",
+    "data_fine_prevista": "2027-06-30",
+}
+
+
+def test_cantiere_a_project() -> None:
+    payload = cantiere_a_project(
+        CANTIERE_COMPLETO, company="Edile SpA", cost_center="Residenza Le Palme - E"
+    )
+    assert payload["project_name"] == "Residenza Le Palme"
+    assert payload["company"] == "Edile SpA"
+    assert payload["cost_center"] == "Residenza Le Palme - E"
+    assert payload["expected_start_date"] == "2026-01-12"
+    assert payload["expected_end_date"] == "2027-06-30"
+    assert payload["estimated_costing"] == 1850000.0
+    # il committente NON passa: il ciclo attivo (Customer) è un non-goal
+    assert "customer" not in payload
+
+
+def test_cantiere_a_project_minimo() -> None:
+    payload = cantiere_a_project({"nome": "Cantiere X", "data_inizio": "2026-01-01"})
+    assert payload["project_name"] == "Cantiere X"
+    assert payload["expected_start_date"] == "2026-01-01"
+    assert "expected_end_date" not in payload
+    assert "estimated_costing" not in payload
+    assert "company" not in payload
+
+
+def test_fornitore_a_address() -> None:
+    forn = dict(FORNITORE, indirizzo="Via Etnea 100", comune="Catania")
+    payload = fornitore_a_address(forn, supplier="Studio Bianchi")
+    assert payload == {
+        "address_title": "Studio Bianchi",
+        "address_type": "Billing",
+        "address_line1": "Via Etnea 100",
+        "city": "Catania",
+        "country": "Italy",  # l'Address di ERPNext pretende il paese
+        "links": [{"link_doctype": "Supplier", "link_name": "Studio Bianchi"}],
+    }
+
+
+def test_fornitore_a_address_paese_configurabile() -> None:
+    forn = dict(FORNITORE, indirizzo="Hauptstrasse 1", comune="Bolzano")
+    payload = fornitore_a_address(forn, supplier="Studio Bianchi", paese="Austria")
+    assert payload["country"] == "Austria"
+
+
+def test_fornitore_senza_indirizzo_niente_address() -> None:
+    # Meglio nessun indirizzo che un indirizzo inventato: senza via E comune → None.
+    assert fornitore_a_address(dict(FORNITORE, indirizzo="Via X"), supplier="S") is None
+    assert fornitore_a_address(dict(FORNITORE, comune="Catania"), supplier="S") is None
+
+
+def test_fornitore_a_contact() -> None:
+    forn = dict(FORNITORE, pec="bianchi@pec.it", telefono="095 123456")
+    payload = fornitore_a_contact(forn, supplier="Studio Bianchi")
+    assert payload["first_name"] == "Studio Bianchi"
+    assert payload["email_ids"] == [{"email_id": "bianchi@pec.it", "is_primary": 1}]
+    assert payload["phone_nos"] == [{"phone": "095 123456", "is_primary_phone": 1}]
+    assert payload["links"] == [{"link_doctype": "Supplier", "link_name": "Studio Bianchi"}]
+
+
+def test_fornitore_solo_telefono_contact_senza_email() -> None:
+    payload = fornitore_a_contact(dict(FORNITORE, telefono="095 1"), supplier="S")
+    assert payload is not None
+    assert "email_ids" not in payload
+
+
+def test_fornitore_senza_recapiti_niente_contact() -> None:
+    assert fornitore_a_contact(FORNITORE, supplier="S") is None
+
+
+def test_project_su_testata_e_righe_della_fattura() -> None:
+    payload = fattura_a_purchase_invoice(
+        FATT_SENZA_RITENUTA, supplier="Studio Bianchi", project="Residenza Le Palme"
+    )
+    assert payload["project"] == "Residenza Le Palme"
+    assert all(i["project"] == "Residenza Le Palme" for i in payload["items"])
+
+
+def test_senza_project_ne_testata_ne_righe() -> None:
+    payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
+    assert "project" not in payload
+    assert all("project" not in i for i in payload["items"])
 
 
 # ------------------------------------------------------------------ righe / items
@@ -245,6 +342,13 @@ def test_ddt_righe_con_articolo_generico() -> None:
 def test_ddt_righe_senza_articolo_non_lo_riportano() -> None:
     payload = ddt_a_purchase_receipt(DDT, supplier="Ferramenta Rossi")
     assert all("item_code" not in i for i in payload["items"])
+
+
+def test_ddt_project_sulle_righe() -> None:
+    payload = ddt_a_purchase_receipt(
+        DDT, supplier="Ferramenta Rossi", project="Residenza Le Palme"
+    )
+    assert all(i["project"] == "Residenza Le Palme" for i in payload["items"])
 
 
 # ------------------------------------------------------------------ coerenza
