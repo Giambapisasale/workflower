@@ -271,6 +271,30 @@ def test_iva_come_riga_in_aggiunta_se_conto() -> None:
     assert iva[0]["tax_amount"] == 220.0
 
 
+def test_scadenza_pagamento_diventa_due_date() -> None:
+    # È il buco dello scadenziario (M32): senza due_date ERPNext mette
+    # scadenza = data fattura e l'Accounts Payable racconta il falso.
+    fatt = dict(FATT_SENZA_RITENUTA, scadenza_pagamento="2026-03-03")
+    payload = fattura_a_purchase_invoice(fatt, supplier="Studio Bianchi")
+    assert payload["due_date"] == "2026-03-03"
+
+
+def test_senza_scadenza_niente_due_date() -> None:
+    payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
+    assert "due_date" not in payload
+    # anche con la chiave a null esplicito (come la produce l'estrazione)
+    fatt = dict(FATT_SENZA_RITENUTA, scadenza_pagamento=None)
+    assert "due_date" not in fattura_a_purchase_invoice(fatt, supplier="S")
+
+
+def test_scadenza_precedente_alla_data_viene_ignorata() -> None:
+    # Una scadenza prima dell'emissione è una lettura sbagliata: meglio ometterla
+    # che farsi rifiutare la PI ("Due Date cannot be before Posting/Supplier Invoice Date").
+    fatt = dict(FATT_SENZA_RITENUTA, scadenza_pagamento="2026-01-15")  # data: 2026-02-01
+    payload = fattura_a_purchase_invoice(fatt, supplier="Studio Bianchi")
+    assert "due_date" not in payload
+
+
 def test_senza_ritenuta_nessuna_riga_ne_tds() -> None:
     payload = fattura_a_purchase_invoice(FATT_SENZA_RITENUTA, supplier="Studio Bianchi")
     assert "apply_tds" not in payload

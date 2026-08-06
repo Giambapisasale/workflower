@@ -216,6 +216,24 @@ def test_ddt_sincronizzazione_idempotente(crea_client, dati_rw: Path) -> None:
     assert len(server.post_di("Purchase Receipt")) == 1
 
 
+def test_fattura_con_scadenza_arriva_con_due_date(crea_client, dati_rw: Path) -> None:
+    """Una bozza con `scadenza_pagamento` valida lo schema e porta la due_date a valle (M32)."""
+    dal = DAL(dati_rw)
+    seed = next(e for e in dal.list_all("fattura") if e.dati.get("fornitore_id"))
+    scadenza = "2027-12-31"  # oltre ogni data fattura del seed
+    bozza = dal.crea_progressivo(
+        "fattura", dict(seed.dati, scadenza_pagamento=scadenza), stato="bozza"
+    )
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["erp"]["esito"] == "ok"
+    assert server.post_di("Purchase Invoice")[0]["due_date"] == scadenza
+
+
 def test_tipo_non_sincronizzabile_nessun_effetto(crea_client, dati_rw: Path) -> None:
     """Validare un SAL (non nel ciclo passivo) non tocca l'ERP."""
     dal = DAL(dati_rw)

@@ -44,6 +44,14 @@ trascrivi solo ciò che leggi sul documento.
   `totale = imponibile + iva`: se non torna, ricontrolla di aver letto bene.
 - `ritenuta_acconto`: se non è indicata una ritenuta d'acconto, metti `null`
   esplicito.
+- `scadenza_pagamento`: la data entro cui la fattura va pagata, in formato ISO
+  `AAAA-MM-GG`. Se il documento riporta una scadenza esplicita ("scadenza",
+  "data scadenza", spesso nel piede o vicino alle coordinate di pagamento),
+  trascrivi quella. Se riporta solo i **termini** (es. "30 gg d.f.",
+  "60 giorni data fattura", "bonifico 30 gg fine mese"), calcola la data a
+  partire dalla data fattura: per "fine mese" prendi l'ultimo giorno del mese
+  in cui cadono i giorni indicati. Se il documento non riporta né scadenza né
+  termini, metti `null`: mai inventare una scadenza.
 - `destinatario`: la ragione sociale del **cliente**, mai quella del fornitore.
   Trascrivila come sta scritta anche se non è l'impresa per cui lavori: se il
   documento è intestato a un'altra ditta lo deve vedere l'ufficio, e correggerlo

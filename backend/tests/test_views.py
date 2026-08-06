@@ -34,6 +34,14 @@ def test_v_fatture_righe(seeded_dir: Path) -> None:
     assert {"fattura_id", "cantiere_id", "descrizione", "importo"} <= colonne
 
 
+def test_v_fatture_ha_la_scadenza_pagamento(seeded_dir: Path) -> None:
+    """La colonna nuova (M32) c'è; le fatture nate prima del campo restano NULL."""
+    conn = connect(seeded_dir)
+    righe = conn.execute("SELECT scadenza_pagamento FROM v_fatture").fetchall()
+    assert len(righe) == 5
+    assert all(r[0] is None for r in righe)  # il seed non porta scadenze: nessun default inventato
+
+
 def test_ritenuta_acconto_nel_seed(seeded_dir: Path) -> None:
     conn = connect(seeded_dir)
     ritenuta = conn.execute(

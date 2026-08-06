@@ -455,6 +455,10 @@ def fattura_a_purchase_invoice(
       ricade su ``apply_tds=1`` (ERPNext la calcola dalla categoria del Supplier).
     - **IVA**: se presente e c'è un conto IVA configurato, entra come riga in aggiunta
       con l'importo esatto; altrimenti si lascia che l'ERP la derivi dai template.
+    - **Scadenza di pagamento** (M32): ``scadenza_pagamento`` diventa la ``due_date``
+      — è ciò che rende vero lo scadenziario fornitori a valle. Difensivo: una
+      scadenza *precedente* alla data fattura è un errore di lettura e si omette
+      (ERPNext la rifiuterebbe: "Due Date cannot be before Posting Date").
     """
     payload: dict[str, Any] = {
         "supplier": supplier,
@@ -466,6 +470,9 @@ def fattura_a_purchase_invoice(
     }
     if project:
         payload["project"] = project
+    scadenza = dati.get("scadenza_pagamento")
+    if scadenza and str(scadenza) >= str(dati["data"]):
+        payload["due_date"] = scadenza
 
     taxes: list[dict[str, Any]] = []
     iva = dati.get("iva")

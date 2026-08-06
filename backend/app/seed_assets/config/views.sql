@@ -61,6 +61,7 @@ SELECT id,
        dati.iva              AS iva,
        dati.totale           AS totale,
        dati.ritenuta_acconto AS ritenuta_acconto,
+       dati.scadenza_pagamento AS scadenza_pagamento,
        len(dati.righe)       AS n_righe,
        meta.workflow         AS workflow,
        meta.validato_da      AS validato_da
@@ -72,6 +73,7 @@ FROM read_json(
         dati: 'STRUCT(
             numero VARCHAR, data DATE, fornitore_id VARCHAR, cantiere_id VARCHAR,
             imponibile DOUBLE, iva DOUBLE, totale DOUBLE, ritenuta_acconto DOUBLE,
+            scadenza_pagamento DATE,
             righe STRUCT(
                 descrizione VARCHAR, quantita DOUBLE, unita_misura VARCHAR,
                 importo DOUBLE, voce_computo_id VARCHAR, mezzo_id VARCHAR, tipo_costo VARCHAR
