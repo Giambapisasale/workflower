@@ -52,7 +52,11 @@ ISTRUZIONE = {
 }
 
 # Il doctype a valle da controllare, per tipo di entità sincronizzabile.
-DOCTYPE_ERP = {"fattura": "Purchase Invoice", "ddt": "Purchase Receipt"}
+DOCTYPE_ERP = {
+    "fattura": "Purchase Invoice",
+    "ddt": "Purchase Receipt",
+    "rapportino": "Timesheet",
+}
 
 
 # ------------------------------------------------------------------ interni
@@ -88,6 +92,17 @@ def _blocco_contabilita(tipo: str, entita: Envelope, erp: ErpClient) -> str | No
             "l'integrazione contabile adesso è spenta: non posso verificare se è "
             "stato annullato. Riattivala e riprova."
         )
+    # Un rapportino può avere più Timesheet a valle (uno per dipendente): il
+    # backref è la lista dei nomi separati da virgola — si controllano tutti.
+    for singolo in erp_id.split(","):
+        blocco = _blocco_documento(doctype, singolo.strip(), erp)
+        if blocco:
+            return blocco
+    return None
+
+
+def _blocco_documento(doctype: str, erp_id: str, erp: ErpClient) -> str | None:
+    """Il blocco per un singolo documento a valle, o ``None`` se non ostacola."""
     try:
         corpo = erp.richiesta("GET", f"/api/resource/{doctype}/{quote(erp_id)}")
     except ErpError as exc:

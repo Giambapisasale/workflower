@@ -75,6 +75,39 @@ def test_bozza_a_valle_blocca_e_dice_di_eliminarla(crea_client, dati_rw: Path) -
     assert DAL(dati_rw).read("fattura", entity_id).stato == "validato"
 
 
+def test_rapportino_con_timesheet_a_valle_blocca(crea_client, dati_rw: Path) -> None:
+    """M35: anche il rapportino ha una verità a valle (i Timesheet) — finché uno
+    esiste, lo scarto è bloccato; spariti tutti, lo scarto passa."""
+    dal = DAL(dati_rw)
+    seed = next(
+        e
+        for e in dal.list_all("rapportino")
+        if any(r.get("dipendente_id") for r in e.dati["righe"])
+    )
+    bozza = dal.crea_progressivo("rapportino", dict(seed.dati), stato="bozza")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    assert client.post(f"/api/review/{bozza.id}/validate", headers=admin).status_code == 200
+    erp_id = DAL(dati_rw).read("rapportino", bozza.id).meta.erp_id
+    assert erp_id
+
+    risposta = _scarta(client, admin, bozza.id)
+    assert risposta.status_code == 409
+    assert "Timesheet" in risposta.json()["detail"]
+
+    # spariti i Timesheet a valle (eliminati in ERPNext), lo scarto passa
+    for nome in erp_id.split(","):
+        server.elimina("Timesheet", nome)
+    risposta = _scarta(client, admin, bozza.id)
+    assert risposta.status_code == 200, risposta.text
+    # lo scarto sposta l'entità fuori dal registro (vive in data/scartati/)
+    from app.core.dal import NotFoundError
+
+    with pytest.raises(NotFoundError):
+        DAL(dati_rw).read("rapportino", bozza.id)
+
+
 def test_confermata_a_valle_blocca_e_dice_di_annullarla(crea_client, dati_rw: Path) -> None:
     client, admin, entity_id, erp_id, server = _valida_e_sincronizza(crea_client, dati_rw)
     server.conferma("Purchase Invoice", erp_id)

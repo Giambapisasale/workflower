@@ -47,13 +47,20 @@ def test_carico_porta_fornitori_e_cantieri(crea_client, dati_rw: Path) -> None:
     assert len(server.post_di("Cost Center")) == n_cant
     assert len(server.post_di("Project")) == n_cant
 
-    # backref su ogni anagrafica + riga ok nel ledger (fornitori, cantieri e
-    # materiali; mezzi/manutenzioni saltano: CONFIG non ha il master data cespiti)
+    # backref su ogni anagrafica + riga ok nel ledger per tutto ciò che passa
+    # (mezzi/manutenzioni saltano: CONFIG non ha il master data cespiti)
     dal = DAL(dati_rw)
     assert all(e.meta.erp_id for e in dal.list_all("fornitore"))
     assert all(e.meta.erp_id for e in dal.list_all("cantiere"))
     ok_ledger = [x for x in leggi_sync_erp(dati_rw) if x["esito"] == "ok"]
-    assert len(ok_ledger) == n_forn + n_cant + len(dal.list_all("materiale"))
+    attese = (
+        n_forn
+        + n_cant
+        + len(dal.list_all("materiale"))
+        + len(dal.list_all("lavorazione"))
+        + len(dal.list_all("dipendente"))
+    )
+    assert len(ok_ledger) == attese
 
 
 def test_carico_idempotente(crea_client, dati_rw: Path) -> None:
@@ -261,6 +268,38 @@ def test_carico_senza_config_cespiti_salta_senza_errori(crea_client, dati_rw: Pa
     assert r["per_tipo"]["manutenzione"]["saltate"] == len(DAL(dati_rw).list_all("manutenzione"))
     assert not server.post_di("Asset")
     assert not server.post_di("Asset Repair")
+
+
+def test_carico_lavorazioni_e_dipendenti(crea_client, dati_rw: Path) -> None:
+    """M35: il catalogo lavorazioni diventa Activity Type, i dipendenti Employee."""
+    dal = DAL(dati_rw)
+    n_lav = len(dal.list_all("lavorazione"))
+    n_dip = len(dal.list_all("dipendente"))
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["per_tipo"]["lavorazione"]["inviate"] == n_lav
+    assert r["per_tipo"]["dipendente"]["inviate"] == n_dip
+    assert len(server.post_di("Activity Type")) == n_lav
+    assert len(server.post_di("Employee")) == n_dip
+    assert all(e.meta.erp_id for e in DAL(dati_rw).list_all("dipendente"))
+
+
+def test_carico_dipendenti_senza_company_saltati(crea_client, dati_rw: Path) -> None:
+    """Senza ERP_COMPANY l'Employee non è creabile: si salta con warning, non rossi."""
+    config = ErpConfig(base_url="http://erp.test", api_key="k", api_secret="s")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=config, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["per_tipo"]["dipendente"]["saltate"] == len(DAL(dati_rw).list_all("dipendente"))
+    assert r["per_tipo"]["dipendente"]["errori"] == 0
+    assert not server.post_di("Employee")
+    # le lavorazioni invece passano: l'Activity Type non pretende la Company
+    assert len(server.post_di("Activity Type")) == len(DAL(dati_rw).list_all("lavorazione"))
 
 
 def test_carico_erp_non_configurato(

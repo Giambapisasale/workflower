@@ -493,6 +493,7 @@ export type ErpEsitoBatch = {
   tentate: number;
   ok: number;
   errori: number;
+  saltate?: number; // es. rapportini di soli terzi: non inviati e non in errore
   interrotto: boolean;
 };
 

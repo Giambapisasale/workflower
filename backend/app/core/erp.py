@@ -58,8 +58,17 @@ ITEM_GROUP_DEFAULT = "All Item Groups"
 # Listino acquisti standard di ERPNext: destinazione dei prezzi del listino interno.
 LISTINO_ACQUISTI = "Standard Buying"
 
-# Tipi di documento Workflower che vengono riflessi nell'ERP (ciclo passivo).
-TIPI_SINCRONIZZABILI = ("fattura", "ddt")
+# Tipi di documento Workflower che vengono riflessi nell'ERP: il ciclo passivo
+# (fattura/ddt → contabilità) e la manodopera (rapportino → Timesheet, M35).
+TIPI_SINCRONIZZABILI = ("fattura", "ddt", "rapportino")
+
+# Valori di cortesia per l'Employee (M35): ERPNext pretende genere e date che
+# Workflower non estrae dai rapportini. Sono DICHIARATAMENTE segnaposto — mai
+# spacciati per dati veri — e documentati in docs/erp-integrazione.md; la data di
+# assunzione usa la prima allocazione a cantiere quando c'è (un "almeno da").
+GENERE_CORTESIA = "Prefer not to say"
+DATA_NASCITA_CORTESIA = "1900-01-01"
+DATA_ASSUNZIONE_CORTESIA = "2000-01-01"
 
 
 class ErpError(Exception):
@@ -433,6 +442,98 @@ def materiale_a_item(
     if dati.get("unita_misura"):
         payload["stock_uom"] = dati["unita_misura"]
     return payload
+
+
+def dipendente_a_employee(dati: dict[str, Any], *, company: str) -> dict[str, Any]:
+    """`dipendente` → payload DocType **Employee** (M35, B4 — core ERPNext, niente HRMS).
+
+    Serve da aggancio dei Timesheet, non da fascicolo del personale: paghe e
+    presenze restano fuori scope. I campi che ERPNext pretende e Workflower non
+    ha (genere, data di nascita) entrano come **valori di cortesia espliciti**
+    (vedi costanti sopra); la data di assunzione è la prima allocazione a
+    cantiere quando esiste — un "in azienda almeno da" — altrimenti il segnaposto.
+    """
+    assunzione = min(
+        (a["da"] for a in dati.get("allocazioni") or [] if a.get("da")),
+        default=DATA_ASSUNZIONE_CORTESIA,
+    )
+    return {
+        "first_name": dati["nome"],
+        "last_name": dati["cognome"],
+        "employee_name": f"{dati['nome']} {dati['cognome']}",
+        "gender": GENERE_CORTESIA,
+        "date_of_birth": DATA_NASCITA_CORTESIA,
+        "date_of_joining": assunzione,
+        "status": "Active",
+        "company": company,
+    }
+
+
+def lavorazione_a_activity_type(dati: dict[str, Any]) -> dict[str, Any]:
+    """`lavorazione` → payload DocType **Activity Type** (il catalogo attività dei Timesheet)."""
+    return {"activity_type": dati["descrizione"][:140]}
+
+
+def _orario(inizio_ore: float) -> str:
+    """Un'ora frazionaria dalla mezzanotte → ``HH:MM:SS`` (per i time log)."""
+    ore = int(inizio_ore)
+    minuti = int(round((inizio_ore - ore) * 60))
+    return f"{min(ore, 23):02d}:{minuti:02d}:00"
+
+
+def rapportino_a_timesheets(
+    dati: dict[str, Any],
+    *,
+    employee_di: dict[str, str],
+    attivita_di: dict[str, str] | None = None,
+    project: str | None = None,
+    company: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """`rapportino` → payload di **Timesheet** (uno per dipendente risolto) + saltate.
+
+    Passa **solo** ciò che è collegato: le righe senza ``dipendente_id`` (terzi,
+    squadre) si contano e si dichiarano, mai inventate — quel lavoro non è un
+    timesheet nostro. Analitico, non contabile: il Timesheet non genera scritture
+    (niente doppia verità sui costi; la tariffa gestionale resta in Workflower).
+    I time log dello stesso dipendente si accodano nella giornata (ERPNext
+    rifiuta gli orari sovrapposti), partendo dalle 08:00.
+    """
+    attivita_di = attivita_di or {}
+    per_dipendente: dict[str, list[dict[str, Any]]] = {}
+    inizio_di: dict[str, float] = {}
+    saltate = 0
+    for riga in dati.get("righe", []):
+        dipendente_id = riga.get("dipendente_id")
+        employee = employee_di.get(dipendente_id) if dipendente_id else None
+        if not employee:
+            saltate += 1
+            continue
+        inizio = inizio_di.get(employee, 8.0)
+        log: dict[str, Any] = {
+            "from_time": f"{dati['data']} {_orario(inizio)}",
+            "hours": riga["ore"],
+        }
+        inizio_di[employee] = inizio + float(riga["ore"] or 0)
+        descrizioni = [riga["mansione"]] if riga.get("mansione") else []
+        for attivita in riga.get("attivita") or []:
+            lavorazione_id = attivita.get("lavorazione_id")
+            if lavorazione_id and lavorazione_id in attivita_di and "activity_type" not in log:
+                log["activity_type"] = attivita_di[lavorazione_id]
+            if attivita.get("descrizione"):
+                descrizioni.append(attivita["descrizione"])
+        if descrizioni:
+            log["description"] = "; ".join(descrizioni)
+        if project:
+            log["project"] = project
+        per_dipendente.setdefault(employee, []).append(log)
+
+    payloads: list[dict[str, Any]] = []
+    for employee, logs in per_dipendente.items():
+        payload: dict[str, Any] = {"employee": employee, "time_logs": logs}
+        if company:
+            payload["company"] = company
+        payloads.append(payload)
+    return payloads, saltate
 
 
 def nome_asset(dati: dict[str, Any]) -> str:
@@ -918,6 +1019,105 @@ def _risolvi_project(
         return None
 
 
+def _upsert_employee(erp: "ErpClient", dipendente: dict[str, Any], config: ErpConfig) -> str:
+    """L'Employee per un dipendente: trovato per nome e company o creato.
+
+    Il nome completo è l'unica chiave naturale che Workflower ha — debole coi
+    casi di omonimia, ma onesta: meglio riusare l'omonimo che duplicarlo a ogni
+    rapportino (e l'ufficio lo vede in ERPNext, dove il fascicolo è suo).
+    """
+    if not config.company:
+        raise ErpError(
+            "Dipendenti non sincronizzabili: l'Employee di ERPNext richiede la "
+            "Company. Configura ERP_COMPANY."
+        )
+    payload = dipendente_a_employee(dipendente, company=config.company)
+    esistenti = erp.trova_documenti(
+        "Employee",
+        [["employee_name", "=", payload["employee_name"]], ["company", "=", config.company]],
+    )
+    if esistenti:
+        return esistenti[0]["name"]
+    creato = erp.crea_documento("Employee", payload)
+    return creato["name"]
+
+
+def _upsert_activity_type(erp: "ErpClient", lavorazione: dict[str, Any]) -> str:
+    """L'Activity Type per una lavorazione: trovato per nome o creato."""
+    payload = lavorazione_a_activity_type(lavorazione)
+    esistenti = erp.trova_documenti(
+        "Activity Type", [["name", "=", payload["activity_type"]]]
+    )
+    if esistenti:
+        return esistenti[0]["name"]
+    creato = erp.crea_documento("Activity Type", payload)
+    return creato["name"]
+
+
+def _sincronizza_rapportino(
+    dal: Any, envelope: Any, erp: "ErpClient", cfg: ErpConfig
+) -> dict[str, Any]:
+    """Riflette un rapportino validato come Timesheet (uno per dipendente risolto).
+
+    Le righe di terzi/squadre si saltano e si contano; un rapportino senza alcuna
+    riga collegata torna ``esito="saltato"`` con il motivo — resta fra i "rimasti
+    indietro" come invito a collegare il dipendente, non come errore.
+    """
+    dati = envelope.dati
+    project = _risolvi_project(dal, erp, dati.get("cantiere_id"), cfg)
+
+    employee_di: dict[str, str] = {}
+    attivita_di: dict[str, str] = {}
+    for riga in dati.get("righe", []):
+        dipendente_id = riga.get("dipendente_id")
+        if dipendente_id and dipendente_id not in employee_di:
+            try:
+                dipendente = dal.read("dipendente", dipendente_id).dati
+            except Exception as exc:  # riferimento rotto: la riga resta fra le saltate
+                _log.warning(
+                    "dipendente %s del rapportino %s non leggibile: %s",
+                    dipendente_id,
+                    envelope.id,
+                    exc,
+                    extra={"entity_id": envelope.id},
+                )
+                continue
+            employee_di[dipendente_id] = _upsert_employee(erp, dipendente, cfg)
+        for attivita in riga.get("attivita") or []:
+            lavorazione_id = attivita.get("lavorazione_id")
+            if lavorazione_id and lavorazione_id not in attivita_di:
+                try:
+                    lavorazione = dal.read("lavorazione", lavorazione_id).dati
+                except Exception:
+                    continue  # attività di catalogo mancante: il log resta senza activity
+                attivita_di[lavorazione_id] = _upsert_activity_type(erp, lavorazione)
+
+    payloads, saltate = rapportino_a_timesheets(
+        dati,
+        employee_di=employee_di,
+        attivita_di=attivita_di,
+        project=project,
+        company=cfg.company,
+    )
+    if not payloads:
+        return {
+            "esito": "saltato",
+            "motivo": (
+                f"nessuna riga con un dipendente collegato ({saltate} di terzi o "
+                "da collegare): collega i dipendenti in revisione e riprova"
+            ),
+        }
+    nomi = [erp.crea_documento("Timesheet", p)["name"] for p in payloads]
+    return {
+        "esito": "ok",
+        "erp_id": ",".join(nomi),
+        "doctype": "Timesheet",
+        "timesheets": nomi,
+        "project": project,
+        "righe_saltate": saltate,
+    }
+
+
 def _allega_originale(
     dal: Any, erp: "ErpClient", envelope: Any, doctype: str, erp_id: str
 ) -> str | None:
@@ -982,6 +1182,9 @@ def sincronizza(
     cfg = config if config is not None else erp.config
     if cfg is None:
         raise ErpError("ERP non configurato")
+
+    if envelope.tipo == "rapportino":
+        return _sincronizza_rapportino(dal, envelope, erp, cfg)
 
     dati = envelope.dati
     supplier = _risolvi_supplier(dal, erp, dati.get("fornitore_id"), cfg)
@@ -1307,6 +1510,25 @@ def _carica_materiale(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConf
     return nome
 
 
+def _carica_lavorazione(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str:
+    """Upsert della lavorazione di catalogo come Activity Type."""
+    return _upsert_activity_type(erp, envelope.dati)
+
+
+def _carica_dipendente(
+    dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig
+) -> str | None:
+    """Upsert del dipendente come Employee; senza ERP_COMPANY si salta (con warning)."""
+    if not config.company:
+        _log.warning(
+            "%s saltato: l'Employee di ERPNext richiede la Company. Configura ERP_COMPANY.",
+            envelope.id,
+            extra={"entity_id": envelope.id},
+        )
+        return None
+    return _upsert_employee(erp, envelope.dati, config)
+
+
 # (tipo entità, upsert): l'ordine conta — i fornitori prima di chi li referenzia,
 # i mezzi prima delle manutenzioni che vi si agganciano.
 ANAGRAFICHE_CARICABILI: tuple[tuple[str, Any], ...] = (
@@ -1315,6 +1537,8 @@ ANAGRAFICHE_CARICABILI: tuple[tuple[str, Any], ...] = (
     ("materiale", _carica_materiale),
     ("mezzo", _carica_mezzo),
     ("manutenzione", _carica_manutenzione),
+    ("lavorazione", _carica_lavorazione),
+    ("dipendente", _carica_dipendente),
 )
 
 
@@ -1403,6 +1627,23 @@ def applica_sincronizzazione(dal: Any, envelope: Any, erp: "ErpClient") -> dict[
             dal, entity_id=envelope.id, esito="errore", errore=str(exc), run_id=envelope.meta.run_id
         )
         return {"esito": "errore", "errore": str(exc)}
+    if esito.get("esito") == "saltato":
+        # Non è un errore (niente issue): il rapportino di soli terzi resta fra i
+        # "rimasti indietro" con il motivo nel ledger — un invito, non un rosso.
+        _log.info(
+            "documento %s non sincronizzato: %s",
+            envelope.id,
+            esito.get("motivo"),
+            extra={"run_id": envelope.meta.run_id, "entity_id": envelope.id},
+        )
+        registra_sync_erp(
+            dal,
+            entity_id=envelope.id,
+            esito="saltato",
+            errore=esito.get("motivo"),
+            run_id=envelope.meta.run_id,
+        )
+        return esito
     if esito.get("esito") == "ok":
         _log.info(
             "documento %s sincronizzato su ERP come %s %s",
@@ -1471,9 +1712,10 @@ def risincronizza_mancanti(
             "tentate": 0,
             "ok": 0,
             "errori": 0,
+            "saltate": 0,
             "interrotto": False,
         }
-    tentate = ok = errori = 0
+    tentate = ok = errori = saltate = 0
     consecutivi = 0
     interrotto = False
     for tipo in TIPI_SINCRONIZZABILI:
@@ -1484,6 +1726,11 @@ def risincronizza_mancanti(
             esito = applica_sincronizzazione(dal, e, erp)
             if esito and esito.get("esito") == "ok":
                 ok += 1
+                consecutivi = 0
+            elif esito and esito.get("esito") == "saltato":
+                # es. rapportino di soli terzi: non è l'ERP giù — non deve
+                # far scattare l'early-abort né contare come fallimento.
+                saltate += 1
                 consecutivi = 0
             else:
                 errori += 1
@@ -1501,5 +1748,18 @@ def risincronizza_mancanti(
         if interrotto:
             break
     if tentate:
-        _log.info("re-sync ERP: tentate %d, ok %d, errori %d", tentate, ok, errori)
-    return {"esito": "ok", "tentate": tentate, "ok": ok, "errori": errori, "interrotto": interrotto}
+        _log.info(
+            "re-sync ERP: tentate %d, ok %d, errori %d, saltate %d",
+            tentate,
+            ok,
+            errori,
+            saltate,
+        )
+    return {
+        "esito": "ok",
+        "tentate": tentate,
+        "ok": ok,
+        "errori": errori,
+        "saltate": saltate,
+        "interrotto": interrotto,
+    }

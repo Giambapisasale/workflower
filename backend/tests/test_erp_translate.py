@@ -18,11 +18,14 @@ from app.core.erp import (
     fattura_coerente,
     fornitore_a_address,
     fornitore_a_contact,
+    dipendente_a_employee,
     fornitore_a_supplier,
+    lavorazione_a_activity_type,
     manutenzione_a_asset_repair,
     materiale_a_item,
     mezzo_a_asset,
     nome_asset,
+    rapportino_a_timesheets,
 )
 
 pytestmark = pytest.mark.erp
@@ -494,6 +497,107 @@ def test_manutenzione_senza_costo_ne_descrizione() -> None:
     )
     assert payload["description"] == "revisione"
     assert "repair_cost" not in payload
+
+
+# ------------------------------------------------------- manodopera / timesheet (M35)
+
+DIPENDENTE = {
+    "nome": "Salvo",
+    "cognome": "Torrisi",
+    "tipo": "operaio",
+    "tariffa_oraria": 28.0,
+    "allocazioni": [
+        {"cantiere_id": "CNT-002", "da": "2026-03-01", "a": None},
+        {"cantiere_id": "CNT-001", "da": "2026-01-08", "a": "2026-02-28"},
+    ],
+}
+
+
+def test_dipendente_a_employee_con_valori_di_cortesia() -> None:
+    payload = dipendente_a_employee(DIPENDENTE, company="Edile SpA")
+    assert payload["first_name"] == "Salvo"
+    assert payload["last_name"] == "Torrisi"
+    assert payload["employee_name"] == "Salvo Torrisi"
+    assert payload["company"] == "Edile SpA"
+    assert payload["status"] == "Active"
+    # i campi che ERPNext pretende e WF non ha: segnaposto DICHIARATI, mai dati veri
+    assert payload["gender"] == "Prefer not to say"
+    assert payload["date_of_birth"] == "1900-01-01"
+    # la data d'assunzione è la prima allocazione a cantiere: "in azienda almeno da"
+    assert payload["date_of_joining"] == "2026-01-08"
+    # la tariffa gestionale NON passa: il costo del lavoro resta di Workflower
+    assert not any("28" in str(v) for v in payload.values())
+
+
+def test_dipendente_senza_allocazioni_data_di_cortesia() -> None:
+    payload = dipendente_a_employee(
+        {"nome": "Anna", "cognome": "Verdi", "tipo": "ufficio"}, company="Edile SpA"
+    )
+    assert payload["date_of_joining"] == "2000-01-01"
+
+
+def test_lavorazione_a_activity_type() -> None:
+    payload = lavorazione_a_activity_type({"descrizione": "Scavo di sbancamento"})
+    assert payload == {"activity_type": "Scavo di sbancamento"}
+
+
+RAPPORTINO = {
+    "cantiere_id": "CNT-001",
+    "data": "2026-07-14",
+    "righe": [
+        {"nominativo": "Salvo Torrisi", "mansione": "Capocantiere", "ore": 8,
+         "dipendente_id": "DIP-001",
+         "attivita": [{"lavorazione_id": "LAV-001", "descrizione": None}]},
+        {"nominativo": "Salvo Torrisi", "mansione": None, "ore": 2,
+         "dipendente_id": "DIP-001",
+         "attivita": [{"lavorazione_id": None, "descrizione": "Rilievi in trincea"}]},
+        {"nominativo": "Mario Rossi", "mansione": "Muratore", "ore": 8,
+         "dipendente_id": None, "attivita": None},
+    ],
+}
+EMPLOYEE_DI = {"DIP-001": "HR-EMP-00001"}
+ATTIVITA_DI = {"LAV-001": "Scavo di sbancamento"}
+
+
+def test_rapportino_un_timesheet_per_dipendente_e_saltate_contate() -> None:
+    payloads, saltate = rapportino_a_timesheets(
+        RAPPORTINO, employee_di=EMPLOYEE_DI, attivita_di=ATTIVITA_DI,
+        project="Residenza Le Palme", company="Edile SpA",
+    )
+    assert len(payloads) == 1  # due righe dello stesso dipendente → un Timesheet
+    assert saltate == 1  # Mario Rossi non è collegato: si conta, non si inventa
+    ts = payloads[0]
+    assert ts["employee"] == "HR-EMP-00001"
+    assert ts["company"] == "Edile SpA"
+    assert len(ts["time_logs"]) == 2
+    assert sum(log["hours"] for log in ts["time_logs"]) == 10
+
+
+def test_rapportino_time_log_in_coda_senza_sovrapposizioni() -> None:
+    # ERPNext rifiuta i time log sovrapposti dello stesso dipendente: le righe
+    # della giornata si accodano a partire dalle 08:00.
+    payloads, _ = rapportino_a_timesheets(RAPPORTINO, employee_di=EMPLOYEE_DI)
+    logs = payloads[0]["time_logs"]
+    assert logs[0]["from_time"] == "2026-07-14 08:00:00"
+    assert logs[1]["from_time"] == "2026-07-14 16:00:00"  # dopo le 8 ore della prima
+
+
+def test_rapportino_porta_project_e_activity() -> None:
+    payloads, _ = rapportino_a_timesheets(
+        RAPPORTINO, employee_di=EMPLOYEE_DI, attivita_di=ATTIVITA_DI, project="Le Palme"
+    )
+    logs = payloads[0]["time_logs"]
+    assert all(log["project"] == "Le Palme" for log in logs)
+    assert logs[0]["activity_type"] == "Scavo di sbancamento"
+    assert "activity_type" not in logs[1]  # attività a testo libero: solo descrizione
+    assert logs[1]["description"] == "Rilievi in trincea"
+
+
+def test_rapportino_di_soli_terzi_nessun_payload() -> None:
+    solo_terzi = dict(RAPPORTINO, righe=[dict(r, dipendente_id=None) for r in RAPPORTINO["righe"]])
+    payloads, saltate = rapportino_a_timesheets(solo_terzi, employee_di={})
+    assert payloads == []
+    assert saltate == 3
 
 
 # ------------------------------------------------------------------ coerenza

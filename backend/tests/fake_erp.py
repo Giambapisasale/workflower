@@ -84,10 +84,23 @@ OBBLIGATORI_TESTATA: dict[str, tuple[str, ...]] = {
     "Item": ("item_code", "item_group"),
     "Item Price": ("item_code", "price_list"),
     "UOM": ("uom_name",),
+    "Employee": (
+        "first_name",
+        "gender",
+        "date_of_birth",
+        "date_of_joining",
+        "status",
+        "company",
+    ),
+    "Activity Type": ("activity_type",),
+    "Timesheet": ("employee",),
 }
-OBBLIGATORI_RIGHE: dict[str, tuple[str, ...]] = {
-    "Purchase Invoice": ("expense_account",),
-    "Purchase Receipt": ("item_code",),
+# (tabella figlia, campi obbligatori per riga): i Timesheet usano time_logs, i
+# documenti d'acquisto items — come i DocType veri.
+OBBLIGATORI_RIGHE: dict[str, tuple[str, tuple[str, ...]]] = {
+    "Purchase Invoice": ("items", ("expense_account",)),
+    "Purchase Receipt": ("items", ("item_code",)),
+    "Timesheet": ("time_logs", ("from_time", "hours")),
 }
 
 # Campo del payload che fa da ``name`` del record creato (come l'autoname Frappe).
@@ -100,6 +113,7 @@ _CAMPI_NOME: dict[str, str] = {
     "Asset": "asset_name",
     "Item": "item_code",
     "UOM": "uom_name",
+    "Activity Type": "activity_type",
 }
 
 # Filtri su tabella figlia ([DocType figlio, campo, op, valore]): dove guardare
@@ -307,10 +321,11 @@ class ErpServerFinto:
         for campo in OBBLIGATORI_TESTATA.get(doctype, ()):
             if not payload.get(campo):
                 return campo
-        for campo in OBBLIGATORI_RIGHE.get(doctype, ()):
-            for riga in payload.get("items") or []:
+        tabella, campi = OBBLIGATORI_RIGHE.get(doctype, ("items", ()))
+        for campo in campi:
+            for riga in payload.get(tabella) or []:
                 if not riga.get(campo):
-                    return f"items.{campo}"
+                    return f"{tabella}.{campo}"
         return None
 
     def _per_nome(self, doctype: str, nome: str) -> dict[str, Any] | None:
