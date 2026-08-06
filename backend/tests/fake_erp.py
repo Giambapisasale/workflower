@@ -94,6 +94,7 @@ OBBLIGATORI_TESTATA: dict[str, tuple[str, ...]] = {
     ),
     "Activity Type": ("activity_type",),
     "Timesheet": ("employee",),
+    "Budget": ("budget_against", "company", "cost_center", "fiscal_year"),
 }
 # (tabella figlia, campi obbligatori per riga): i Timesheet usano time_logs, i
 # documenti d'acquisto items — come i DocType veri.

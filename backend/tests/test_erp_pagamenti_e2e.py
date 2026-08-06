@@ -121,6 +121,38 @@ def test_read_back_non_pagata_non_interroga_i_payment_entry(crea_client, dati_rw
     assert not any("Payment Entry" in c["url"] for c in server.chiamate)
 
 
+def test_scadenza_e_residuo_fanno_il_giro_completo(crea_client, dati_rw: Path) -> None:
+    """M32+M36: la scadenza estratta diventa due_date a valle e torna nello
+    scadenziario di Workflower insieme al residuo (sola lettura)."""
+    dal = DAL(dati_rw)
+    seed = next(
+        e
+        for e in dal.list_all("fattura")
+        if e.dati.get("fornitore_id") and not e.dati.get("ritenuta_acconto")
+    )
+    bozza = dal.crea_progressivo(
+        "fattura", dict(seed.dati, scadenza_pagamento="2027-11-30"), stato="bozza"
+    )
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+    pi_name = DAL(dati_rw).read("fattura", bozza.id).meta.erp_id
+
+    server.paga_fattura(pi_name, grand_total=1000.0, outstanding=400.0)
+    client.post("/api/erp/rileggi-pagamenti", headers=admin)
+
+    pag = next(p for p in DAL(dati_rw).list_all("pagamento") if p.dati["fattura_id"] == bozza.id)
+    assert pag.dati["scadenza"] == "2027-11-30"  # la due_date della PI, tornata indietro
+    assert pag.dati["residuo"] == 400.0
+    assert pag.dati["stato"] == "parziale"
+
+    righe = query(
+        dati_rw, "SELECT fattura_id, scadenza, residuo FROM v_pagamenti WHERE residuo > 0"
+    )
+    assert any(r["fattura_id"] == bozza.id for r in righe)
+
+
 def test_rileggi_pagamenti_senza_fatture_sincronizzate(crea_client, dati_rw: Path) -> None:
     """Nessuna fattura con meta.erp_id → niente da rileggere (creati/aggiornati 0)."""
     client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))

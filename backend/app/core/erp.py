@@ -59,8 +59,9 @@ ITEM_GROUP_DEFAULT = "All Item Groups"
 LISTINO_ACQUISTI = "Standard Buying"
 
 # Tipi di documento Workflower che vengono riflessi nell'ERP: il ciclo passivo
-# (fattura/ddt → contabilità) e la manodopera (rapportino → Timesheet, M35).
-TIPI_SINCRONIZZABILI = ("fattura", "ddt", "rapportino")
+# (fattura/ddt → contabilità), la manodopera (rapportino → Timesheet, M35) e
+# l'avanzamento (sal → percent_complete del Project, M36 — niente ciclo attivo).
+TIPI_SINCRONIZZABILI = ("fattura", "ddt", "rapportino", "sal")
 
 # Valori di cortesia per l'Employee (M35): ERPNext pretende genere e date che
 # Workflower non estrae dai rapportini. Sono DICHIARATAMENTE segnaposto — mai
@@ -115,6 +116,7 @@ class ErpConfig:
     asset_item: str | None = None
     asset_location: str | None = None
     item_group: str = ITEM_GROUP_DEFAULT
+    budget_warn: bool = False
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -140,6 +142,8 @@ class ErpConfig:
             asset_item=os.environ.get("ERP_ASSET_ITEM"),
             asset_location=os.environ.get("ERP_ASSET_LOCATION"),
             item_group=os.environ.get("ERP_ITEM_GROUP") or ITEM_GROUP_DEFAULT,
+            budget_warn=(os.environ.get("ERP_BUDGET_WARN") or "").lower()
+            in ("1", "true", "si"),
         )
 
 
@@ -534,6 +538,33 @@ def rapportino_a_timesheets(
             payload["company"] = company
         payloads.append(payload)
     return payloads, saltate
+
+
+def cantiere_a_budget(
+    dati: dict[str, Any],
+    *,
+    company: str,
+    cost_center: str,
+    conto_costo: str,
+    fiscal_year: str,
+) -> dict[str, Any]:
+    """`cantiere.budget` → payload DocType **Budget** sul Cost Center (M36, C1).
+
+    Solo **"Warn"**, mai "Stop": una Purchase Invoice bloccata dal budget sarebbe
+    una politica gestionale trapiantata a valle — il controllo scostamenti per
+    voce resta di Workflower (`v_scostamento_voci`). Il Budget di ERPNext è per
+    conto contabile, non per voce di computo: si imputa il budget complessivo
+    del cantiere sul conto di costo di default.
+    """
+    return {
+        "budget_against": "Cost Center",
+        "company": company,
+        "cost_center": cost_center,
+        "fiscal_year": fiscal_year,
+        "action_if_annual_budget_exceeded": "Warn",
+        "action_if_accumulated_monthly_budget_exceeded": "Ignore",
+        "accounts": [{"account": conto_costo, "budget_amount": dati["budget"]}],
+    }
 
 
 def nome_asset(dati: dict[str, Any]) -> str:
@@ -1054,6 +1085,36 @@ def _upsert_activity_type(erp: "ErpClient", lavorazione: dict[str, Any]) -> str:
     return creato["name"]
 
 
+def _sincronizza_sal(dal: Any, envelope: Any, erp: "ErpClient", cfg: ErpConfig) -> dict[str, Any]:
+    """Riflette un SAL validato come avanzamento del Project (M36, B5 — PUT, non contabile).
+
+    L'unico pezzo del SAL che passa è la percentuale: la fatturazione al
+    committente (ciclo attivo) resta un non-goal. Il backref è il Project.
+    """
+    dati = envelope.dati
+    cantiere_id = dati.get("cantiere_id")
+    if not cantiere_id:
+        raise ErpError(
+            "SAL senza cantiere: impossibile aggiornare l'avanzamento del Project. "
+            "Collega il cantiere in revisione e riprova."
+        )
+    cant = dal.read("cantiere", cantiere_id).dati
+    cost_center = _upsert_cost_center(erp, cant, cfg)
+    progetto = _upsert_project(erp, cant, cfg, cost_center)
+    percentuale = dati["percentuale_avanzamento"]
+    erp.aggiorna_documento(
+        "Project",
+        progetto,
+        {"percent_complete_method": "Manual", "percent_complete": percentuale},
+    )
+    return {
+        "esito": "ok",
+        "erp_id": progetto,
+        "doctype": "Project",
+        "percentuale": percentuale,
+    }
+
+
 def _sincronizza_rapportino(
     dal: Any, envelope: Any, erp: "ErpClient", cfg: ErpConfig
 ) -> dict[str, Any]:
@@ -1185,6 +1246,8 @@ def sincronizza(
 
     if envelope.tipo == "rapportino":
         return _sincronizza_rapportino(dal, envelope, erp, cfg)
+    if envelope.tipo == "sal":
+        return _sincronizza_sal(dal, envelope, erp, cfg)
 
     dati = envelope.dati
     supplier = _risolvi_supplier(dal, erp, dati.get("fornitore_id"), cfg)
@@ -1318,11 +1381,17 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
         # La data del pagamento vive sui Payment Entry, non sulla PI: la si chiede
         # solo quando c'è un pagamento di cui datare (mai per le non pagate).
         data = _data_ultimo_pagamento(erp, erp_id) if stato != "non_pagato" else None
+        # Scadenziario (M36, C3): due date e residuo dalla PI, in sola lettura.
+        grezzo = pi.get("outstanding_amount")
+        residuo = round(float(grezzo), 2) if grezzo is not None else None
+        scadenza = pi.get("due_date")
         dati = {
             "fattura_id": ft.id,
             "stato": stato,
             "importo_pagato": pagato,
             "data": data,
+            "scadenza": str(scadenza) if scadenza else None,
+            "residuo": residuo,
             "erp_id": erp_id,
         }
         prec = esistenti.get(ft.id)
@@ -1353,14 +1422,55 @@ def _carica_fornitore(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConf
     return _upsert_supplier(erp, envelope.dati, config, completa_esistente=True)
 
 
+def _upsert_budget(
+    erp: "ErpClient", cant: dict[str, Any], config: ErpConfig, cost_center: str
+) -> None:
+    """Il Budget "Warn" sul Cost Center del cantiere, se l'opt-in è acceso (M36, C1).
+
+    Best-effort e mai aggiornato una volta creato (il Budget di ERPNext si
+    gestisce lì); chiave: cost center + anno fiscale dalla data d'inizio.
+    """
+    if not (config.budget_warn and config.company and cant.get("budget")):
+        return
+    if not cant.get("data_inizio"):
+        return
+    fiscal_year = str(cant["data_inizio"])[:4]
+    conto = config.conto_costo or conto_costo_predefinito(erp, config.company)
+    if not conto:
+        _log.warning("budget del cantiere '%s' non creabile: nessun conto di costo", cant["nome"])
+        return
+    try:
+        esistenti = erp.trova_documenti(
+            "Budget",
+            [["cost_center", "=", cost_center], ["fiscal_year", "=", fiscal_year]],
+        )
+        if esistenti:
+            return
+        erp.crea_documento(
+            "Budget",
+            cantiere_a_budget(
+                cant,
+                company=config.company,
+                cost_center=cost_center,
+                conto_costo=conto,
+                fiscal_year=fiscal_year,
+            ),
+        )
+    except ErpError as exc:
+        _log.warning("budget del cantiere '%s' non creato: %s", cant["nome"], exc)
+
+
 def _carica_cantiere(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str:
     """Upsert del cantiere: Cost Center (con ``company``) + Project ancorato.
 
     Il backref è il Cost Center — l'àncora contabile — quando esiste; senza
-    ``company`` resta il Project (che non la pretende).
+    ``company`` resta il Project (che non la pretende). Con ``ERP_BUDGET_WARN``
+    nasce anche il Budget annuale "Warn" sul Cost Center (mai "Stop").
     """
     cost_center = _upsert_cost_center(erp, envelope.dati, config)
     progetto = _upsert_project(erp, envelope.dati, config, cost_center)
+    if cost_center:
+        _upsert_budget(erp, envelope.dati, config, cost_center)
     return cost_center or progetto
 
 

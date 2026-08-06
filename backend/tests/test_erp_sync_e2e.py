@@ -234,18 +234,16 @@ def test_fattura_con_scadenza_arriva_con_due_date(crea_client, dati_rw: Path) ->
     assert server.post_di("Purchase Invoice")[0]["due_date"] == scadenza
 
 
-def test_tipo_non_sincronizzabile_nessun_effetto(crea_client, dati_rw: Path) -> None:
-    """Validare un SAL (non nel ciclo passivo) non tocca l'ERP."""
+def test_tipo_non_sincronizzabile_nessun_effetto(dati_rw: Path) -> None:
+    """Un tipo fuori da TIPI_SINCRONIZZABILI (es. pozzetto) non tocca l'ERP."""
     dal = DAL(dati_rw)
-    seed = next(iter(dal.list_all("sal")))
-    bozza = dal.crea_progressivo("sal", dict(seed.dati), stato="bozza")
+    seed = next(iter(dal.list_all("pozzetto")))
     server = ErpServerFinto()
-    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
-    admin = accedi(client, "giovanna")
+    erp = ErpClient(config=CONFIG, transport=server)
 
-    resp = client.post(f"/api/review/{bozza.id}/validate", headers=admin)
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["erp"] is None  # SAL non è sincronizzabile
+    esito = sincronizza(dal, seed, erp)
+    assert esito["esito"] == "saltato"
+    assert "pozzetto" in esito["motivo"]
     assert server.chiamate == []
 
 

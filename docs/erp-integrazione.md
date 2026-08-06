@@ -6,7 +6,10 @@ un solo ritorno in lettura (stato di pagamento). Vedi `analisi-integrazione-erp.
 razionale e `piano-implementazione-erp.md` per le milestone (M22–M29).
 
 Stato: **M22–M28 implementati** (client, translator, sync alla validazione, DDT, read-back
-pagamenti, osservabilità e re-sync). Restano il deploy affiancato e l'hardening (M29).
+pagamenti, osservabilità e re-sync) più l'**estensione dati M30–M36**
+(`piano-implementazione-erp-estensione.md`): Project e anagrafiche complete, PDF allegato,
+scadenza di pagamento, cespiti, listino materiali, manodopera, avanzamento SAL, carico
+anagrafiche e scadenziario. Restano il deploy affiancato e l'hardening (M29).
 
 ## Quickstart (docker → collega → test)
 
@@ -60,9 +63,13 @@ mappa casi d'uso → test e triage in `docs/erp-test-plan.md`.
 | `ERP_CONTO_RITENUTA` | consigliata | account_head della riga ritenuta d'acconto (in detrazione) |
 | `ERP_CONTO_IVA` | opzionale | account_head della riga IVA (in aggiunta) |
 | `ERP_ITEM_DDT` | per i DDT | codice articolo delle righe di Purchase Receipt: ERPNext ne pretende uno esistente. Usare un articolo generico **non di magazzino** (`is_stock_item=0`) |
-| `ERP_SUPPLIER_GROUP` | opzionale | gruppo Supplier (default `All Supplier Groups`) |
+| `ERP_SUPPLIER_GROUP` | opzionale | gruppo Supplier (default `All Supplier Groups`); usato solo quando il fornitore non ha una `categoria` |
 | `ERP_CONTO_COSTO` | opzionale | `expense_account` delle righe fattura. Se assente si deriva da `Company.default_expense_account` |
 | `ERP_PARENT_COST_CENTER` | opzionale | padre dei Cost Center dei cantieri. Se assente si deriva dalla radice della Company |
+| `ERP_PAESE` | opzionale | `country` degli Address dei fornitori (default `Italy`) |
+| `ERP_ASSET_ITEM` / `ERP_ASSET_LOCATION` | per i cespiti | articolo cespite (`is_fixed_asset=1`) e Location degli Asset: **accendono** mezzi→Asset e manutenzioni→Asset Repair. `make erp-dev-setup` li prepara e li stampa; senza, mezzi e manutenzioni si saltano (con nota nel log, mai errori) |
+| `ERP_ITEM_GROUP` | opzionale | gruppo degli Item creati dal listino materiali (default `All Item Groups`) |
+| `ERP_BUDGET_WARN` | opzionale | `1` per creare, al carico anagrafiche, un **Budget "Warn"** annuale sul Cost Center di ogni cantiere con budget (mai "Stop": il controllo per voce resta di Workflower) |
 
 Le ultime due sono **override**: ERPNext pretende sia il padre del Cost Center sia il conto
 di costo sulle righe (le righe non portano `item_code`), ma entrambi sono derivabili dalla
@@ -82,28 +89,86 @@ Generate Keys*. Per alzare un'istanza di sviluppo vedi `docs/erp-poc.md` e
 Quando l'ufficio valida una `fattura` o un `ddt` (`POST /api/review/{id}/validate`), oltre
 al golden set parte — best-effort — la sincronizzazione ERP:
 
-1. **Fornitore** → Supplier (upsert per partita IVA).
-2. **Cantiere** → Cost Center (upsert; richiede `ERP_COMPANY`), imputato sulle righe.
-3. Documento → **Purchase Invoice** (fattura, con ritenuta in detrazione e IVA) o
-   **Purchase Receipt** (DDT, merce senza importi).
-4. In caso di **successo**: backref `meta.erp_id`/`meta.erp_synced` sull'envelope + riga `ok`
+1. **Fornitore** → Supplier (upsert per partita IVA). Un Supplier nuovo nasce **col
+   corredo**: gruppo dalla `categoria`, **Address** (se il fornitore ha indirizzo e
+   comune) e **Contact** (PEC/telefono). Il corredo è best-effort: se non passa, il
+   documento arriva lo stesso.
+2. **Cantiere** → Cost Center (upsert; richiede `ERP_COMPANY`), imputato sulle righe,
+   **e Project** (date attese, budget come `estimated_costing`): il `project` finisce su
+   testata e righe, così ERPNext aggrega da solo il costo d'acquisto per cantiere.
+3. Documento → **Purchase Invoice** (fattura, con ritenuta in detrazione, IVA e — se
+   estratta — la **scadenza di pagamento** come `due_date`: è ciò che rende vero lo
+   scadenziario fornitori) o **Purchase Receipt** (DDT, merce senza importi).
+4. Il **PDF originale** (`meta.origine`), se c'è, viene **allegato** al documento a valle
+   (`frappe.client.attach_file`, file privato): chi lavora in ERPNext vede la pezza
+   d'appoggio senza entrare in Workflower. Anche l'allegato è corredo best-effort.
+5. In caso di **successo**: backref `meta.erp_id`/`meta.erp_synced` sull'envelope + riga `ok`
    nel ledger `data/dataset/erp_sync.jsonl`.
-5. In caso di **errore** (ERP giù, mapping rifiutato…): **issue automatica** ("ci pensa
+6. In caso di **errore** (ERP giù, mapping rifiutato…): **issue automatica** ("ci pensa
    l'ufficio") + riga `errore` nel ledger. La validazione **resta valida**.
+
+Anche `rapportino` e `sal` sono sincronizzabili (M35/M36):
+
+- **Rapportino** → un **Timesheet per dipendente collegato** (time log con ore, attività
+  dal catalogo lavorazioni e project del cantiere, accodati dalla 08:00). Le righe di
+  terzi/squadre (senza `dipendente_id`) **si contano e si dichiarano**, non si inventano;
+  un rapportino di soli terzi resta "**saltato**" con il motivo nel ledger e fra i
+  "rimasti indietro" — un invito a collegare il dipendente, non un errore. Il Timesheet
+  è **analitico, mai contabile**: la tariffa gestionale resta in Workflower.
+- **SAL** → aggiornamento di `percent_complete` del Project del cantiere (metodo Manual).
+  Niente fattura al committente: il ciclo attivo resta fuori scope.
 
 La sincronizzazione è **idempotente**: un documento con `meta.erp_id` già valorizzato non
 viene reinviato.
 
 I documenti arrivati si guardano nella **scrivania** di ERPNext: `/app/purchase-invoice`
-(fatture), `/app/purchase-receipt` (DDT), `/app/cost-center` (cantieri). Non dal portale
-alla radice del sito: quello è la vetrina per fornitori e clienti e nega i documenti.
+(fatture), `/app/purchase-receipt` (DDT), `/app/cost-center` (cantieri), `/app/project`
+(cantieri come progetto), `/app/timesheet` (rapportini), `/app/asset` (mezzi). Non dal
+portale alla radice del sito: quello è la vetrina per fornitori e clienti e nega i documenti.
+
+## Carico anagrafiche (in blocco)
+
+Le anagrafiche non passano dalla revisione: senza un carico esplicito arrivano a valle
+solo se citate da un documento. `Admin → Contabilità → Carica le anagrafiche`
+(`POST /api/erp/carica-anagrafiche`) fa l'**upsert in blocco**, nell'ordine giusto:
+
+| Anagrafica | → | ERPNext | Note |
+|---|---|---|---|
+| `fornitore` | → | Supplier + gruppo + Address/Contact | completa anche i Supplier nati altrove (gruppo via PUT, corredo mancante) |
+| `cantiere` | → | Cost Center + Project (+ **Budget** "Warn" con `ERP_BUDGET_WARN=1`) | |
+| `materiale` | → | Item (non di magazzino) + **Item Price** su Standard Buying + Item Supplier | il prezzo si tiene allineato via PUT; UOM di cantiere create a valle |
+| `mezzo` (di proprietà) | → | **Asset** con ammortamento a quote costanti | richiede `ERP_ASSET_ITEM`/`ERP_ASSET_LOCATION`; i noleggi si saltano (non sono cespiti) |
+| `manutenzione` | → | **Asset Repair** documentale (`capitalize_repair_cost=0`) | mai scritture: il costo vero è nella fattura dell'officina |
+| `lavorazione` | → | Activity Type | |
+| `dipendente` | → | Employee | richiede `ERP_COMPANY`; vedi «Valori di cortesia» |
+
+Idempotente (chiavi naturali: P.IVA, nome, `item_code`, `asset_name`; per le manutenzioni
+il backref), best-effort per anagrafica, con backref `meta.erp_id` e riga di ledger per
+ogni invio o errore. Ciò che manca di configurazione **si salta con una nota nel log**,
+senza riempire il carico di rossi.
+
+## Valori di cortesia (Employee)
+
+ERPNext pretende sull'Employee campi che Workflower non estrae dai rapportini. Entrano
+come **segnaposto dichiarati** — mai spacciati per dati veri:
+
+| Campo | Valore | Perché |
+|---|---|---|
+| `gender` | `Prefer not to say` | il valore onesto fra quelli previsti da ERPNext |
+| `date_of_birth` | `1900-01-01` | chiaramente un segnaposto |
+| `date_of_joining` | prima allocazione a cantiere, o `2000-01-01` | "in azienda almeno da"; il segnaposto solo senza allocazioni |
+
+L'Employee serve da aggancio dei Timesheet, non da fascicolo del personale: paghe e
+presenze restano fuori scope (il fascicolo vero si completa in ERPNext, che ne è il
+proprietario).
 
 ## Scartare un documento già arrivato a valle
 
 Se l'ufficio **scarta** un inserimento (Revisione → *Scarta*) che è già stato
 sincronizzato, Workflower **si ferma**: prima va sistemato in ERPNext, poi si scarta
 qui. Altrimenti resterebbero due verità in disaccordo — Workflower senza la fattura,
-ERPNext con la fattura nei conti.
+ERPNext con la fattura nei conti. Vale anche per il **rapportino**: finché uno dei suoi
+Timesheet esiste a valle (il backref può elencarne più d'uno), lo scarto è bloccato.
 
 La verifica è una **lettura** del `docstatus` del documento a valle, e l'istruzione
 cambia con il suo stato, perché in Frappe le due cose sono diverse:
@@ -125,8 +190,9 @@ propagare il `cancel` — è stata scartata di proposito.
 | Metodo / rotta | Cosa fa |
 |---|---|
 | `GET /api/erp/stato` | Contatori per tipo (validate / sincronizzate / da sincronizzare), elenco dei documenti da sincronizzare, ultimi tentativi dal ledger |
-| `POST /api/erp/risincronizza` | Ri-sincronizza tutti i documenti validati rimasti senza backref; si ferma dopo N fallimenti consecutivi (ERP giù) |
+| `POST /api/erp/risincronizza` | Ri-sincronizza tutti i documenti validati rimasti senza backref; si ferma dopo N fallimenti consecutivi (ERP giù); i "saltati" (es. rapportini di soli terzi) non contano come fallimenti |
 | `POST /api/erp/risincronizza/{entity_id}` | Ri-sincronizza un singolo documento (pulsante "riprova") |
+| `POST /api/erp/carica-anagrafiche` | Upsert in blocco delle anagrafiche (vedi «Carico anagrafiche») |
 | `POST /api/erp/rileggi-pagamenti` | Rilegge lo stato di pagamento delle fatture sincronizzate → entità `pagamento` |
 
 Tutti riservati all'ufficio (admin).
@@ -139,13 +205,15 @@ Tutti riservati all'ufficio (admin).
   fallimenti di fila, così un ERP irraggiungibile non fa martellare centinaia di documenti.
 - **Recupero**: quando l'ERP torna su, `POST /api/erp/risincronizza` recupera gli arretrati.
 
-## Read-back pagamenti
+## Read-back pagamenti e scadenziario
 
 L'unico flusso ERP→WF, in **sola lettura**. `POST /api/erp/rileggi-pagamenti` interroga la
 Purchase Invoice a valle di ogni fattura sincronizzata, ne deriva lo stato
-(`pagato`/`parziale`/`non_pagato`) e l'importo, e crea/aggiorna un'entità **`pagamento`**
-(idempotente per `fattura_id`), visibile nella vista `v_pagamenti`. `pagamento` è **puro
-dato** (schema + riga `ENTITY_TYPES` + vista, nessun workflow).
+(`pagato`/`parziale`/`non_pagato`) e l'importo, legge la **data** dell'ultimo Payment
+Entry confermato, la **scadenza** (`due_date`) e il **residuo** (`outstanding`), e
+crea/aggiorna un'entità **`pagamento`** (idempotente per `fattura_id`), visibile nella
+vista `v_pagamenti` — che così fa anche da scadenziario (`scadenza`, `residuo`).
+`pagamento` è **puro dato** (schema + riga `ENTITY_TYPES` + vista, nessun workflow).
 
 ## Ledger
 

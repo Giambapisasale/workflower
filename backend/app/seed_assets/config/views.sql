@@ -596,12 +596,15 @@ SELECT id,
        dati.stato          AS stato_pagamento,
        dati.importo_pagato AS importo_pagato,
        dati.data           AS data,
+       dati.scadenza       AS scadenza,
+       dati.residuo        AS residuo,
        dati.erp_id         AS erp_id
 FROM read_json(
     '${DATA_DIR}/entities/pagamenti/*.json',
     columns = {
         id: 'VARCHAR',
         stato: 'VARCHAR',
-        dati: 'STRUCT(fattura_id VARCHAR, stato VARCHAR, importo_pagato DOUBLE, data DATE, erp_id VARCHAR)'
+        dati: 'STRUCT(fattura_id VARCHAR, stato VARCHAR, importo_pagato DOUBLE, data DATE,
+                      scadenza DATE, residuo DOUBLE, erp_id VARCHAR)'
     }
 );

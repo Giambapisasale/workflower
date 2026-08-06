@@ -14,6 +14,15 @@
     },
     "importo_pagato": { "type": ["number", "null"], "description": "Importo saldato in euro" },
     "data": { "type": ["string", "null"], "format": "date", "description": "Data del pagamento, se nota" },
+    "scadenza": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Scadenza di pagamento della fattura a valle (due date), per lo scadenziario"
+    },
+    "residuo": {
+      "type": ["number", "null"],
+      "description": "Importo ancora da pagare in euro (outstanding della Purchase Invoice)"
+    },
     "erp_id": { "type": ["string", "null"], "description": "Nome della Purchase Invoice a valle" }
   }
 }

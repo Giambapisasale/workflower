@@ -87,11 +87,12 @@ def test_risincronizza_singola_inesistente_404(crea_client, dati_rw: Path) -> No
 
 
 def test_risincronizza_singola_tipo_non_sincronizzabile(crea_client, dati_rw: Path) -> None:
+    # il pozzetto è il registro tecnico di cantiere: non ha un DocType a valle
     dal = DAL(dati_rw)
-    sal = dal.crea_progressivo("sal", dict(next(iter(dal.list_all("sal"))).dati), stato="validato")
+    pozzetto = next(iter(dal.list_all("pozzetto")))
     client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))
     admin = accedi(client, "giovanna")
-    r = client.post(f"/api/erp/risincronizza/{sal.id}", headers=admin).json()
+    r = client.post(f"/api/erp/risincronizza/{pozzetto.id}", headers=admin).json()
     assert r["esito"] == "saltato"
 
 
