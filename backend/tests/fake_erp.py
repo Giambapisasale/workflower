@@ -79,6 +79,8 @@ OBBLIGATORI_TESTATA: dict[str, tuple[str, ...]] = {
     "Address": ("address_title", "address_line1", "city", "country"),
     "Contact": ("first_name",),
     "Supplier Group": ("supplier_group_name",),
+    "Asset": ("item_code", "location", "gross_purchase_amount", "purchase_date"),
+    "Asset Repair": ("asset", "failure_date"),
 }
 OBBLIGATORI_RIGHE: dict[str, tuple[str, ...]] = {
     "Purchase Invoice": ("expense_account",),
@@ -92,6 +94,7 @@ _CAMPI_NOME: dict[str, str] = {
     "Project": "project_name",
     "Supplier Group": "supplier_group_name",
     "Contact": "first_name",
+    "Asset": "asset_name",
 }
 
 # Filtri su tabella figlia ([DocType figlio, campo, op, valore]): dove guardare

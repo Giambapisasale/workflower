@@ -19,6 +19,9 @@ from app.core.erp import (
     fornitore_a_address,
     fornitore_a_contact,
     fornitore_a_supplier,
+    manutenzione_a_asset_repair,
+    mezzo_a_asset,
+    nome_asset,
 )
 
 pytestmark = pytest.mark.erp
@@ -373,6 +376,90 @@ def test_ddt_project_sulle_righe() -> None:
         DDT, supplier="Ferramenta Rossi", project="Residenza Le Palme"
     )
     assert all(i["project"] == "Residenza Le Palme" for i in payload["items"])
+
+
+# ------------------------------------------------------------ mezzi / cespiti (M33)
+
+MEZZO_PROPRIO = {
+    "descrizione": "Escavatore cingolato 20 t",
+    "tipo": "escavatore",
+    "targa": "EK123AB",
+    "anno": 2019,
+    "proprieta": "proprio",
+    "valore_acquisto": 145000.0,
+    "vita_utile_anni": 8,
+}
+
+
+def test_mezzo_proprio_a_asset_con_ammortamento() -> None:
+    payload = mezzo_a_asset(
+        MEZZO_PROPRIO, item_code="WF-MEZZO", location="Sede", company="Edile SpA"
+    )
+    assert payload["asset_name"] == "Escavatore cingolato 20 t (EK123AB)"
+    assert payload["item_code"] == "WF-MEZZO"
+    assert payload["location"] == "Sede"
+    assert payload["is_existing_asset"] == 1  # già in azienda: nessun doc d'acquisto
+    assert payload["gross_purchase_amount"] == 145000.0
+    assert payload["purchase_date"] == "2019-01-01"
+    assert payload["calculate_depreciation"] == 1
+    libro = payload["finance_books"][0]
+    assert libro["depreciation_method"] == "Straight Line"
+    assert libro["total_number_of_depreciations"] == 8  # una quota per anno di vita
+    assert libro["frequency_of_depreciation"] == 12
+
+
+def test_mezzo_senza_vita_utile_niente_ammortamento() -> None:
+    mezzo = {k: v for k, v in MEZZO_PROPRIO.items() if k != "vita_utile_anni"}
+    payload = mezzo_a_asset(mezzo, item_code="WF-MEZZO", location="Sede")
+    assert payload is not None
+    assert "calculate_depreciation" not in payload
+    assert "finance_books" not in payload
+
+
+def test_mezzo_a_noleggio_non_e_un_cespite() -> None:
+    # Il costo del noleggio arriva già come fattura del noleggiatore: iscriverlo
+    # a cespite lo conterebbe due volte e ammortizzerebbe roba non nostra.
+    noleggio = dict(MEZZO_PROPRIO, proprieta="noleggio")
+    assert mezzo_a_asset(noleggio, item_code="WF-MEZZO", location="Sede") is None
+
+
+def test_mezzo_senza_valore_o_anno_non_si_iscrive() -> None:
+    # Senza valore o anno d'acquisto il cespite sarebbe inventato: meglio niente.
+    assert mezzo_a_asset(dict(MEZZO_PROPRIO, valore_acquisto=None), item_code="I", location="L") is None
+    assert mezzo_a_asset(dict(MEZZO_PROPRIO, anno=None), item_code="I", location="L") is None
+
+
+def test_nome_asset_preferisce_targa_poi_matricola() -> None:
+    assert nome_asset({"descrizione": "Gru", "targa": "AB1", "matricola": "M9"}) == "Gru (AB1)"
+    assert nome_asset({"descrizione": "Gru", "matricola": "M9"}) == "Gru (M9)"
+    assert nome_asset({"descrizione": "Gru"}) == "Gru"
+
+
+def test_manutenzione_a_asset_repair_documentale() -> None:
+    manutenzione = {
+        "mezzo_id": "MEZ-001",
+        "data": "2026-04-18",
+        "tipo": "tagliando",
+        "descrizione": "Tagliando 2000 ore",
+        "costo": 1250.0,
+    }
+    payload = manutenzione_a_asset_repair(manutenzione, asset="Escavatore (EK123AB)")
+    assert payload["asset"] == "Escavatore (EK123AB)"
+    assert payload["failure_date"] == "2026-04-18"
+    assert payload["completion_date"] == "2026-04-18"
+    assert payload["repair_status"] == "Completed"
+    assert payload["repair_cost"] == 1250.0
+    # documentale: il costo vero arriva già dalla fattura dell'officina
+    assert payload["capitalize_repair_cost"] == 0
+    assert payload["description"] == "tagliando: Tagliando 2000 ore"
+
+
+def test_manutenzione_senza_costo_ne_descrizione() -> None:
+    payload = manutenzione_a_asset_repair(
+        {"mezzo_id": "MEZ-001", "data": "2026-01-01", "tipo": "revisione"}, asset="Gru"
+    )
+    assert payload["description"] == "revisione"
+    assert "repair_cost" not in payload
 
 
 # ------------------------------------------------------------------ coerenza

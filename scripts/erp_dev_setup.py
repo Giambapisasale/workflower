@@ -37,6 +37,9 @@ SITO = os.environ.get("WF_SITE", "frontend")
 
 CONTO_RITENUTA = "Ritenute"
 ITEM_DDT = "WF-MATERIALE-CANTIERE"
+ITEM_MEZZO = "WF-MEZZO"
+CATEGORIA_CESPITI = "Mezzi e attrezzature"
+LOCATION_CESPITI = "Sede"
 
 passi: list[str] = []
 
@@ -130,6 +133,85 @@ def prepara_item_ddt() -> str:
     return articolo.name
 
 
+def _primo_conto(nome_atteso: str, account_type: str, sigla: str) -> str | None:
+    """Il conto col nome standard se c'è, altrimenti il primo con quel tipo."""
+    atteso = f"{nome_atteso} - {sigla}"
+    if frappe.db.exists("Account", atteso):
+        return atteso
+    conti = frappe.get_all(
+        "Account", filters={"account_type": account_type, "is_group": 0}, pluck="name"
+    )
+    return conti[0] if conti else None
+
+
+def prepara_cespiti() -> tuple[str | None, str | None]:
+    """Master data dei cespiti (M33): Location, Asset Category e articolo cespite.
+
+    ERPNext pretende: una Location sull'Asset, un Item con ``is_fixed_asset=1``
+    e una Asset Category con i tre conti (immobilizzazione, fondo, quota). Si
+    usano i conti del piano standard; se mancano, i cespiti restano non
+    configurati e si stampa il perché (mai nomi inventati).
+    """
+    if not frappe.db.exists("Location", LOCATION_CESPITI):
+        frappe.get_doc({"doctype": "Location", "location_name": LOCATION_CESPITI}).insert(
+            ignore_permissions=True
+        )
+        _nota(f"location cespiti creata: {LOCATION_CESPITI}")
+    else:
+        _nota(f"location cespiti già presente: {LOCATION_CESPITI}")
+
+    sigla = frappe.get_value("Company", AZIENDA, "abbr") or SIGLA
+    immobilizzazioni = _primo_conto("Plant and Machinery", "Fixed Asset", sigla)
+    fondo = _primo_conto("Accumulated Depreciation", "Accumulated Depreciation", sigla)
+    quota = _primo_conto("Depreciation", "Depreciation", sigla)
+    if not (immobilizzazioni and fondo and quota):
+        _nota(
+            "ATTENZIONE: mancano i conti cespiti nel piano dei conti "
+            f"(immobilizzazioni={immobilizzazioni}, fondo={fondo}, quota={quota}): "
+            "Asset Category non creata"
+        )
+        return None, LOCATION_CESPITI
+
+    if not frappe.db.exists("Asset Category", CATEGORIA_CESPITI):
+        frappe.get_doc(
+            {
+                "doctype": "Asset Category",
+                "asset_category_name": CATEGORIA_CESPITI,
+                "accounts": [
+                    {
+                        "company_name": AZIENDA,
+                        "fixed_asset_account": immobilizzazioni,
+                        "accumulated_depreciation_account": fondo,
+                        "depreciation_expense_account": quota,
+                    }
+                ],
+            }
+        ).insert(ignore_permissions=True)
+        _nota(f"asset category creata: {CATEGORIA_CESPITI}")
+    else:
+        _nota(f"asset category già presente: {CATEGORIA_CESPITI}")
+
+    if not frappe.db.exists("Item", ITEM_MEZZO):
+        gruppi = frappe.get_all("Item Group", filters={"is_group": 0}, pluck="name")
+        frappe.get_doc(
+            {
+                "doctype": "Item",
+                "item_code": ITEM_MEZZO,
+                "item_name": "Mezzo di cantiere (cespite)",
+                "item_group": gruppi[0],
+                "stock_uom": "Nos",
+                "is_stock_item": 0,
+                "is_fixed_asset": 1,
+                "asset_category": CATEGORIA_CESPITI,
+            }
+        ).insert(ignore_permissions=True)
+        _nota(f"articolo cespite creato: {ITEM_MEZZO}")
+    else:
+        _nota(f"articolo cespite già presente: {ITEM_MEZZO}")
+    frappe.db.commit()
+    return ITEM_MEZZO, LOCATION_CESPITI
+
+
 def prepara_chiavi() -> tuple[str, str]:
     """API key/secret dell'Administrator (il secret è visibile solo qui)."""
     utente = frappe.get_doc("User", "Administrator")
@@ -151,6 +233,7 @@ def main() -> int:
         prepara_azienda()
         conto_ritenuta = prepara_conto_ritenuta()
         item_ddt = prepara_item_ddt()
+        item_mezzo, location_cespiti = prepara_cespiti()
         chiave, segreto = prepara_chiavi()
         sigla = frappe.get_value("Company", AZIENDA, "abbr") or SIGLA
         conto_iva = f"IVA 22% - {sigla}"
@@ -166,6 +249,8 @@ def main() -> int:
             ("ERP_CONTO_RITENUTA", conto_ritenuta or ""),
             ("ERP_CONTO_IVA", conto_iva),
             ("ERP_ITEM_DDT", item_ddt),
+            ("ERP_ASSET_ITEM", item_mezzo or ""),
+            ("ERP_ASSET_LOCATION", location_cespiti if item_mezzo else ""),
         ]
         coppie = [(n, v) for n, v in righe if v]
 

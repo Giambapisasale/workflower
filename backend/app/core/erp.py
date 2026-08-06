@@ -97,6 +97,8 @@ class ErpConfig:
     conto_costo: str | None = None
     item_ddt: str | None = None
     paese: str = PAESE_DEFAULT
+    asset_item: str | None = None
+    asset_location: str | None = None
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -119,6 +121,8 @@ class ErpConfig:
             conto_costo=os.environ.get("ERP_CONTO_COSTO"),
             item_ddt=os.environ.get("ERP_ITEM_DDT"),
             paese=os.environ.get("ERP_PAESE") or PAESE_DEFAULT,
+            asset_item=os.environ.get("ERP_ASSET_ITEM"),
+            asset_location=os.environ.get("ERP_ASSET_LOCATION"),
         )
 
 
@@ -395,6 +399,87 @@ def fornitore_a_contact(dati: dict[str, Any], *, supplier: str) -> dict[str, Any
         payload["email_ids"] = [{"email_id": pec, "is_primary": 1}]
     if telefono:
         payload["phone_nos"] = [{"phone": telefono, "is_primary_phone": 1}]
+    return payload
+
+
+def nome_asset(dati: dict[str, Any]) -> str:
+    """Il nome del cespite a valle: descrizione + targa/matricola per l'unicità."""
+    identificativo = dati.get("targa") or dati.get("matricola")
+    if identificativo:
+        return f"{dati['descrizione']} ({identificativo})"[:140]
+    return dati["descrizione"][:140]
+
+
+def mezzo_a_asset(
+    dati: dict[str, Any],
+    *,
+    item_code: str,
+    location: str,
+    company: str | None = None,
+) -> dict[str, Any] | None:
+    """`mezzo` di proprietà → payload DocType **Asset** (M33, B3).
+
+    Il registro cespiti è materia fiscale: spetta all'ERP. Solo i mezzi *propri*
+    con valore e anno d'acquisto — il noleggio non è un cespite (il suo costo
+    arriva già come fattura del noleggiatore) e senza valore/anno non c'è un
+    cespite legittimo da iscrivere → ``None``, mai valori inventati.
+
+    ``is_existing_asset=1``: il mezzo è già in azienda, non c'è un documento
+    d'acquisto da riconciliare. Con ``vita_utile_anni`` si chiede l'ammortamento
+    a quote costanti, una quota l'anno — le *scritture* le genera ERPNext.
+    Il TCO gestionale (``v_mezzi_tco``) resta di Workflower.
+    """
+    if dati.get("proprieta") != "proprio":
+        return None
+    valore = dati.get("valore_acquisto")
+    anno = dati.get("anno")
+    if not valore or not anno:
+        return None
+    acquisto = f"{anno}-01-01"
+    payload: dict[str, Any] = {
+        "item_code": item_code,
+        "asset_name": nome_asset(dati),
+        "location": location,
+        "is_existing_asset": 1,
+        "gross_purchase_amount": valore,
+        "purchase_date": acquisto,
+        "available_for_use_date": acquisto,
+    }
+    if company:
+        payload["company"] = company
+    vita = dati.get("vita_utile_anni")
+    if vita:
+        payload["calculate_depreciation"] = 1
+        payload["finance_books"] = [
+            {
+                "depreciation_method": "Straight Line",
+                "frequency_of_depreciation": 12,  # in mesi: una quota l'anno
+                "total_number_of_depreciations": int(vita),
+            }
+        ]
+    return payload
+
+
+def manutenzione_a_asset_repair(dati: dict[str, Any], *, asset: str) -> dict[str, Any]:
+    """`manutenzione` → payload DocType **Asset Repair** (M33, B3).
+
+    **Documentale** (``capitalize_repair_cost=0``): niente scritture contabili —
+    il costo vero dell'intervento arriva già dalla fattura dell'officina, e
+    capitalizzarlo qui lo conterebbe due volte. Resta lo storico interventi
+    agganciato al cespite, con il costo a corredo.
+    """
+    descrizione = dati.get("descrizione") or ""
+    testo = f"{dati['tipo']}: {descrizione}" if descrizione else dati["tipo"]
+    payload: dict[str, Any] = {
+        "asset": asset,
+        "failure_date": dati["data"],
+        "repair_status": "Completed",
+        "completion_date": dati["data"],
+        "capitalize_repair_cost": 0,
+        "description": testo,
+    }
+    if dati.get("costo") is not None:
+        payload["repair_cost"] = dati["costo"]
     return payload
 
 
@@ -1043,10 +1128,80 @@ def _carica_cantiere(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfi
     return cost_center or progetto
 
 
-# (tipo entità, upsert): l'ordine conta — i fornitori prima di chi li referenzia.
+def _upsert_asset(erp: "ErpClient", mezzo: dict[str, Any], config: ErpConfig) -> str | None:
+    """L'Asset per un mezzo: trovato per nome o creato; ``None`` se non cespitabile."""
+    payload = mezzo_a_asset(
+        mezzo,
+        item_code=config.asset_item or "",
+        location=config.asset_location or "",
+        company=config.company,
+    )
+    if payload is None:
+        return None
+    esistenti = erp.trova_documenti("Asset", [["asset_name", "=", payload["asset_name"]]])
+    if esistenti:
+        return esistenti[0]["name"]
+    creato = erp.crea_documento("Asset", payload)
+    return creato["name"]
+
+
+def _cespiti_configurati(config: ErpConfig, envelope: Any) -> bool:
+    """Vero se le env dei cespiti ci sono; altrimenti warning azionabile e salto.
+
+    Stesso spirito di ``ERP_ITEM_DDT``: meglio un messaggio che dice cosa
+    configurare del "Item None does not exist" di ERPNext — ma qui nel logbook,
+    non come errore: chi non vuole i cespiti a valle non deve trovare il carico
+    anagrafiche pieno di rossi.
+    """
+    if config.asset_item and config.asset_location:
+        return True
+    _log.warning(
+        "%s saltato: i cespiti richiedono un articolo e una Location in ERPNext. "
+        "Configura ERP_ASSET_ITEM e ERP_ASSET_LOCATION (make erp-dev-setup li "
+        "prepara e li stampa).",
+        envelope.id,
+        extra={"entity_id": envelope.id},
+    )
+    return False
+
+
+def _carica_mezzo(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str | None:
+    """Upsert del mezzo di proprietà come Asset; i noleggi restano fuori (saltati)."""
+    if not _cespiti_configurati(config, envelope):
+        return None
+    return _upsert_asset(erp, envelope.dati, config)
+
+
+def _carica_manutenzione(
+    dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig
+) -> str | None:
+    """La manutenzione come Asset Repair del cespite (documentale, mai contabile).
+
+    L'Asset Repair non ha una chiave naturale: l'idempotenza è il backref
+    ``meta.erp_id`` (una manutenzione già a valle non si reinvia). Manutenzioni
+    di mezzi a noleggio: saltate — quel costo vive nella fattura dell'officina.
+    """
+    if envelope.meta.erp_id:
+        return envelope.meta.erp_id
+    if not _cespiti_configurati(config, envelope):
+        return None
+    mezzo = dal.read("mezzo", envelope.dati["mezzo_id"]).dati
+    asset = _upsert_asset(erp, mezzo, config)
+    if asset is None:
+        return None
+    creato = erp.crea_documento(
+        "Asset Repair", manutenzione_a_asset_repair(envelope.dati, asset=asset)
+    )
+    return creato["name"]
+
+
+# (tipo entità, upsert): l'ordine conta — i fornitori prima di chi li referenzia,
+# i mezzi prima delle manutenzioni che vi si agganciano.
 ANAGRAFICHE_CARICABILI: tuple[tuple[str, Any], ...] = (
     ("fornitore", _carica_fornitore),
     ("cantiere", _carica_cantiere),
+    ("mezzo", _carica_mezzo),
+    ("manutenzione", _carica_manutenzione),
 )
 
 
