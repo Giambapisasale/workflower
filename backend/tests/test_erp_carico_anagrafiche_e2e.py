@@ -47,12 +47,13 @@ def test_carico_porta_fornitori_e_cantieri(crea_client, dati_rw: Path) -> None:
     assert len(server.post_di("Cost Center")) == n_cant
     assert len(server.post_di("Project")) == n_cant
 
-    # backref su ogni anagrafica + riga ok nel ledger
+    # backref su ogni anagrafica + riga ok nel ledger (fornitori, cantieri e
+    # materiali; mezzi/manutenzioni saltano: CONFIG non ha il master data cespiti)
     dal = DAL(dati_rw)
     assert all(e.meta.erp_id for e in dal.list_all("fornitore"))
     assert all(e.meta.erp_id for e in dal.list_all("cantiere"))
     ok_ledger = [x for x in leggi_sync_erp(dati_rw) if x["esito"] == "ok"]
-    assert len(ok_ledger) == n_forn + n_cant
+    assert len(ok_ledger) == n_forn + n_cant + len(dal.list_all("materiale"))
 
 
 def test_carico_idempotente(crea_client, dati_rw: Path) -> None:
@@ -129,6 +130,69 @@ def test_carico_senza_company_cantieri_come_solo_project(crea_client, dati_rw: P
     assert not server.post_di("Cost Center")
     assert len(server.post_di("Project")) == len(DAL(dati_rw).list_all("cantiere"))
     assert all(e.meta.erp_id for e in DAL(dati_rw).list_all("cantiere"))
+
+
+def test_carico_materiali_come_listino(crea_client, dati_rw: Path) -> None:
+    """M34: ogni materiale diventa Item (non di magazzino) con prezzo su Standard
+    Buying e fornitore abituale; senza codice si usa l'id entità."""
+    dal = DAL(dati_rw)
+    materiali = dal.list_all("materiale")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["per_tipo"]["materiale"]["inviate"] == len(materiali)
+    assert r["per_tipo"]["materiale"]["errori"] == 0
+
+    articoli = server.post_di("Item")
+    codici = {a["item_code"] for a in articoli}
+    # i codici di listino quando ci sono, l'id entità come fallback
+    for m in materiali:
+        assert (m.dati.get("codice") or m.id) in codici
+    assert all(a["is_stock_item"] == 0 for a in articoli)
+
+    prezzi = server.post_di("Item Price")
+    con_prezzo = [m for m in materiali if m.dati.get("prezzo_unitario") is not None]
+    assert len(prezzi) == len(con_prezzo)
+    assert all(p["price_list"] == "Standard Buying" for p in prezzi)
+
+    # il fornitore abituale è agganciato all'Item (Item Supplier alla creazione)
+    con_fornitore = [m for m in materiali if m.dati.get("fornitore_id")]
+    agganciati = [a for a in articoli if a.get("supplier_items")]
+    assert len(agganciati) == len(con_fornitore)
+
+    # le unità di misura di cantiere esistono a valle come UOM
+    unita_attese = {m.dati["unita_misura"] for m in materiali if m.dati.get("unita_misura")}
+    assert {u["uom_name"] for u in server.post_di("UOM")} == unita_attese
+
+    assert all(e.meta.erp_id for e in DAL(dati_rw).list_all("materiale"))
+
+
+def test_carico_materiali_aggiorna_il_prezzo(crea_client, dati_rw: Path) -> None:
+    """Un listino che invecchia è un listino sbagliato: al secondo carico il prezzo
+    cambiato in Workflower aggiorna l'Item Price a valle (PUT), senza doppioni."""
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    client.post("/api/erp/carica-anagrafiche", headers=admin)
+    n_item = len(server.post_di("Item"))
+    n_prezzi = len(server.post_di("Item Price"))
+
+    dal = DAL(dati_rw)
+    materiale = next(m for m in dal.list_all("materiale") if m.dati.get("prezzo_unitario"))
+    materiale.dati["prezzo_unitario"] = 999.99
+    dal.update(materiale)
+
+    client.post("/api/erp/carica-anagrafiche", headers=admin)
+    assert len(server.post_di("Item")) == n_item  # nessun articolo duplicato
+    assert len(server.post_di("Item Price")) == n_prezzi  # aggiornato, non ricreato
+    codice = materiale.dati.get("codice") or materiale.id
+    prezzo_a_valle = next(
+        p for p in server.documenti("Item Price") if p["item_code"] == codice
+    )
+    assert prezzo_a_valle["price_list_rate"] == 999.99
 
 
 def test_carico_mezzi_e_manutenzioni_come_cespiti(crea_client, dati_rw: Path) -> None:

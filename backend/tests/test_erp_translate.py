@@ -20,6 +20,7 @@ from app.core.erp import (
     fornitore_a_contact,
     fornitore_a_supplier,
     manutenzione_a_asset_repair,
+    materiale_a_item,
     mezzo_a_asset,
     nome_asset,
 )
@@ -376,6 +377,39 @@ def test_ddt_project_sulle_righe() -> None:
         DDT, supplier="Ferramenta Rossi", project="Residenza Le Palme"
     )
     assert all(i["project"] == "Residenza Le Palme" for i in payload["items"])
+
+
+# ------------------------------------------------------------ materiali / listino (M34)
+
+MATERIALE = {
+    "codice": "CLS-C2530",
+    "descrizione": "Calcestruzzo C25/30",
+    "unita_misura": "mc",
+    "prezzo_unitario": 105.0,
+    "categoria": "strutture",
+    "fornitore_id": "FRN-001",
+}
+
+
+def test_materiale_a_item() -> None:
+    payload = materiale_a_item(MATERIALE, item_group="Materiali di cantiere")
+    assert payload["item_code"] == "CLS-C2530"
+    assert payload["item_name"] == "Calcestruzzo C25/30"
+    assert payload["item_group"] == "Materiali di cantiere"
+    assert payload["stock_uom"] == "mc"
+    assert payload["is_stock_item"] == 0  # niente giacenze: WF non fa magazzino
+    assert payload["is_purchase_item"] == 1
+
+
+def test_materiale_senza_codice_usa_l_id_entita() -> None:
+    senza = dict(MATERIALE, codice=None)
+    payload = materiale_a_item(senza, item_code="MAT-003")
+    assert payload["item_code"] == "MAT-003"  # il codice a valle resta rintracciabile
+
+
+def test_materiale_senza_unita_niente_stock_uom() -> None:
+    payload = materiale_a_item(dict(MATERIALE, unita_misura=None))
+    assert "stock_uom" not in payload  # l'ERP userà la sua unità di default
 
 
 # ------------------------------------------------------------ mezzi / cespiti (M33)

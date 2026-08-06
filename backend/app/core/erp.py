@@ -52,6 +52,12 @@ SUPPLIER_GROUP_DEFAULT = "All Supplier Groups"
 # di cantiere sono italiani salvo config contraria (ERP_PAESE).
 PAESE_DEFAULT = "Italy"
 
+# Gruppo Item di default (radice ERPNext); la config può passarne uno più specifico.
+ITEM_GROUP_DEFAULT = "All Item Groups"
+
+# Listino acquisti standard di ERPNext: destinazione dei prezzi del listino interno.
+LISTINO_ACQUISTI = "Standard Buying"
+
 # Tipi di documento Workflower che vengono riflessi nell'ERP (ciclo passivo).
 TIPI_SINCRONIZZABILI = ("fattura", "ddt")
 
@@ -99,6 +105,7 @@ class ErpConfig:
     paese: str = PAESE_DEFAULT
     asset_item: str | None = None
     asset_location: str | None = None
+    item_group: str = ITEM_GROUP_DEFAULT
 
     @classmethod
     def da_env(cls) -> "ErpConfig | None":
@@ -123,6 +130,7 @@ class ErpConfig:
             paese=os.environ.get("ERP_PAESE") or PAESE_DEFAULT,
             asset_item=os.environ.get("ERP_ASSET_ITEM"),
             asset_location=os.environ.get("ERP_ASSET_LOCATION"),
+            item_group=os.environ.get("ERP_ITEM_GROUP") or ITEM_GROUP_DEFAULT,
         )
 
 
@@ -399,6 +407,31 @@ def fornitore_a_contact(dati: dict[str, Any], *, supplier: str) -> dict[str, Any
         payload["email_ids"] = [{"email_id": pec, "is_primary": 1}]
     if telefono:
         payload["phone_nos"] = [{"phone": telefono, "is_primary_phone": 1}]
+    return payload
+
+
+def materiale_a_item(
+    dati: dict[str, Any], *, item_group: str = ITEM_GROUP_DEFAULT, item_code: str | None = None
+) -> dict[str, Any]:
+    """`materiale` → payload DocType **Item** (M34, B2).
+
+    Il listino interno diventa anagrafica articoli: ``codice`` → ``item_code``
+    (fallback: l'id entità ``MAT-…``, così il codice a valle resta rintracciabile).
+    **Non di magazzino** (``is_stock_item=0``), coerente con la scelta già fatta per
+    ``ERP_ITEM_DDT``: Workflower non gestisce giacenze. Le righe di fattura/DDT
+    continuano a viaggiare a testo libero finché l'estrazione non collega
+    riga→materiale (fuori scope, vedi analisi B2).
+    """
+    payload: dict[str, Any] = {
+        "item_code": dati.get("codice") or item_code,
+        "item_name": dati["descrizione"][:140],
+        "description": dati["descrizione"],
+        "item_group": item_group,
+        "is_stock_item": 0,
+        "is_purchase_item": 1,
+    }
+    if dati.get("unita_misura"):
+        payload["stock_uom"] = dati["unita_misura"]
     return payload
 
 
@@ -1195,11 +1228,91 @@ def _carica_manutenzione(
     return creato["name"]
 
 
+def _upsert_uom(erp: "ErpClient", unita: str) -> str | None:
+    """L'unità di misura a valle: trovata o creata; ``None`` se non passa.
+
+    Le UOM di Workflower sono testo libero di cantiere (mc, kg, cad…): a valle
+    diventano record UOM veri, così l'Item non viene rifiutato. Best-effort:
+    senza UOM l'articolo nasce con l'unità di default dell'ERP.
+    """
+    try:
+        esistenti = erp.trova_documenti("UOM", [["name", "=", unita]])
+        if esistenti:
+            return esistenti[0]["name"]
+        return erp.crea_documento("UOM", {"uom_name": unita})["name"]
+    except ErpError as exc:
+        _log.warning("UOM '%s' non creabile: %s", unita, exc)
+        return None
+
+
+def _upsert_item_price(erp: "ErpClient", item_code: str, prezzo: float) -> None:
+    """Il prezzo di listino sull'``Standard Buying``: creato o aggiornato (PUT)."""
+    esistenti = erp.trova_documenti(
+        "Item Price",
+        [["item_code", "=", item_code], ["price_list", "=", LISTINO_ACQUISTI]],
+        campi=["name", "price_list_rate"],
+    )
+    if esistenti:
+        if esistenti[0].get("price_list_rate") != prezzo:
+            erp.aggiorna_documento(
+                "Item Price", esistenti[0]["name"], {"price_list_rate": prezzo}
+            )
+        return
+    erp.crea_documento(
+        "Item Price",
+        {
+            "item_code": item_code,
+            "price_list": LISTINO_ACQUISTI,
+            "price_list_rate": prezzo,
+            "buying": 1,
+        },
+    )
+
+
+def _carica_materiale(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str:
+    """Upsert del materiale come Item + prezzo di listino + fornitore abituale.
+
+    Il fornitore abituale e l'unità di misura sono corredo (best-effort, warning);
+    il prezzo si tiene allineato anche sugli articoli già a valle — è un listino,
+    invecchiare è il suo modo di sbagliare.
+    """
+    dati = envelope.dati
+    supplier: str | None = None
+    if dati.get("fornitore_id"):
+        try:
+            forn = dal.read("fornitore", dati["fornitore_id"]).dati
+            supplier = _upsert_supplier(erp, forn, config)
+        except Exception as exc:  # corredo: l'Item nasce anche senza fornitore
+            _log.warning(
+                "fornitore abituale di %s non risolto: %s",
+                envelope.id,
+                exc,
+                extra={"entity_id": envelope.id},
+            )
+    payload = materiale_a_item(dati, item_group=config.item_group, item_code=envelope.id)
+    unita = payload.get("stock_uom")
+    if unita and _upsert_uom(erp, unita) is None:
+        payload.pop("stock_uom", None)
+    if supplier:
+        payload["supplier_items"] = [{"supplier": supplier}]
+
+    esistenti = erp.trova_documenti("Item", [["item_code", "=", payload["item_code"]]])
+    if esistenti:
+        nome = esistenti[0]["name"]
+    else:
+        nome = erp.crea_documento("Item", payload)["name"]
+    prezzo = dati.get("prezzo_unitario")
+    if prezzo is not None:
+        _upsert_item_price(erp, nome, prezzo)
+    return nome
+
+
 # (tipo entità, upsert): l'ordine conta — i fornitori prima di chi li referenzia,
 # i mezzi prima delle manutenzioni che vi si agganciano.
 ANAGRAFICHE_CARICABILI: tuple[tuple[str, Any], ...] = (
     ("fornitore", _carica_fornitore),
     ("cantiere", _carica_cantiere),
+    ("materiale", _carica_materiale),
     ("mezzo", _carica_mezzo),
     ("manutenzione", _carica_manutenzione),
 )
