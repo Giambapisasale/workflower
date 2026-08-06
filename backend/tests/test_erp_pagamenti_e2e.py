@@ -78,6 +78,49 @@ def test_rileggi_pagamenti_crea_e_aggiorna(crea_client, dati_rw: Path) -> None:
     assert pagamenti[0].dati["importo_pagato"] == 600.0
 
 
+def test_read_back_data_dal_payment_entry(crea_client, dati_rw: Path) -> None:
+    """La data del pagamento vive sui Payment Entry: si prende l'ultima confermata (M31)."""
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    ft_id = _valida_una_fattura(client, dati_rw, admin)
+    pi_name = DAL(dati_rw).read("fattura", ft_id).meta.erp_id
+
+    server.paga_fattura(pi_name, grand_total=1000.0, outstanding=0.0)
+    server.registra_pagamento(pi_name, "2026-04-01")  # acconto
+    server.registra_pagamento(pi_name, "2026-05-10")  # saldo
+    server.registra_pagamento(pi_name, "2026-06-30", docstatus=0)  # bozza: non conta
+
+    client.post("/api/erp/rileggi-pagamenti", headers=admin)
+    pag = next(p for p in DAL(dati_rw).list_all("pagamento") if p.dati["fattura_id"] == ft_id)
+    assert pag.dati["data"] == "2026-05-10"
+
+
+def test_read_back_senza_payment_entry_data_nulla(crea_client, dati_rw: Path) -> None:
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    ft_id = _valida_una_fattura(client, dati_rw, admin)
+    pi_name = DAL(dati_rw).read("fattura", ft_id).meta.erp_id
+
+    server.paga_fattura(pi_name, grand_total=1000.0, outstanding=400.0)
+    client.post("/api/erp/rileggi-pagamenti", headers=admin)
+    pag = next(p for p in DAL(dati_rw).list_all("pagamento") if p.dati["fattura_id"] == ft_id)
+    assert pag.dati["stato"] == "parziale"
+    assert pag.dati["data"] is None
+
+
+def test_read_back_non_pagata_non_interroga_i_payment_entry(crea_client, dati_rw: Path) -> None:
+    """Per le fatture non pagate la data non esiste: nessuna chiamata in più."""
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+    _valida_una_fattura(client, dati_rw, admin)  # PI a valle, mai pagata
+
+    client.post("/api/erp/rileggi-pagamenti", headers=admin)
+    assert not any("Payment Entry" in c["url"] for c in server.chiamate)
+
+
 def test_rileggi_pagamenti_senza_fatture_sincronizzate(crea_client, dati_rw: Path) -> None:
     """Nessuna fattura con meta.erp_id → niente da rileggere (creati/aggiornati 0)."""
     client = crea_client(erp=ErpClient(config=CONFIG, transport=ErpServerFinto()))

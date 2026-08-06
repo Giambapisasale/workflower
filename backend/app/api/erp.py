@@ -15,6 +15,7 @@ from app.core.dal import DAL, DalError, tipo_da_id
 from app.core.erp import (
     ErpClient,
     applica_sincronizzazione,
+    carica_anagrafiche,
     rileggi_pagamenti,
     risincronizza_mancanti,
     stato_sincronizzazione,
@@ -63,6 +64,21 @@ def risincronizza_uno(
         raise HTTPException(status_code=404, detail="entità non trovata") from exc
     esito = applica_sincronizzazione(dal, entita, erp)
     return esito or {"esito": "saltato", "motivo": "ERP non attivo o tipo non sincronizzabile"}
+
+
+@router.post("/erp/carica-anagrafiche")
+def carica_anagrafiche_endpoint(
+    _admin: Utente = Depends(richiedi_admin),
+    dal: DAL = Depends(get_dal),
+    erp: ErpClient = Depends(get_erp),
+) -> dict[str, Any]:
+    """Porta a valle le anagrafiche (fornitori, cantieri, …) in blocco (M31).
+
+    Upsert idempotente per chiave naturale, con backref e ledger; le anagrafiche
+    non passano dalla revisione, quindi senza questo carico arriverebbero a valle
+    solo se citate da un documento. No-op se l'ERP non è configurato.
+    """
+    return carica_anagrafiche(dal, erp)
 
 
 @router.post("/erp/rileggi-pagamenti")

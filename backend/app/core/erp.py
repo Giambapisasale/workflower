@@ -221,6 +221,19 @@ class ErpClient:
         corpo = self.richiesta("POST", f"/api/resource/{doctype}", json=payload)
         return corpo.get("data", corpo) if isinstance(corpo, dict) else corpo
 
+    def aggiorna_documento(
+        self, doctype: str, nome: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """PUT su un DocType esistente; ritorna il record aggiornato.
+
+        Serve al carico anagrafiche (M31): completare un record già a valle — ad es.
+        il gruppo di un Supplier nato senza categoria — senza crearne un doppione.
+        """
+        from urllib.parse import quote
+
+        corpo = self.richiesta("PUT", f"/api/resource/{doctype}/{quote(nome)}", json=payload)
+        return corpo.get("data", corpo) if isinstance(corpo, dict) else corpo
+
     def trova_documenti(
         self,
         doctype: str,
@@ -663,24 +676,68 @@ def _arricchisci_supplier(
         )
 
 
-def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: ErpConfig) -> str:
-    """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea.
+def _upsert_supplier(
+    erp: "ErpClient",
+    forn: dict[str, Any],
+    config: ErpConfig,
+    *,
+    completa_esistente: bool = False,
+) -> str:
+    """Il Supplier per un fornitore: trovato per partita IVA o creato col corredo.
 
-    Alla creazione porta con sé il corredo (gruppo dalla categoria, Address, Contact);
-    un Supplier già a valle non viene toccato qui — l'arricchimento degli esistenti
-    passa dal carico anagrafiche (M31), fuori dal percorso di validazione.
+    Con ``completa_esistente`` (carico anagrafiche, M31) anche il Supplier già a
+    valle viene completato: gruppo dalla categoria (via PUT, se diverso) e
+    Address/Contact mancanti. Alla validazione resta ``False``: il percorso del
+    documento non si carica di chiamate per anagrafiche già a posto.
     """
+    piva = forn.get("partita_iva")
+    esistente: dict[str, Any] | None = None
+    if piva:
+        trovati = erp.trova_documenti(
+            "Supplier", [["tax_id", "=", piva]], campi=["name", "supplier_group"]
+        )
+        esistente = trovati[0] if trovati else None
+    if esistente is None:
+        gruppo = _risolvi_supplier_group(erp, forn.get("categoria"), config)
+        creato = erp.crea_documento(
+            "Supplier", fornitore_a_supplier(forn, supplier_group=gruppo)
+        )
+        _arricchisci_supplier(erp, forn, creato["name"], config)
+        return creato["name"]
+    nome = esistente["name"]
+    if completa_esistente:
+        categoria = forn.get("categoria")
+        if categoria and esistente.get("supplier_group") != categoria:
+            gruppo = _risolvi_supplier_group(erp, categoria, config)
+            if gruppo == categoria:  # il gruppo esiste davvero: aggancialo
+                erp.aggiorna_documento("Supplier", nome, {"supplier_group": gruppo})
+        _arricchisci_supplier(erp, forn, nome, config)
+    return nome
+
+
+def _risolvi_supplier(dal: Any, erp: "ErpClient", fornitore_id: Any, config: ErpConfig) -> str:
+    """Nome ERPNext del Supplier per un ``FRN-...``: lo trova per partita IVA o lo crea."""
     if not fornitore_id:
         raise ErpError("fattura senza fornitore_id: impossibile creare la Purchase Invoice")
     forn = dal.read("fornitore", fornitore_id).dati
-    piva = forn.get("partita_iva")
-    if piva:
-        esistenti = erp.trova_documenti("Supplier", [["tax_id", "=", piva]])
-        if esistenti:
-            return esistenti[0]["name"]
-    gruppo = _risolvi_supplier_group(erp, forn.get("categoria"), config)
-    creato = erp.crea_documento("Supplier", fornitore_a_supplier(forn, supplier_group=gruppo))
-    _arricchisci_supplier(erp, forn, creato["name"], config)
+    return _upsert_supplier(erp, forn, config)
+
+
+def _upsert_cost_center(
+    erp: "ErpClient", cant: dict[str, Any], config: ErpConfig
+) -> str | None:
+    """Il Cost Center per un cantiere: trovato o creato; ``None`` senza ``company``."""
+    if not config.company:
+        return None
+    padre = config.parent_cost_center or radice_cost_center(erp, config.company)
+    payload = cantiere_a_cost_center(cant, company=config.company, parent_cost_center=padre)
+    esistenti = erp.trova_documenti(
+        "Cost Center",
+        [["cost_center_name", "=", payload["cost_center_name"]], ["company", "=", config.company]],
+    )
+    if esistenti:
+        return esistenti[0]["name"]
+    creato = erp.crea_documento("Cost Center", payload)
     return creato["name"]
 
 
@@ -695,15 +752,21 @@ def _risolvi_cost_center(
     if not cantiere_id or not config.company:
         return None
     cant = dal.read("cantiere", cantiere_id).dati
-    padre = config.parent_cost_center or radice_cost_center(erp, config.company)
-    payload = cantiere_a_cost_center(cant, company=config.company, parent_cost_center=padre)
-    esistenti = erp.trova_documenti(
-        "Cost Center",
-        [["cost_center_name", "=", payload["cost_center_name"]], ["company", "=", config.company]],
-    )
+    return _upsert_cost_center(erp, cant, config)
+
+
+def _upsert_project(
+    erp: "ErpClient",
+    cant: dict[str, Any],
+    config: ErpConfig,
+    cost_center: str | None = None,
+) -> str:
+    """Il Project per un cantiere: trovato o creato (solleva su errore ERP)."""
+    payload = cantiere_a_project(cant, company=config.company, cost_center=cost_center)
+    esistenti = erp.trova_documenti("Project", [["project_name", "=", payload["project_name"]]])
     if esistenti:
         return esistenti[0]["name"]
-    creato = erp.crea_documento("Cost Center", payload)
+    creato = erp.crea_documento("Project", payload)
     return creato["name"]
 
 
@@ -724,14 +787,7 @@ def _risolvi_project(
         return None
     try:
         cant = dal.read("cantiere", cantiere_id).dati
-        payload = cantiere_a_project(cant, company=config.company, cost_center=cost_center)
-        esistenti = erp.trova_documenti(
-            "Project", [["project_name", "=", payload["project_name"]]]
-        )
-        if esistenti:
-            return esistenti[0]["name"]
-        creato = erp.crea_documento("Project", payload)
-        return creato["name"]
+        return _upsert_project(erp, cant, config, cost_center)
     except ErpError as exc:
         _log.warning("Project del cantiere %s non risolto: %s", cantiere_id, exc)
         return None
@@ -876,6 +932,30 @@ def _stato_pagamento(pi: dict[str, Any]) -> tuple[str, float]:
     return "non_pagato", pagato
 
 
+def _data_ultimo_pagamento(erp: "ErpClient", erp_id: str) -> str | None:
+    """La ``posting_date`` più recente dei Payment Entry confermati sulla PI (M31, A4).
+
+    Frappe filtra sulle tabelle figlie col DocType figlio come primo elemento:
+    ``["Payment Entry Reference", "reference_name", "=", <PI>]``. Se la lettura
+    fallisce si torna ``None`` — la data è corredo dello stato, non lo blocca.
+    """
+    try:
+        confermati = erp.trova_documenti(
+            "Payment Entry",
+            [
+                ["Payment Entry Reference", "reference_name", "=", erp_id],
+                ["docstatus", "=", 1],
+            ],
+            limite=50,
+            campi=["name", "posting_date"],
+        )
+    except ErpError as exc:
+        _log.warning("Payment Entry non leggibili per %s: %s", erp_id, exc)
+        return None
+    date = [str(pe["posting_date"]) for pe in confermati if pe.get("posting_date")]
+    return max(date) if date else None
+
+
 def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
     """Rilegge da ERPNext lo stato di pagamento delle fatture sincronizzate.
 
@@ -907,7 +987,16 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
             continue
         pi = corpo.get("data", corpo) if isinstance(corpo, dict) else {}
         stato, pagato = _stato_pagamento(pi)
-        dati = {"fattura_id": ft.id, "stato": stato, "importo_pagato": pagato, "erp_id": erp_id}
+        # La data del pagamento vive sui Payment Entry, non sulla PI: la si chiede
+        # solo quando c'è un pagamento di cui datare (mai per le non pagate).
+        data = _data_ultimo_pagamento(erp, erp_id) if stato != "non_pagato" else None
+        dati = {
+            "fattura_id": ft.id,
+            "stato": stato,
+            "importo_pagato": pagato,
+            "data": data,
+            "erp_id": erp_id,
+        }
         prec = esistenti.get(ft.id)
         if prec is not None:
             prec.dati.update(dati)
@@ -920,6 +1009,85 @@ def rileggi_pagamenti(dal: Any, erp: "ErpClient") -> dict[str, Any]:
         "read-back pagamenti: creati %d, aggiornati %d, errori %d", creati, aggiornati, errori
     )
     return {"esito": "ok", "creati": creati, "aggiornati": aggiornati, "errori": errori}
+
+
+# ======================================================================
+# Carico anagrafiche (M31, A5): upsert in blocco delle anagrafiche a valle
+# ======================================================================
+# Le anagrafiche non passano dalla revisione (nessuna "validazione" che faccia da
+# trigger): senza questo carico nascerebbero a valle solo se citate da un documento.
+# Il registro è il punto di estensione delle milestone successive (mezzi, materiali,
+# dipendenti…): una riga per tipo, la cornice non cambia.
+
+
+def _carica_fornitore(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str:
+    """Upsert completo del fornitore: Supplier + gruppo + Address/Contact mancanti."""
+    return _upsert_supplier(erp, envelope.dati, config, completa_esistente=True)
+
+
+def _carica_cantiere(dal: Any, erp: "ErpClient", envelope: Any, config: ErpConfig) -> str:
+    """Upsert del cantiere: Cost Center (con ``company``) + Project ancorato.
+
+    Il backref è il Cost Center — l'àncora contabile — quando esiste; senza
+    ``company`` resta il Project (che non la pretende).
+    """
+    cost_center = _upsert_cost_center(erp, envelope.dati, config)
+    progetto = _upsert_project(erp, envelope.dati, config, cost_center)
+    return cost_center or progetto
+
+
+# (tipo entità, upsert): l'ordine conta — i fornitori prima di chi li referenzia.
+ANAGRAFICHE_CARICABILI: tuple[tuple[str, Any], ...] = (
+    ("fornitore", _carica_fornitore),
+    ("cantiere", _carica_cantiere),
+)
+
+
+def carica_anagrafiche(dal: Any, erp: "ErpClient") -> dict[str, Any]:
+    """Porta a valle tutte le anagrafiche del registro (idempotente, best-effort).
+
+    Per ogni anagrafica non scartata: upsert per chiave naturale, backref
+    ``meta.erp_id`` quando cambia (con riga di ledger), errore contato e tracciato
+    senza fermare il giro. Un secondo carico con tutto allineato non scrive nulla.
+    """
+    if not erp.attivo():
+        return {"esito": "erp_non_configurato", "per_tipo": {}}
+    cfg = erp.config
+    per_tipo: dict[str, dict[str, int]] = {}
+    for tipo, upsert in ANAGRAFICHE_CARICABILI:
+        conta = {"inviate": 0, "gia_allineate": 0, "saltate": 0, "errori": 0}
+        for envelope in dal.list_all(tipo):
+            if envelope.stato == "scartato":
+                continue
+            try:
+                erp_id = upsert(dal, erp, envelope, cfg)
+            except ErpError as exc:
+                conta["errori"] += 1
+                _log.warning(
+                    "carico anagrafiche: %s non passato: %s",
+                    envelope.id,
+                    exc,
+                    extra={"entity_id": envelope.id},
+                )
+                registra_sync_erp(dal, entity_id=envelope.id, esito="errore", errore=str(exc))
+                continue
+            if not erp_id:
+                conta["saltate"] += 1  # es. cantiere senza company configurata
+                continue
+            if envelope.meta.erp_id == erp_id:
+                conta["gia_allineate"] += 1
+                continue
+            envelope.meta.erp_id = erp_id
+            envelope.meta.erp_synced = now_iso()
+            dal.update(envelope)
+            registra_sync_erp(dal, entity_id=envelope.id, esito="ok", erp_id=erp_id)
+            conta["inviate"] += 1
+        per_tipo[tipo] = conta
+    _log.info(
+        "carico anagrafiche: %s",
+        ", ".join(f"{t}: {c['inviate']} inviate, {c['errori']} errori" for t, c in per_tipo.items()),
+    )
+    return {"esito": "ok", "per_tipo": per_tipo}
 
 
 # ======================================================================

@@ -173,6 +173,14 @@ class ErpServerFinto:
                     417, {"exception": f"ValidationError: {mancante} è obbligatorio"}
                 )
             return RispostaFinta(200, {"data": self._crea(doctype, json or {})})
+        if metodo == "PUT":
+            if not nome:
+                return RispostaFinta(405, {"exc": "PUT senza nome documento"})
+            doc = self._per_nome(doctype, nome)
+            if doc is None:
+                return RispostaFinta(404, {"exc": f"{doctype} {nome} non trovato"})
+            doc.update(json or {})
+            return RispostaFinta(200, {"data": doc})
         return RispostaFinta(405, {"exc": f"metodo {metodo} non gestito"})
 
     def documenti(self, doctype: str) -> list[dict[str, Any]]:
@@ -201,6 +209,26 @@ class ErpServerFinto:
             raise KeyError(f"Purchase Invoice {name} inesistente")
         doc["grand_total"] = grand_total
         doc["outstanding_amount"] = outstanding
+
+    def registra_pagamento(
+        self, pi_name: str, posting_date: str, *, docstatus: int = 1
+    ) -> dict[str, Any]:
+        """Crea un Payment Entry confermato che riferisce la Purchase Invoice.
+
+        È la sorgente della *data* di pagamento nel read-back (M31): la PI porta
+        solo importi/outstanding, la data vive sui Payment Entry.
+        """
+        self.contatori["Payment Entry"] = self.contatori.get("Payment Entry", 0) + 1
+        record = {
+            "name": f"PE-{self.contatori['Payment Entry']:04d}",
+            "docstatus": docstatus,
+            "posting_date": posting_date,
+            "references": [
+                {"reference_doctype": "Purchase Invoice", "reference_name": pi_name}
+            ],
+        }
+        self.per_doctype.setdefault("Payment Entry", []).append(record)
+        return record
 
     def conferma(self, doctype: str, name: str) -> None:
         """Submit del documento (``docstatus`` 1): da qui in poi è nei conti."""

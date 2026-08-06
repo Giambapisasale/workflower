@@ -511,6 +511,19 @@ export type ErpEsitoPagamenti = {
   errori: number;
 };
 
+/** Contatori del carico anagrafiche (M31), per tipo entità. */
+export type ErpContatoriAnagrafiche = {
+  inviate: number;
+  gia_allineate: number;
+  saltate: number;
+  errori: number;
+};
+
+export type ErpEsitoAnagrafiche = {
+  esito: string; // "ok" | "erp_non_configurato"
+  per_tipo: Record<string, ErpContatoriAnagrafiche>;
+};
+
 /** Schema JSON (sottoinsieme che ci serve per generare i form). */
 export type JsonSchema = {
   type?: string | string[];
@@ -771,6 +784,9 @@ export const admin = {
 
   erpRileggiPagamenti: () =>
     richiesta<ErpEsitoPagamenti>("/erp/rileggi-pagamenti", metodoJson("POST")),
+
+  erpCaricaAnagrafiche: () =>
+    richiesta<ErpEsitoAnagrafiche>("/erp/carica-anagrafiche", metodoJson("POST")),
 
   // L'azienda che usa il sistema: il riferimento per riconoscere i documenti
   // intestati a noi. Dato in data/config/azienda.json, non variabile d'ambiente.

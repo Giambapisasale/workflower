@@ -1,0 +1,150 @@
+"""Carico anagrafiche in blocco (Fascia A, M31/A5). Copre gli AC della milestone:
+
+le anagrafiche non passano dalla revisione, quindi senza questo carico arrivano a
+valle solo se citate da un documento. `POST /api/erp/carica-anagrafiche` fa l'upsert
+di tutti i fornitori (Supplier + gruppo + Address/Contact, anche a completamento di
+un Supplier nato altrove) e cantieri (Cost Center + Project), con backref
+`meta.erp_id`, ledger, idempotenza e conteggio degli errori. Nessun ERPNext reale.
+"""
+
+from pathlib import Path
+
+import pytest
+from aiuti import accedi
+from fake_erp import ErpServerFinto
+
+from app.core.dal import DAL
+from app.core.dataset import leggi_sync_erp
+from app.core.erp import ErpClient, ErpConfig
+
+pytestmark = pytest.mark.erp
+
+CONFIG = ErpConfig(
+    base_url="http://erp.test", api_key="k", api_secret="s", company="Edile SpA"
+)
+
+
+def test_carico_porta_fornitori_e_cantieri(crea_client, dati_rw: Path) -> None:
+    dal = DAL(dati_rw)
+    n_forn = len(dal.list_all("fornitore"))
+    n_cant = len(dal.list_all("cantiere"))
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["esito"] == "ok"
+    assert r["per_tipo"]["fornitore"]["inviate"] == n_forn
+    assert r["per_tipo"]["fornitore"]["errori"] == 0
+    assert r["per_tipo"]["cantiere"]["inviate"] == n_cant
+
+    assert len(server.post_di("Supplier")) == n_forn
+    assert len(server.post_di("Address")) == n_forn  # il seed ha sempre indirizzo+comune
+    assert len(server.post_di("Contact")) == n_forn
+    assert len(server.post_di("Cost Center")) == n_cant
+    assert len(server.post_di("Project")) == n_cant
+
+    # backref su ogni anagrafica + riga ok nel ledger
+    dal = DAL(dati_rw)
+    assert all(e.meta.erp_id for e in dal.list_all("fornitore"))
+    assert all(e.meta.erp_id for e in dal.list_all("cantiere"))
+    ok_ledger = [x for x in leggi_sync_erp(dati_rw) if x["esito"] == "ok"]
+    assert len(ok_ledger) == n_forn + n_cant
+
+
+def test_carico_idempotente(crea_client, dati_rw: Path) -> None:
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    client.post("/api/erp/carica-anagrafiche", headers=admin)
+    prima = len(leggi_sync_erp(dati_rw))
+    n_supplier = len(server.post_di("Supplier"))
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["per_tipo"]["fornitore"]["inviate"] == 0
+    assert r["per_tipo"]["fornitore"]["gia_allineate"] > 0
+    assert r["per_tipo"]["cantiere"]["inviate"] == 0
+    assert len(server.post_di("Supplier")) == n_supplier  # nessun doppione a valle
+    assert len(leggi_sync_erp(dati_rw)) == prima  # niente ledger per il "già allineato"
+
+
+def test_carico_completa_un_supplier_nato_altrove(crea_client, dati_rw: Path) -> None:
+    """Un Supplier creato a mano in ERP (solo nome e P.IVA) viene completato:
+    gruppo dalla categoria via PUT, Address e Contact mancanti, backref in WF."""
+    dal = DAL(dati_rw)
+    forn = dal.list_all("fornitore")[0]
+    server = ErpServerFinto()
+    server.per_doctype.setdefault("Supplier", []).append(
+        {
+            "name": forn.dati["ragione_sociale"],
+            "tax_id": forn.dati["partita_iva"],
+            "supplier_group": "All Supplier Groups",
+        }
+    )
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["esito"] == "ok"
+    record = server.per_doctype["Supplier"][0]
+    assert record["supplier_group"] == forn.dati["categoria"]  # completato via PUT
+    indirizzi = [
+        a
+        for a in server.documenti("Address")
+        if any(l["link_name"] == record["name"] for l in a.get("links", []))
+    ]
+    assert len(indirizzi) == 1
+    assert DAL(dati_rw).read("fornitore", forn.id).meta.erp_id == record["name"]
+
+
+def test_carico_conta_gli_errori_senza_fermarsi(crea_client, dati_rw: Path) -> None:
+    dal = DAL(dati_rw)
+    n_forn = len(dal.list_all("fornitore"))
+    n_cant = len(dal.list_all("cantiere"))
+    server = ErpServerFinto(errore_su={"Supplier"})
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["esito"] == "ok"  # il giro finisce comunque
+    assert r["per_tipo"]["fornitore"]["errori"] == n_forn
+    assert r["per_tipo"]["cantiere"]["inviate"] == n_cant  # i cantieri passano
+    errori_ledger = [x for x in leggi_sync_erp(dati_rw) if x["esito"] == "errore"]
+    assert len(errori_ledger) == n_forn
+
+
+def test_carico_senza_company_cantieri_come_solo_project(crea_client, dati_rw: Path) -> None:
+    """Senza ERP_COMPANY il Cost Center non è creabile: resta il Project come àncora."""
+    config = ErpConfig(base_url="http://erp.test", api_key="k", api_secret="s")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=config, transport=server))
+    admin = accedi(client, "giovanna")
+
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["per_tipo"]["cantiere"]["errori"] == 0
+    assert not server.post_di("Cost Center")
+    assert len(server.post_di("Project")) == len(DAL(dati_rw).list_all("cantiere"))
+    assert all(e.meta.erp_id for e in DAL(dati_rw).list_all("cantiere"))
+
+
+def test_carico_erp_non_configurato(
+    crea_client, dati_rw: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for v in ("ERP_BASE_URL", "ERP_API_KEY", "ERP_API_SECRET"):
+        monkeypatch.delenv(v, raising=False)
+    client = crea_client()
+    admin = accedi(client, "giovanna")
+    r = client.post("/api/erp/carica-anagrafiche", headers=admin).json()
+    assert r["esito"] == "erp_non_configurato"
+    assert leggi_sync_erp(dati_rw) == []
+
+
+def test_carico_riservato_all_ufficio(crea_client, dati_rw: Path) -> None:
+    """Come le altre azioni ERP: operatore fuori, solo admin."""
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    operatore = accedi(client, "salvo")  # operatore di cantiere, non ufficio
+    resp = client.post("/api/erp/carica-anagrafiche", headers=operatore)
+    assert resp.status_code == 403
+    assert server.chiamate == []

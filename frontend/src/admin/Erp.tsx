@@ -76,6 +76,19 @@ export default function Erp() {
       return `Stato pagamenti aggiornato: ${r.creati} nuovi, ${r.aggiornati} aggiornati (errori: ${r.errori}).`;
     });
 
+  const caricaAnagrafiche = () =>
+    agisci("anagrafiche", async () => {
+      const r = await admin.erpCaricaAnagrafiche();
+      if (r.esito !== "ok") return "L'integrazione contabile non è configurata.";
+      const conteggi = Object.values(r.per_tipo);
+      const inviate = conteggi.reduce((somma, c) => somma + c.inviate, 0);
+      const allineate = conteggi.reduce((somma, c) => somma + c.gia_allineate, 0);
+      const errori = conteggi.reduce((somma, c) => somma + c.errori, 0);
+      if (inviate === 0 && errori === 0)
+        return `Anagrafiche già allineate in contabilità (${allineate}).`;
+      return `Anagrafiche inviate in contabilità: ${inviate} (già allineate: ${allineate}, errori: ${errori}).`;
+    });
+
   if (errore && stato === null) return <Errore>{errore}</Errore>;
   if (inCorso && stato === null) return <Stato>Carico lo stato delle sincronizzazioni…</Stato>;
   if (stato === null) return null;
@@ -91,6 +104,9 @@ export default function Erp() {
         azioni={
           stato.erp_attivo ? (
             <div className="flex gap-2">
+              <Bottone disabled={occupato} onClick={caricaAnagrafiche}>
+                {azione === "anagrafiche" ? "Carico…" : "Carica le anagrafiche"}
+              </Bottone>
               <Bottone disabled={occupato} onClick={rileggiPagamenti}>
                 {azione === "pagamenti" ? "Rileggo…" : "Rileggi i pagamenti"}
               </Bottone>
