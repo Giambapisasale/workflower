@@ -331,6 +331,12 @@ ripartono: se ne aggiorna solo il conteggio. Il trigger automatico è **opt-in**
 (`DIAGNOSTICA_AUTO=1`, perché ogni analisi è una chiamata LLM); l'analisi si può
 comunque lanciare a mano.
 
+Non solo errori: un **warning ripetuto** entra in diagnosi come *famiglia*, dalla
+quinta occorrenza della stessa firma in poi. Serve a intercettare i guasti
+sistematici che vivono sotto la soglia dell'errore — un passo best-effort che
+fallisce **sempre** (un allegato che non arriva mai a destinazione) non è rumore,
+anche se ogni singola riga è solo un `WARNING`.
+
 - **Interfaccia** — Admin → **Diagnosi**: badge di categoria, proposta in
   evidenza, azione suggerita (con scorciatoia all'Improver), file coinvolti,
   codice letto e traceback espandibili; *Segna risolta* / *Archivia*.

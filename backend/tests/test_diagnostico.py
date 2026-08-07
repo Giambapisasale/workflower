@@ -152,20 +152,58 @@ def test_analizza_recenti_ignora_fase_diagnostico(
     assert "runtime" in fasi
 
 
+def test_warning_isolato_non_diventa_diagnosi(dati_rw: Path, ambiente_llm: None) -> None:
+    diag = _diag(dati_rw)
+    logbook.ottieni_logger("erp").warning("allegato x.pdf non caricato su PI ACC-PINV-1: 500")
+    assert diag.analizza_recenti(giorni=1) == []
+
+
+def test_famiglia_di_warning_ripetuti_diventa_diagnosi(
+    dati_rw: Path, ambiente_llm: None
+) -> None:
+    """Il caso reale: l'allegato ERP che non passa mai, trenta volte, senza errori.
+
+    Nomi file e id documento cambiano a ogni riga: è la firma a riconoscere che
+    è sempre lo stesso guasto. Sotto soglia resta rumore, alla soglia diventa
+    una diagnosi sola.
+    """
+    diag = _diag(dati_rw)
+    log = logbook.ottieni_logger("erp")
+    for n in range(4):
+        log.warning(
+            "allegato %s non caricato su Purchase Invoice ACC-PINV-2026-0004%d: "
+            "ERP ha risposto 500 a POST /api/method/frappe.client.attach_file",
+            f"c5ee82e{n}-fattura-frn-002-003{n}.pdf",
+            n,
+        )
+    assert diag.analizza_recenti(giorni=1) == []  # 4 < soglia: ancora rumore
+
+    log.warning(
+        "allegato faa23c67-fattura-frn-002-0039.pdf non caricato su Purchase Invoice "
+        "ACC-PINV-2026-00059: ERP ha risposto 500 a POST "
+        "/api/method/frappe.client.attach_file"
+    )
+    diagnosi = diag.analizza_recenti(giorni=1)
+    assert len(diagnosi) == 1  # cinque righe diverse, una sola famiglia
+    assert diagnosi[0]["livello"] == "WARNING"
+    assert diagnosi[0]["n_occorrenze"] == 5
+
+
 # ---------------------------------------------------------------- osservatore
 
 
-def test_osservatore_scatta_sugli_errori(data_repo: Path) -> None:
+def test_osservatore_scatta_su_errori_e_warning(data_repo: Path) -> None:
     logbook.configura_logging(data_repo, "DEBUG")
     visti: list[dict] = []
     logbook.registra_osservatore(visti.append)
     try:
         logbook.ottieni_logger("runtime").info("non è un errore")
+        logbook.ottieni_logger("erp").warning("allegato non caricato")
         logbook.ottieni_logger("gateway").error("questo sì")
     finally:
         logbook.rimuovi_osservatori()
-    assert len(visti) == 1
-    assert visti[0]["livello"] == "ERROR" and "firma" in visti[0]
+    assert [v["livello"] for v in visti] == ["WARNING", "ERROR"]
+    assert all("firma" in v for v in visti)  # anche il warning ha una firma
 
 
 # ----------------------------------------------------------------------- API

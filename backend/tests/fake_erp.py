@@ -104,6 +104,20 @@ OBBLIGATORI_RIGHE: dict[str, tuple[str, tuple[str, ...]]] = {
     "Timesheet": ("time_logs", ("from_time", "hours")),
 }
 
+# Firma reale di ``frappe.client.attach_file`` (apps/frappe/frappe/client.py):
+# Frappe filtra i kwargs sulla firma, quindi un parametro chiamato col nome
+# sbagliato sparisce in silenzio e la funzione prosegue con ``doctype=None``.
+PARAMETRI_ATTACH_FILE: tuple[str, ...] = (
+    "filename",
+    "filedata",
+    "doctype",
+    "docname",
+    "folder",
+    "decode_base64",
+    "is_private",
+    "docfield",
+)
+
 # Campo del payload che fa da ``name`` del record creato (come l'autoname Frappe).
 _CAMPI_NOME: dict[str, str] = {
     "Supplier": "supplier_name",
@@ -277,29 +291,42 @@ class ErpServerFinto:
     def _metodo(self, url: str, payload: dict[str, Any]) -> RispostaFinta:
         """I metodi whitelisted Frappe che il client usa (per ora ``attach_file``).
 
-        Severo come il reale: allegare a un documento inesistente è un 404, non un
-        200 di cortesia; ``guasta("File")`` simula l'upload che fallisce.
+        Severo come il reale su due fronti. Primo: i **nomi dei parametri** sono
+        quelli della firma, e i kwargs fuori firma vengono scartati come li scarta
+        Frappe — chiamare ``attached_to_doctype`` invece di ``doctype`` non è un
+        417 gentile, è il 500 da ``get_doc(None, None)`` che si vede in campo.
+        Secondo: allegare a un documento inesistente è un 404, non un 200 di
+        cortesia; ``guasta("File")`` simula l'upload che fallisce.
         """
         nome_metodo = url.split("/api/method/", 1)[-1].split("?", 1)[0]
         if nome_metodo != "frappe.client.attach_file":
             return RispostaFinta(404, {"exc": f"metodo {nome_metodo} non gestito dal finto"})
         if "File" in self._errore_su:
             return RispostaFinta(500, {"exc": "errore simulato su File"})
-        for campo in ("filename", "attached_to_doctype", "attached_to_name"):
-            if not payload.get(campo):
-                return RispostaFinta(417, {"exception": f"ValidationError: {campo} è obbligatorio"})
-        if self._per_nome(payload["attached_to_doctype"], payload["attached_to_name"]) is None:
+        argomenti = {k: v for k, v in payload.items() if k in PARAMETRI_ATTACH_FILE}
+        if not argomenti.get("doctype") or not argomenti.get("docname"):
+            return RispostaFinta(
+                500,
+                {
+                    "exception": "ValueError: First non keyword argument must be a string or dict",
+                    "exc_type": "ValueError",
+                },
+            )
+        if not argomenti.get("filename"):
+            return RispostaFinta(417, {"exception": "ValidationError: filename è obbligatorio"})
+        if self._per_nome(argomenti["doctype"], argomenti["docname"]) is None:
             return RispostaFinta(
                 404,
-                {"exc": f"{payload['attached_to_doctype']} {payload['attached_to_name']} non trovato"},
+                {"exc": f"{argomenti['doctype']} {argomenti['docname']} non trovato"},
             )
         self.contatori["File"] = self.contatori.get("File", 0) + 1
         record = {
             "name": f"FILE-{self.contatori['File']:04d}",
-            "file_name": payload["filename"],
-            "attached_to_doctype": payload["attached_to_doctype"],
-            "attached_to_name": payload["attached_to_name"],
-            "is_private": payload.get("is_private", 0),
+            "file_name": argomenti["filename"],
+            # sul DocType File i campi si chiamano così; i parametri del metodo no
+            "attached_to_doctype": argomenti["doctype"],
+            "attached_to_name": argomenti["docname"],
+            "is_private": argomenti.get("is_private", 0),
         }
         self.per_doctype.setdefault("File", []).append(record)
         return RispostaFinta(200, {"message": record})

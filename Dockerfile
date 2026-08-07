@@ -3,7 +3,7 @@
 # volume esterno montato in /data (vedi entrypoint e i file di deploy).
 
 # --- 1) build del frontend --------------------------------------------------
-FROM node:20-alpine AS frontend
+FROM node:22-alpine AS frontend
 WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci

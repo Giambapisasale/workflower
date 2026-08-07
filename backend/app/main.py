@@ -141,12 +141,15 @@ def _installa_osservabilita(app: FastAPI) -> None:
 
 
 def _avvia_trigger_diagnostica(app: FastAPI) -> None:
-    """Il trigger: ogni errore risveglia (in background) l'analisi dei log.
+    """Il trigger: ogni errore (o warning) risveglia in background l'analisi dei log.
 
     Opt-in (env ``DIAGNOSTICA_AUTO``) perché ogni analisi è una chiamata LLM.
-    Un osservatore segnala gli errori; un worker daemon li assorbe con un piccolo
-    debounce e apre/aggiorna una diagnosi per firma. Riusa il DAL condiviso
-    dell'app (stesso lock di scrittura). Non tocca mai il flusso delle richieste.
+    Un osservatore segnala gli eventi WARNING+; un worker daemon li assorbe con un
+    piccolo debounce e apre/aggiorna una diagnosi per firma. Il risveglio su
+    warning costa solo una rilettura dei log: la chiamata LLM parte solo se una
+    famiglia supera la soglia (vedi ``diagnostico.SOGLIA_FAMIGLIA_WARNING``).
+    Riusa il DAL condiviso dell'app (stesso lock di scrittura). Non tocca mai il
+    flusso delle richieste.
     """
     from app.api.deps import dal_da_app
     from app.core.dal import DalError

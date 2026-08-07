@@ -1189,6 +1189,11 @@ def _allega_originale(
     multipart). Best-effort: un allegato fallito è un warning, la sincronizzazione
     resta valida — l'allegato è corredo, non contabilità. Ritorna il nome file
     allegato, o ``None`` se non c'era un blob o non è passato.
+
+    I nomi dei parametri sono quelli della firma di ``frappe.client.attach_file``
+    (``doctype``/``docname``, non i campi ``attached_to_*`` del DocType File):
+    Frappe scarta in silenzio i kwargs fuori firma, e la funzione partirebbe con
+    ``doctype=None`` fino al ``ValueError`` di ``get_doc``.
     """
     origine = getattr(envelope.meta, "origine", None)
     if not origine:
@@ -1205,8 +1210,8 @@ def _allega_originale(
             {
                 "filename": nome_file,
                 "filedata": base64.b64encode(percorso.read_bytes()).decode("ascii"),
-                "attached_to_doctype": doctype,
-                "attached_to_name": erp_id,
+                "doctype": doctype,
+                "docname": erp_id,
                 "decode_base64": 1,
                 "is_private": 1,
             },

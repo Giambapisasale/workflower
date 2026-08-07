@@ -34,6 +34,12 @@ _log = ottieni_logger("diagnostico")
 
 MAX_CAMPIONE = 3  # voci di log di esempio conservate nella diagnosi
 MAX_ERRORI_SCANSIONE = 200  # tetto di voci d'errore lette per ciclo di analisi
+MAX_WARNING_SCANSIONE = 1000  # i warning sono molti: tetto più alto per contare le famiglie
+# Occorrenze della stessa firma oltre le quali un WARNING ripetuto smette di
+# essere rumore. Nasce da un guasto vero: l'allegato ERP che non passava mai
+# (parametro col nome sbagliato) restava warning best-effort, e trenta
+# fallimenti identici di fila non producevano nessuna diagnosi.
+SOGLIA_FAMIGLIA_WARNING = 5
 STATI_APERTI = ("proposta",)
 
 
@@ -51,20 +57,31 @@ class Diagnostico:
     # ------------------------------------------------------------- pubblico
 
     def analizza_recenti(
-        self, giorni: int = 1, limite: int = MAX_ERRORI_SCANSIONE
+        self,
+        giorni: int = 1,
+        limite: int = MAX_ERRORI_SCANSIONE,
+        soglia_warning: int = SOGLIA_FAMIGLIA_WARNING,
     ) -> list[dict[str, Any]]:
-        """Diagnostica ogni firma d'errore distinta nei log recenti.
+        """Diagnostica ogni firma distinta nei log recenti.
+
+        Un **ERROR** entra da solo: uno basta. Un **WARNING** entra solo come
+        *famiglia ripetuta*, dalla ``soglia_warning``-esima occorrenza della
+        stessa firma in poi — il warning isolato è rumore, lo stesso warning
+        trenta volte è un guasto sistematico che nessuno ha declassato apposta.
 
         Le firme già aperte vengono solo aggiornate (conteggio), le nuove
         analizzate. Robusto: un fallimento su un cluster non ferma gli altri.
         """
-        errori = leggi_log(self.data_dir, livello_min="ERROR", giorni=giorni, limite=limite)
-        clusters: dict[str, list[dict[str, Any]]] = {}
-        for voce in errori:
-            if voce.get("fase") == "diagnostico":
-                continue  # mai diagnosticare la diagnostica (niente cicli)
-            f = str(voce.get("firma") or calcola_firma(voce))
-            clusters.setdefault(f, []).append(voce)
+        clusters = self._clusters(
+            leggi_log(self.data_dir, livello_min="ERROR", giorni=giorni, limite=limite)
+        )
+        recenti = leggi_log(
+            self.data_dir, livello_min="WARNING", giorni=giorni, limite=MAX_WARNING_SCANSIONE
+        )
+        warning = [v for v in recenti if str(v.get("livello")) == "WARNING"]
+        for f, voci in self._clusters(warning).items():
+            if len(voci) >= soglia_warning:
+                clusters.setdefault(f, []).extend(voci)
         risultati: list[dict[str, Any]] = []
         for f, voci in clusters.items():
             try:
@@ -137,6 +154,17 @@ class Diagnostico:
         )
 
     # ------------------------------------------------------------- interni
+
+    @staticmethod
+    def _clusters(voci: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        """Raggruppa per firma, scartando la fase ``diagnostico`` (niente cicli)."""
+        clusters: dict[str, list[dict[str, Any]]] = {}
+        for voce in voci:
+            if voce.get("fase") == "diagnostico":
+                continue
+            f = str(voce.get("firma") or calcola_firma(voce))
+            clusters.setdefault(f, []).append(voce)
+        return clusters
 
     def _diagnosi_aperta(self, firma: str) -> dict[str, Any] | None:
         for diagnosi in self.dal.list_diagnosi():

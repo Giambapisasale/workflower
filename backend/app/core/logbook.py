@@ -116,8 +116,8 @@ class _JsonlHandler(logging.Handler):
                 percorso.parent.mkdir(parents=True, exist_ok=True)
                 with percorso.open("a", encoding="utf-8") as file:
                     file.write(riga + "\n")
-            if record.levelno >= logging.ERROR:
-                _notifica_errore(voce)
+            if record.levelno >= logging.WARNING:
+                _notifica_osservatori(voce)
         except Exception:  # pragma: no cover - il logger non deve mai rompere il flusso
             self.handleError(record)
 
@@ -138,7 +138,9 @@ def _record_a_dict(record: logging.LogRecord, quando: datetime) -> dict[str, Any
             voce[campo] = _tronca(valore)
     if record.exc_info:
         voce["eccezione"] = "".join(traceback.format_exception(*record.exc_info)).rstrip()
-    if record.levelno >= logging.ERROR:
+    # Anche i WARNING hanno una firma: è quella che raggruppa le famiglie
+    # ripetute, il caso in cui un guasto sistematico si presenta come warning.
+    if record.levelno >= logging.WARNING:
         voce["firma"] = firma(voce)
     return voce
 
@@ -197,7 +199,11 @@ def firma(voce: dict[str, Any]) -> str:
 
 
 def registra_osservatore(callback: Callable[[dict[str, Any]], None]) -> None:
-    """Aggancia un callback agli eventi ERROR+ (il trigger di diagnostica)."""
+    """Aggancia un callback agli eventi WARNING+ (il trigger di diagnostica).
+
+    Anche i warning risvegliano l'analisi: sarà il Diagnostico a decidere se una
+    famiglia di warning ripetuti merita una diagnosi (soglia) o è solo rumore.
+    """
     if callback not in _osservatori:
         _osservatori.append(callback)
 
@@ -206,7 +212,7 @@ def rimuovi_osservatori() -> None:
     _osservatori.clear()
 
 
-def _notifica_errore(voce: dict[str, Any]) -> None:
+def _notifica_osservatori(voce: dict[str, Any]) -> None:
     for callback in list(_osservatori):
         try:
             callback(voce)

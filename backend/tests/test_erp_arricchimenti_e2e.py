@@ -14,7 +14,7 @@ from aiuti import accedi
 from fake_erp import ErpServerFinto
 
 from app.core.dal import DAL
-from app.core.erp import ErpClient, ErpConfig
+from app.core.erp import ErpClient, ErpConfig, ErpError
 from app.models.envelope import Meta
 
 pytestmark = pytest.mark.erp
@@ -199,6 +199,48 @@ def test_il_blob_originale_viene_allegato(crea_client, dati_rw: Path) -> None:
     assert allegati[0]["attached_to_name"] == erp_id
     assert allegati[0]["file_name"] == "fattura-test.pdf"
     assert allegati[0]["is_private"] == 1
+
+
+def test_allegato_usa_i_nomi_della_firma_di_frappe(crea_client, dati_rw: Path) -> None:
+    """Regressione: ``doctype``/``docname``, non i campi ``attached_to_*`` del File.
+
+    In campo il nome sbagliato non dava un errore di validazione: Frappe scartava
+    i kwargs fuori firma e moriva su ``get_doc(None, None)`` con un 500. Qui si
+    controlla il payload uscente, e sotto che il nome sbagliato fallisca davvero.
+    """
+    blob = dati_rw / "blobs" / "2026" / "fattura-test.pdf"
+    blob.parent.mkdir(parents=True, exist_ok=True)
+    blob.write_bytes(b"%PDF-1.4 finto")
+    bozza = _bozza_fattura(dati_rw, origine="blobs/2026/fattura-test.pdf")
+    server = ErpServerFinto()
+    client = crea_client(erp=ErpClient(config=CONFIG, transport=server))
+    admin = accedi(client, "giovanna")
+
+    client.post(f"/api/review/{bozza.id}/validate", headers=admin)
+
+    chiamata = next(c for c in server.chiamate if "frappe.client.attach_file" in c["url"])
+    payload = chiamata["json"]
+    assert payload["doctype"] == "Purchase Invoice"
+    assert payload["docname"] == DAL(dati_rw).read("fattura", bozza.id).meta.erp_id
+    assert "attached_to_doctype" not in payload and "attached_to_name" not in payload
+
+
+def test_il_finto_rifiuta_i_nomi_fuori_firma_come_frappe(dati_rw: Path) -> None:
+    """Il doppio deve rompersi dove si rompe il reale, altrimenti non è una rete."""
+    server = ErpServerFinto()
+    erp = ErpClient(config=CONFIG, transport=server)
+    with pytest.raises(ErpError) as exc:
+        erp.chiama_metodo(
+            "frappe.client.attach_file",
+            {
+                "filename": "x.pdf",
+                "filedata": "eA==",
+                "attached_to_doctype": "Purchase Invoice",
+                "attached_to_name": "ACC-PINV-0001",
+            },
+        )
+    assert "First non keyword argument" in str(exc.value)
+    assert server.documenti("File") == []
 
 
 def test_senza_blob_nessun_tentativo_di_allegato(crea_client, dati_rw: Path) -> None:

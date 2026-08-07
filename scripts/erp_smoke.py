@@ -166,6 +166,33 @@ def main() -> int:
     else:
         _skip("fattura→Purchase Invoice", "aggiungi --full per crearla")
 
+    # 5) Allegato -> File (frappe.client.attach_file)
+    # Ci è costato un guasto silenzioso: i parametri del metodo si chiamano
+    # doctype/docname, Frappe scarta i kwargs fuori firma e muore su get_doc(None).
+    # Contro il finto non si vedeva: qui sì, a ogni smoke.
+    if supplier:
+        try:
+            import base64
+
+            nome_file = f"{PREFISSO}-verifica.txt"
+            client.chiama_metodo(
+                "frappe.client.attach_file",
+                {
+                    "filename": nome_file,
+                    "filedata": base64.b64encode(b"WF-SMOKE").decode("ascii"),
+                    "doctype": "Supplier",
+                    "docname": supplier,
+                    "decode_base64": 1,
+                    "is_private": 1,
+                },
+            )
+            _ok("allegato→File", f"{nome_file} su Supplier {supplier}")
+        except ErpError as exc:
+            _ko("allegato→File", str(exc))
+            problemi += 1
+    else:
+        _skip("allegato→File", "manca il Supplier del passo 2")
+
     print()
     if problemi:
         print(f"{ROSSO}Smoke test: {problemi} problema/i.{RESET}")
