@@ -233,6 +233,17 @@ class ToolDatiError(AgenteDatiError):
     """Tool non disponibile, non autorizzato o con argomenti non validi."""
 
 
+class CatalogoDatiError(AgenteDatiError):
+    """L'installazione è incompleta: manca (o è illeggibile) il catalogo dell'agente.
+
+    Distinto dagli altri errori perché non dipende da cosa ha chiesto l'utente:
+    nessuna domanda, riformulata comunque, può funzionare finché il repo dati non
+    viene allineato. Serve separato perché il messaggio utile — *quale* file e
+    *quale* comando lo ripara — va all'amministratore e al log, mai all'operatore,
+    che dal canto suo non può farci nulla e non deve leggere un comando di shell.
+    """
+
+
 def _semplice(valore: Any) -> Any:
     if isinstance(valore, datetime | date):
         return valore.isoformat()
@@ -351,7 +362,21 @@ def impronta_catalogo(
     sostituzioni = sostituzioni or {}
 
     def contenuto(percorso: Path) -> bytes:
-        return sostituzioni.get(percorso, percorso.read_text(encoding="utf-8")).encode("utf-8")
+        # `sostituzioni` va letto prima del file: con `dict.get(k, default)` il
+        # default si valuta comunque, quindi una sostituzione per un file che
+        # non esiste ancora (una skill proposta e non ancora scritta) andava in
+        # errore proprio nel caso per cui era stata pensata.
+        if percorso in sostituzioni:
+            return sostituzioni[percorso].encode("utf-8")
+        try:
+            return percorso.read_text(encoding="utf-8").encode("utf-8")
+        except OSError:
+            # Un pezzo di catalogo che manca è un guaio vero, ma non è qui che
+            # si segnala: questa funzione deve solo produrre un'impronta stabile.
+            # A dirlo — con un messaggio utile — è chi il catalogo lo carica
+            # davvero (RegistryToolDati). Un'impronta che esplode trasformava un
+            # repo dati non allineato in un 500 senza spiegazione.
+            return b""
 
     parti = [contenuto(base / "manifest.yaml"), contenuto(base / "tools.yaml")]
     parti.extend(contenuto(p) for p in sorted((base / "skills").glob("*.md")))
@@ -398,11 +423,21 @@ class RegistryToolDati:
     def _carica(self) -> dict[str, dict[str, Any]]:
         try:
             documento = yaml.safe_load(self.path.read_text(encoding="utf-8")) or {}
+        except FileNotFoundError as exc:
+            # Caso tipico: repo dati creato da un'immagine precedente e mai
+            # allineato. Il percorso da solo non basta a capire cosa fare.
+            raise CatalogoDatiError(
+                f"il catalogo dei tool dell'agente non c'è nel repo dati ({self.path}): "
+                "il repo è rimasto a una versione precedente dell'applicazione. "
+                "Allinearlo con `python -m app.sync_dati --applica`."
+            ) from exc
         except OSError as exc:
-            raise AgenteDatiError(f"registry tool non leggibile: {exc}") from exc
+            raise CatalogoDatiError(f"registry tool non leggibile: {exc}") from exc
         voci = documento.get("tools") if isinstance(documento, dict) else None
         if not isinstance(voci, list):
-            raise AgenteDatiError("registry tool non valido")
+            raise CatalogoDatiError(
+                f"registry tool non valido ({self.path}): manca l'elenco 'tools'"
+            )
         risultato: dict[str, dict[str, Any]] = {}
         for voce in voci:
             self.valida_spec(voce)
@@ -545,6 +580,13 @@ class RegistryToolDati:
                 for riga in cursore.fetchall()
             ]
         except duckdb.Error as exc:
+            # All'utente va una frase innocua — il testo di DuckDB nomina viste e
+            # colonne, e non è roba sua. Ma senza questa riga il perché non lo
+            # sapeva *nessuno*: il trace registra solo «non disponibile», e un
+            # catalogo rotto (una macro che nomina una vista che non c'è: fa
+            # fallire ogni query, non una) diventava invisibile. Il costo di
+            # sbagliare qui non è una query persa, è non sapere di averla persa.
+            logger.error("tool %s non eseguibile sul catalogo: %s", tool.get("name"), exc)
             raise ToolDatiError("strumento momentaneamente non disponibile") from exc
         finally:
             if conn is not None:

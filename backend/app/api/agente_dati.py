@@ -15,12 +15,14 @@ from app.api.deps import (
 from app.core.agente_dati import (
     AgenteDati,
     AgenteDatiError,
+    CatalogoDatiError,
     EvolutoreAgente,
     aggiorna_configurazione,
     configurazione,
 )
 from app.core.auth import Utente
 from app.core.dal import DAL
+from app.core.logbook import ottieni_logger
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -49,6 +51,16 @@ def messaggio(
             cantieri=utente.cantieri,
             contenuto=body.content,
         )
+    except CatalogoDatiError as exc:
+        # L'installazione è incompleta: non è colpa della domanda, e riformularla
+        # non serve. Il dettaglio (quale file, quale comando) va al log per chi
+        # può agire; all'operatore va una frase che non contiene un percorso né
+        # un comando di shell — leggerli non lo aiuterebbe.
+        ottieni_logger("api").error("catalogo agente dati non disponibile: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Non riesco a rispondere in questo momento: ci pensa l'ufficio.",
+        ) from exc
     except AgenteDatiError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -91,10 +103,14 @@ def evoluzione(
 ) -> dict[str, Any]:
     from app.core.agente_dati import RegistryToolDati
 
-    return {
-        "tools": RegistryToolDati(agente.data_dir).elenco_admin(),
-        "proposals": evolutore.elenco(),
-    }
+    try:
+        tools = RegistryToolDati(agente.data_dir).elenco_admin()
+    except AgenteDatiError as exc:
+        # Catalogo assente o non valido: è un problema dell'installazione, non
+        # della richiesta. Senza questo `except` la pagina Evoluzione rispondeva
+        # 500 con un traceback e nessuna indicazione su cosa fare.
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"tools": tools, "proposals": evolutore.elenco()}
 
 
 class PropostaRichiesta(BaseModel):

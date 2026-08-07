@@ -16,4 +16,16 @@ else
   echo "→ repo dati già presente in $DATA_DIR"
 fi
 
+# Il seed gira una volta sola, ma il volume sopravvive all'immagine: un'immagine
+# nuova porta workflow e schemi nuovi che, senza questo passo, non arrivano mai
+# al repo dati. Il difetto non dà errore — dà una funzione che manca (un tool
+# che il manifest non dichiara, un campo che lo schema non estrae) finché
+# qualcosa non prova a leggere un file che non c'è. Non tocca i file modificati
+# a valle dall'Improver o a mano: per quelli serve `--forza`, che resta umano.
+if [ "${SYNC_DATI_AVVIO:-1}" = "1" ]; then
+  python -m app.sync_dati --applica --righe-diff 0
+else
+  echo "→ allineamento del repo dati disattivato (SYNC_DATI_AVVIO=0)"
+fi
+
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --workers 1

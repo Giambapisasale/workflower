@@ -19,29 +19,58 @@ Di suo non scrive niente: elenca le differenze e si ferma. E non sovrascrive i
 file che qualcuno ha modificato **dentro** il repo dati — in ``workflows/``
 scrive anche l'Improver quando l'ufficio approva una proposta, e una copia
 cieca cancellerebbe proprio quelle migliorie. Per quelli serve ``--forza``.
+
+Il catalogo SQL (``config/views.sql`` e ``config/macros.sql``) è un caso a sé:
+la base la distribuisce l'applicazione, ma dentro ci sono le viste e i tool che
+l'ufficio ha consolidato. Si copia la base e vi si reinnesta quella regione —
+vedi ``FILE_CON_REGIONE``. I due file vanno allineati **insieme**: le macro
+referenziano le viste, e DuckDB rifiuta l'intero catalogo — quindi ogni query,
+non solo quella nuova — se una macro nomina una vista che non c'è.
 """
 
 import argparse
 import difflib
 import os
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from git import Repo
 
-from app.core.dal import GIT_AUTHOR
+# I marker delle regioni generate e il loro innesto vivono nel DAL, che è il solo
+# a scriverle: qui servono per *conservarle*, non per produrle.
+from app.core.dal import (
+    _TOOL_FINE,
+    _TOOL_INIZIO,
+    _VISTE_FINE,
+    _VISTE_INIZIO,
+    GIT_AUTHOR,
+    _inserisci_regione,
+)
 
 ASSETS = Path(__file__).parent / "seed_assets"
 
 # Cosa viaggia con l'applicazione e deve poter raggiungere un repo dati che
-# esiste già. `config/` no: views.sql a parte, lì dentro ci sono gli utenti e
-# l'azienda, che sono dell'installazione e non nostri. L'unica eccezione è la
-# macro interna di compatibilità del catalogo dati: è distribuita dall'app e
-# non è un artefatto esposto al prodotto.
+# esiste già. Il resto di `config/` no: utenti e azienda sono dell'installazione,
+# non nostri.
 CARTELLE = ("workflows", "schemas")
-FILE_SINGOLI = ("config/macros.sql",)
+FILE_SINGOLI: tuple[str, ...] = ()
+
+# File distribuiti dall'applicazione che ospitano però una regione generata
+# dall'installazione: le viste e i tool che l'ufficio ha consolidato.
+#
+# Non stanno né fra i file da copiare né fra quelli da ignorare, e nessuna delle
+# due scorciatoie funziona: copiarli tali e quali cancella il lavoro
+# dell'ufficio; lasciarli indietro blocca il catalogo base — ed è la peggiore
+# delle due, perché `macros.sql` referenzia viste che vivono in `views.sql`.
+# Allinearne uno solo (com'era: macros.sql sì, views.sql no) fa fallire *ogni*
+# query, non solo quella nuova: DuckDB rifiuta l'intero catalogo se una macro
+# nomina una vista che non c'è. Si copia la base dell'applicazione e vi si
+# reinnesta la regione che il repo dati ha già.
+FILE_CON_REGIONE: dict[str, tuple[str, str]] = {
+    "config/views.sql": (_VISTE_INIZIO, _VISTE_FINE),
+    "config/macros.sql": (_TOOL_INIZIO, _TOOL_FINE),
+}
 # Asset del vecchio percorso da eliminare al primo allineamento. Non è più una
 # skill attiva né un documento UI: resta la cronologia Git del repo dati come
 # archivio, mentre l'app non può ricaricarlo per errore.
@@ -50,6 +79,12 @@ FILE_RITIRATI = ("workflows/interroga/skills/generazione-sql.md",)
 # I commit che questo comando e il seed producono: tutto il resto della storia
 # di un file è, per definizione, una modifica fatta a valle (Improver o umano).
 MARCATORI_NOSTRI = ("[seed]", "[sync-workflows]", "[sync-dati]")
+
+# Per i file con regione, i commit del consolidamento non sono una divergenza da
+# rispettare: scrivono *solo* dentro i marker, e il reinnesto li conserva parola
+# per parola. Trattarli come modifiche a mano bloccherebbe l'allineamento del
+# catalogo base proprio nelle installazioni che il prodotto lo usano davvero.
+MARCATORI_REGIONE = ("consolida:",)
 
 UGUALE, AGGIORNA, NUOVO, DIVERGENTE = "uguale", "aggiorna", "nuovo", "divergente"
 
@@ -74,11 +109,39 @@ def _testo(percorso: Path) -> str:
 
 def _modificato_a_valle(repo: Repo, rel: str) -> bool:
     """Qualcuno ha toccato questo file dopo il seed (Improver o a mano)?"""
+    marcatori = MARCATORI_NOSTRI
+    if rel in FILE_CON_REGIONE:
+        marcatori += MARCATORI_REGIONE
     for commit in repo.iter_commits(paths=rel):
         messaggio = str(commit.message)
-        if not any(marcatore in messaggio for marcatore in MARCATORI_NOSTRI):
+        if not any(marcatore in messaggio for marcatore in marcatori):
             return True
     return False
+
+
+def _estrai_regione(testo: str, inizio: str, fine: str) -> str | None:
+    """La regione generata così com'è nel repo dati, marker compresi."""
+    if inizio not in testo or fine not in testo:
+        return None
+    return testo[testo.index(inizio) : testo.index(fine) + len(fine)]
+
+
+def _atteso(data_dir: Path, sorgente: Path, rel: str) -> str:
+    """Il contenuto che il file dovrebbe avere: base dell'app + regione locale.
+
+    Per i file normali è semplicemente ciò che l'applicazione distribuisce.
+    """
+    base = _testo(sorgente)
+    marker = FILE_CON_REGIONE.get(rel)
+    if marker is None:
+        return base
+    destinazione = data_dir / rel
+    if not destinazione.exists():
+        return base
+    regione = _estrai_regione(_testo(destinazione), *marker)
+    if regione is None:
+        return base  # l'ufficio non ha ancora consolidato niente: non c'è cosa salvare
+    return _inserisci_regione(base, regione, *marker)
 
 
 def confronta(data_dir: Path, assets: Path = ASSETS) -> list[Confronto]:
@@ -97,7 +160,7 @@ def confronta(data_dir: Path, assets: Path = ASSETS) -> list[Confronto]:
                 continue
             rel = f"{cartella}/{sorgente.relative_to(assets / cartella).as_posix()}"
             esiti.append(_confronta_uno(repo, data_dir, sorgente, rel))
-    for rel in FILE_SINGOLI:
+    for rel in (*FILE_SINGOLI, *FILE_CON_REGIONE):
         sorgente = assets / rel
         if sorgente.is_file():
             esiti.append(_confronta_uno(repo, data_dir, sorgente, rel))
@@ -112,7 +175,7 @@ def _confronta_uno(repo: Repo, data_dir: Path, sorgente: Path, rel: str) -> Conf
     destinazione = data_dir / rel
     if not destinazione.exists():
         return Confronto(rel, NUOVO, [])
-    atteso, corrente = _testo(sorgente), _testo(destinazione)
+    atteso, corrente = _atteso(data_dir, sorgente, rel), _testo(destinazione)
     if atteso == corrente:
         return Confronto(rel, UGUALE, [])
     diff = list(
@@ -134,7 +197,11 @@ def applica(data_dir: Path, da_copiare: list[Confronto], assets: Path = ASSETS) 
             destinazione.unlink(missing_ok=True)
             continue
         destinazione.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(assets / esito.rel, destinazione)
+        # Non `copyfile`: per i file con regione il contenuto da scrivere non è
+        # quello dell'asset, è l'asset con reinnestata la regione locale.
+        destinazione.write_text(
+            _atteso(data_dir, assets / esito.rel, esito.rel), encoding="utf-8", newline=""
+        )
     repo = Repo(data_dir)
     presenti = [esito.rel for esito in da_copiare if esito.rel not in FILE_RITIRATI]
     ritirati = [esito.rel for esito in da_copiare if esito.rel in FILE_RITIRATI]
