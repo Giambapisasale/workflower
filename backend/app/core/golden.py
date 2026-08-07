@@ -50,13 +50,13 @@ class CasoGolden(BaseModel):
 
     @property
     def tipo(self) -> str:
-        """``"domanda"`` o ``"documento"``: cosa questo caso mette alla prova."""
-        return "domanda" if self.domanda else "documento"
+        """``legacy_sql`` o ``documento``: i casi legacy non guidano il runtime."""
+        return "legacy_sql" if self.domanda else "documento"
 
     @property
     def sql_riferimento(self) -> str | None:
         """La query approvata dall'ufficio, per i soli casi-domanda."""
-        return self.atteso.get("sql") if self.tipo == "domanda" else None
+        return self.atteso.get("sql") if self.tipo == "legacy_sql" else None
 
 
 def cartella_golden(data_dir: Path | str) -> Path:
@@ -83,5 +83,5 @@ def carica_golden(
 
 
 def casi_domanda(data_dir: Path | str) -> list[CasoGolden]:
-    """I casi golden che mettono alla prova l'interrogazione (domanda → query)."""
-    return carica_golden(data_dir, tipo="domanda")
+    """Archivio storico, non usato per decidere l'agente in produzione."""
+    return carica_golden(data_dir, tipo="legacy_sql")

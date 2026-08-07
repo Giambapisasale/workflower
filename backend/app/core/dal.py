@@ -316,7 +316,11 @@ class DAL:
         if not (self.data_dir / ".git").is_dir():
             raise DalError(f"{self.data_dir} non è un repo dati: eseguire `make seed`")
         self.repo = Repo(self.data_dir)
-        self._write_lock = threading.Lock()
+        # Alcuni flussi composti (conversazione+trace, proposta+catalogo) devono
+        # leggere, aggiornare piu' file e creare **un solo** commit. RLock rende
+        # riutilizzabili i metodi pubblici dentro una transazione senza aprire
+        # finestre di concorrenza fra scrittura e commit.
+        self._write_lock = threading.RLock()
 
     # ------------------------------------------------------------ letture
 
@@ -1171,6 +1175,38 @@ class DAL:
                 risolto = Path(percorso).resolve()
                 if risolto.is_file():
                     relativi.append(risolto.relative_to(self.data_dir).as_posix())
+            if not relativi:
+                return
+            self.repo.index.add(relativi)
+            self.repo.index.commit(message, author=GIT_AUTHOR, committer=GIT_AUTHOR)
+
+    def commit_updates(
+        self,
+        aggiornamenti: dict[Path | str, str],
+        *,
+        include: list[Path | str] | None = None,
+        message: str,
+    ) -> None:
+        """Scrive testi e file gia' prodotti in un solo commit atomico.
+
+        E' il punto di scrittura per stato dell'agente: evita che un reset, una
+        proposta o una risposta concorrente lasci file non committati o perda un
+        aggiornamento fra due richieste. Tutti i percorsi devono appartenere al
+        repo dati.
+        """
+        with self._write_lock:
+            tutti: list[Path] = []
+            for grezzo, testo in aggiornamenti.items():
+                percorso = Path(grezzo).resolve()
+                percorso.relative_to(self.data_dir)
+                self._scrivi_atomico(percorso, testo)
+                tutti.append(percorso)
+            for grezzo in include or []:
+                percorso = Path(grezzo).resolve()
+                percorso.relative_to(self.data_dir)
+                if percorso.is_file():
+                    tutti.append(percorso)
+            relativi = list(dict.fromkeys(p.relative_to(self.data_dir).as_posix() for p in tutti))
             if not relativi:
                 return
             self.repo.index.add(relativi)

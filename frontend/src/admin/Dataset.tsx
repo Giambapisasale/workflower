@@ -4,24 +4,12 @@ import { admin, type EvalT3 } from "./api";
 import { useCarica } from "./formato";
 import { Badge, Bottone, Card, Errore, Kpi, Stato } from "./ui";
 
-const SOGLIA_CONSOLIDAMENTO = 3; // oltre, la query è "candidata a tool" (§3.6)
-
 function costo(v: number): string {
   return `$ ${v.toFixed(4)}`;
 }
 
 function quota(v: number): string {
   return `${(v * 100).toFixed(0)}%`;
-}
-
-async function esporta() {
-  const blob = await admin.scaricaToolcalls();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "toolcalls.jsonl";
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 /** Idoneità T3: il modello locale candidato è abbastanza bravo da prendersi traffico?
@@ -144,6 +132,20 @@ function IdoneitaT3() {
               ))}
             </tbody>
           </table>
+          {esito.agente_dati ? (
+            <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+              <div className="font-medium">Agente dati · {esito.agente_dati.casi} golden nativi</div>
+              <div className="mt-1">
+                T3: strumenti {quota(esito.agente_dati.candidato.tool)}, argomenti {quota(esito.agente_dati.candidato.args)}, risultati {quota(esito.agente_dati.candidato.result ?? 0)}
+                {" · "}
+                T1: strumenti {quota(esito.agente_dati.riferimento.tool)}, argomenti {quota(esito.agente_dati.riferimento.args)}, risultati {quota(esito.agente_dati.riferimento.result ?? 0)}
+                {" · "}
+                <Badge tono={esito.agente_dati.pronto_per_t3 ? "verde" : esito.agente_dati.regressione ? "rosso" : "giallo"}>
+                  {esito.agente_dati.pronto_per_t3 ? "pronto per T3" : esito.agente_dati.regressione ? "regredirebbe" : "da migliorare"}
+                </Badge>
+              </div>
+            </div>
+          ) : null}
         </>
       )}
     </Card>
@@ -152,12 +154,10 @@ function IdoneitaT3() {
 
 export default function Dataset() {
   const stats = useCarica(() => admin.datasetStats());
-  const queries = useCarica(() => admin.datasetQueries());
 
   if (stats.inCorso) return <Stato>Carico i dati…</Stato>;
   if (stats.errore || !stats.dati) return <Errore>{stats.errore ?? "Nessun dato"}</Errore>;
   const s = stats.dati;
-  const gruppi = queries.dati ?? [];
 
   return (
     <>
@@ -168,10 +168,7 @@ export default function Dataset() {
         <Kpi etichetta="Tool call" valore={s.tool_call} nota={`${s.toolcalls_dataset} nel dataset`} />
       </div>
 
-      <Card
-        titolo="Dataset tool call"
-        azioni={<Bottone onClick={esporta}>Esporta toolcalls.jsonl</Bottone>}
-      >
+      <Card titolo="Dataset tool call">
         <p className="text-sm text-slate-600">
           Ogni chiamata a un tool dei run validati è un esempio per il futuro fine-tuning
           di un modello locale (§3.7). Sono {s.toolcalls_dataset} righe.
@@ -187,33 +184,11 @@ export default function Dataset() {
 
       <IdoneitaT3 />
 
-      <Card titolo={`Query di Interroga per fingerprint (${gruppi.length})`}>
-        {gruppi.length === 0 ? (
-          <Stato>Nessuna query registrata: prova la pagina Interroga.</Stato>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-400">
-                <th className="pb-2">Query (esempio)</th>
-                <th className="pb-2 text-right">Volte</th>
-                <th className="pb-2 pl-4"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {gruppi.map((g) => (
-                <tr key={g.fingerprint} className="border-b border-slate-50 align-top">
-                  <td className="py-2 pr-4 font-mono text-xs text-slate-600">{g.esempio}</td>
-                  <td className="py-2 text-right tabular-nums font-semibold">{g.conteggio}</td>
-                  <td className="py-2 pl-4">
-                    {g.conteggio >= SOGLIA_CONSOLIDAMENTO ? (
-                      <Badge tono="giallo">candidata a tool</Badge>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <Card titolo="Archivio storico dell'interrogazione">
+        <p className="text-sm text-slate-600">
+          Le interrogazioni storiche restano disponibili soltanto per confronto interno. Non
+          alimentano più il prodotto: le nuove capacità passano da Evoluzione agente.
+        </p>
       </Card>
     </>
   );

@@ -225,8 +225,10 @@ class Tracer:
         record = {"ts": _adesso(), "run_id": self.run_id, "evento": tipo, **sanitizza(campi)}
         self._appendi(self.trace_path, record)
 
-    def run_start(self, input_doc: str) -> None:
-        self.evento("run_start", workflow=self.workflow, version=self.version, input=input_doc)
+    def run_start(self, input_doc: str, **campi: Any) -> None:
+        self.evento(
+            "run_start", workflow=self.workflow, version=self.version, input=input_doc, **campi
+        )
 
     def llm_call(
         self,

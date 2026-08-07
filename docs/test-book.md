@@ -223,8 +223,8 @@ qui sotto non è eseguibile.
 `☐ OK ☐ KO`
 
 **T0.3 ⭐ 🔑 💶 · Il modello risponde**
-Da Admin → **Interroga**, chiedi «Quante fatture ci sono?». Deve tornare SQL +
-tabella. Se qui vedi un errore di modello (nome non valido, chiave scaduta,
+Da Admin → **Interroga**, chiedi «Quante fatture ci sono?». Deve tornare una
+risposta leggibile, fonti semantiche e trace. Se qui vedi un errore di modello (nome non valido, chiave scaduta,
 quota), **tutte** le prove 🔑 falliranno a cascata: risolvi prima.
 `☐ OK ☐ KO` — modello usato: ____________
 
@@ -256,9 +256,9 @@ codice HTTP a schermo.
 
 **A3 ⭐ · Accesso ufficio**
 Apri `/admin` → `giovanna` / `9999`.
-**Atteso:** barra con 12 voci (Cruscotto, Dati, Scostamenti, Revisione,
-Segnalazioni, Interroga, Workflows, Skills & Tools, Dataset, Contabilità, Log,
-Diagnosi).
+**Atteso:** barra che include Cruscotto, Dati, Scostamenti, Revisione,
+Segnalazioni, Agente dati, Evoluzione agente, Workflows, Run, Skills & Tools,
+Dataset, Contabilità, Log, Diagnosi). Nessuna voce promette interrogazioni tecniche.
 `☐ OK ☐ KO`
 
 **A4 ⭐ · L'operatore non entra nell'ufficio**
@@ -461,8 +461,8 @@ previsto: salta se non applicabile).
 
 **C6 ⭐ 🔑 💶 · Chiedi qualcosa (operatore)**
 *Chiedi qualcosa* → «Quanto abbiamo speso in questo cantiere?».
-**Atteso:** una risposta in italiano sui **propri** cantieri. Non deve comparire SQL
-(quello è roba d'ufficio) né dati di cantieri non assegnati.
+**Atteso:** una risposta in italiano sui **propri** cantieri. Non devono comparire
+dettagli tecnici né dati di cantieri non assegnati.
 `☐ OK ☐ KO`
 
 **C7 · La domanda non risponde**
@@ -823,7 +823,8 @@ Tutti 🔑💶.
 
 **G1 ⭐ 🔑 💶 · Domanda semplice**
 Admin → **Interroga** → «Quanto abbiamo speso per ogni cantiere?».
-**Atteso:** l'**SQL generato** in chiaro + la tabella dei risultati.
+**Atteso:** risposta leggibile, strumenti semantici e fonti usati, con trace
+apribile. Non compare alcun dettaglio dell'implementazione interna.
 `☐ OK ☐ KO`
 
 **G2 ⭐ 🔑 💶 · La domanda della demo**
@@ -833,35 +834,37 @@ Admin → **Interroga** → «Quanto abbiamo speso per ogni cantiere?».
 
 **G3 🔑 💶 · Domanda su ore e manodopera**
 «Quante ore sono state fatte per cantiere questo mese?».
-**Atteso:** tabella coerente con il Cruscotto (E1).
+**Atteso:** risposta coerente con il Cruscotto (E1) e traccia di almeno uno strumento.
 `☐ OK ☐ KO`
 
-**G4 ⭐ · Guardrail: solo lettura**
-«Cancella tutte le fatture» (o una domanda che induca una `DELETE`).
-**Atteso:** rifiuto esplicito — «sono ammesse solo query di lettura (SELECT)» o
-«parola non ammessa: …». **Nessuna** riga toccata: riverifica il conteggio fatture
-dopo.
+**G4 ⭐ · Follow-up conversazionale**
+Dopo G2 chiedi «e qual è la prossima scadenza?».
+**Atteso:** usa il contesto dello scambio precedente; la conversazione mostra due
+scambi completi e il trace del secondo run è distinto.
 `☐ OK ☐ KO`
 
-**G5 · Guardrail: una query per volta**
-Induci due statement separati da `;`.
-**Atteso:** «è ammessa una sola query per volta».
+**G5 · Nuova conversazione**
+Premi *Nuova conversazione*, poi ripeti una domanda che richiedeva il contesto G4.
+**Atteso:** la memoria è vuota e l'agente chiede un chiarimento o dichiara che non ha
+abbastanza informazioni, senza usare lo scambio precedente.
 `☐ OK ☐ KO`
 
-**G6 · Guardrail: LIMIT forzato**
-Una domanda che restituirebbe tutto.
-**Atteso:** l'SQL mostrato contiene un `LIMIT` (max 1000) anche se non l'hai chiesto.
+**G6 · Limiti e risposta fuori catalogo**
+Chiedi una domanda non coperta («prevedi il prezzo del rame il mese prossimo»).
+**Atteso:** l'agente dichiara di non avere ancora lo strumento adatto; non inventa
+dati, non esegue scritture e lascia un trace consultabile.
 `☐ OK ☐ KO`
 
-**G7 · Nessun risultato**
-Una domanda con risposta vuota («fatture del 2019»).
-**Atteso:** «Nessun risultato.» — non un errore.
+**G7 ⭐ · Perimetro cantiere**
+Accedi come operatore e chiedi costi, fatture e avanzamento. Ripeti come ufficio.
+**Atteso:** l'operatore vede solo i propri cantieri, anche nei totali; l'ufficio può
+vedere il perimetro completo. Il trace operatore non include righe di altri cantieri.
 `☐ OK ☐ KO`
 
-**G8 · Le query si accumulano**
-Ripeti **due volte** la stessa domanda, poi vai in **Skills & Tools**.
-**Atteso:** la domanda compare fra le «Query ricorrenti» con badge `×2`. Serve per la
-sezione I.
+**G8 · Contesto e limiti**
+Configura la memoria a 6 messaggi, invia quattro domande e ricarica la pagina.
+**Atteso:** restano solo gli ultimi tre scambi completi. Riprova con una risposta
+molto ampia: lo strumento limita righe e dimensione, la chat resta utilizzabile.
 `☐ OK ☐ KO`
 
 ---
@@ -985,41 +988,41 @@ Cerca, nell'interfaccia operatore, qualunque modo di approvare una patch.
 
 ---
 
-## 11 · I — Consolidamento: viste, tool parametrici, Toolsmith
+## 11 · I — Evoluzione controllata dell’agente dati
 
-**I1 ⭐ · I candidati compaiono**
-Admin → **Skills & Tools**, dopo G8.
-**Atteso:** in «Query ricorrenti — candidate al consolidamento», la tua domanda con
-`×2` e i bottoni *Crea vista* / *Crea tool*.
+**I1 ⭐ · Lacuna e proposta**
+Admin → **Evoluzione agente** → descrivi una domanda fuori catalogo.
+**Atteso:** nasce una proposta con analisi, intenti coperti, esempi, ruoli, scope,
+test mirato e replay; è associata a un trace.
 `☐ OK ☐ KO`
 
-**I2 ⭐ · Crea una vista**
-*Crea vista* → nome `spesa_mensile` → conferma.
-**Atteso:** nasce `v_spesa_mensile` in «Viste consolidate», con data e autore; il
-candidato si marca `✓`. È un **commit git** in `config/views.sql`.
+**I2 ⭐ · DSL ispezionabile**
+Apri il dettaglio della proposta.
+**Atteso:** l'ufficio può leggere definizione dichiarativa, parametri, esempi,
+risultato atteso e collaudo. Non compaiono dettagli del motore dati.
 `☐ OK ☐ KO`
 
-**I3 · La vista è interrogabile**
-In **Interroga**, chiedi qualcosa che la usi (o cita il nome della vista).
-**Atteso:** risponde senza rigenerare la query originale; numeri identici a prima.
+**I3 ⭐ · Collaudo del perimetro**
+Per una proposta disponibile anche all'operatore, verifica il test di scope.
+**Atteso:** il collaudo prova un cantiere assegnato e fallisce se una riga esce dal
+perimetro; senza test verde la proposta non è approvabile.
 `☐ OK ☐ KO`
 
-**I4 ⭐ · Crea un tool parametrico**
-Su una query ricorrente con un valore variabile (es. il nome di un cantiere), *Crea
-tool* → nome → assegna un nome al parametro (`cantiere`) → conferma.
-**Atteso:** nasce `t_<nome>(cantiere)` in «Tool parametrici (macro)».
+**I4 ⭐ · Replay prima dell'approvazione**
+Controlla il replay della proposta e prova ad approvarla dopo aver reso un golden
+non verde.
+**Atteso:** il replay copre il set agent-native corrente e l'approvazione è bloccata.
 `☐ OK ☐ KO`
 
-**I5 · Tool senza parametri**
-Prova *Crea tool* su una query senza letterali.
-**Atteso:** «Nessun valore da parametrizzare in questa query: conviene "Crea
-vista".» — e il bottone di creazione resta disabilitato.
+**I5 ⭐ · Approvazione atomica**
+Approva una proposta verde.
+**Atteso:** registry, eventuale skill, proposta e versione dell'agente cambiano in un
+solo commit; il catalogo aggiornato è subito disponibile nella chat.
 `☐ OK ☐ KO`
 
-**I6 · Rimozione reversibile**
-*Rimuovi* su una vista e su un tool, con conferma *Sì, rimuovi*.
-**Atteso:** spariscono, la query torna fra le ricorrenti, ogni rimozione è un commit
-git reversibile.
+**I6 · Rifiuto**
+Rifiuta una proposta.
+**Atteso:** resta nello storico come rifiutata; catalogo, skill e versione non cambiano.
 `☐ OK ☐ KO`
 
 **I7 · Registry dei tool nativi**
@@ -1083,21 +1086,22 @@ credibili.
 `☐ OK ☐ KO`
 
 **J2 · Export delle tool call**
-*Esporta toolcalls.jsonl*.
-**Atteso:** un `.jsonl` che si apre, una riga per tool call.
+Controlla i trace dei run dell'agente dati.
+**Atteso:** le chiamate agli strumenti, gli argomenti e gli esiti sono tracciati;
+la conversazione conserva solo messaggi utente, risposta finale e identificativo run.
 `☐ OK ☐ KO`
 
 **J3 · Export per il fine-tuning**
-Skills & Tools → *⬇ Scarica finetuning.jsonl*.
-**Atteso:** contiene **solo** gli esempi dei documenti validati dall'ufficio; il
-conteggio coincide con il KPI «Esempi fine-tuning». Con 0 esempi il bottone è
-disabilitato.
+Skills & Tools → verifica il conteggio degli esempi validati.
+**Atteso:** gli esempi dei workflow documentali restano separati dalla conversazione
+dati; nessun archivio di prodotto esporta dettagli tecnici dell'interrogazione.
 `☐ OK ☐ KO`
 
-**J4 · Query ricorrenti nel Dataset**
-Card «Query ricorrenti».
-**Atteso:** le domande poste a Interroga con quante volte; con nessuna: «Nessuna
-query registrata: prova la pagina Interroga.»
+**J4 · Golden agent-native**
+In Dataset → *Misura adesso* (con modello T3 configurato) e in Evoluzione agente
+controlla il replay.
+**Atteso:** la misura e il replay usano golden con domanda, eventuale contesto,
+strumento, argomenti normalizzati e risultato normalizzato; il conteggio è dinamico.
 `☐ OK ☐ KO`
 
 **J5 ⭐ · Idoneità T3: senza modello lo dice**
@@ -1109,18 +1113,16 @@ tabella di zeri che sembra un fallimento del modello.
 
 **J5b 🔑 💶 · Idoneità T3: la misura**
 Con `LLM_T3_MODEL` impostato su un modello locale, *Misura adesso*.
-**Atteso:** una riga per workflow con esempi, T3 su tool e argomenti, T1 sugli
-argomenti come riferimento, e il verdetto — *pronto per T3* / *regredirebbe* /
-*sotto soglia*. In testa i due modelli, la soglia e — se ce ne sono — gli esempi
-esclusi e l'avviso sui **prompt troncati** (vedi §17 punto 3). **Non parte da sola**:
-rigioca tutto il set validato su due tier.
+**Atteso:** per l'agente dati mostra precisione di scelta strumento, argomenti e
+risultato normalizzato per T3 e T1, con verdetto — *pronto per T3* /
+*regredirebbe* / *da migliorare*. **Non parte da sola**: rigioca il set agent-native
+validato sui due tier.
 `☐ OK ☐ KO ☐ N/A`
 
 **J5c ⭐ · L'harness non cade mai**
 Chiama `GET /api/dataset/eval-t3` su un ambiente appena seminato (nessun run).
-**Atteso:** `200` con `esempi: 0` e i contatori `non_rigiocabili` e
-`prompt_troncati` presenti. **Mai un 500**: una misura che va in errore a metà non
-serve a nessuno. (Era proprio così che si rompeva prima che questa pagina esistesse.)
+**Atteso:** `200` con i contatori del set documentale e dell'agente presenti anche se
+vuoti. **Mai un 500**: una misura che va in errore a metà non serve a nessuno.
 `☐ OK ☐ KO`
 
 **J6 · Escalation T3→T1**
@@ -1318,8 +1320,9 @@ tanto quanto i bottoni.
 
 **M1 ⭐ · Ogni mutazione è un commit**
 `git -C data log --oneline | head -20` dopo una sessione di lavoro.
-**Atteso:** un commit per ogni creazione, modifica, validazione, consolidamento,
-rimozione — con l'autore e il `run_id` nel messaggio. È l'audit trail completo.
+**Atteso:** un commit per ogni creazione, modifica, validazione, proposta,
+approvazione o rimozione — con l'autore e il `run_id` nel messaggio. L'approvazione
+dell'agente raggruppa catalogo, skill, proposta e versione in un solo commit.
 `☐ OK ☐ KO`
 
 **M2 ⭐ · Nessuno stato fuori da `/data`**
@@ -1343,9 +1346,10 @@ interno: ci pensa l'ufficio».
 `☐ OK ☐ KO`
 
 **M5 · Scritture concorrenti**
-Da due schede, valida due documenti diversi nello stesso momento.
-**Atteso:** entrambe riescono, due commit distinti, nessun repo git in stato
-inconsistente (il DAL è single-writer).
+Da due schede, invia messaggi alla stessa conversazione e modifica il limite mentre
+una risposta è in corso.
+**Atteso:** nessuno scambio si perde o resta spezzato; reset, append e configurazione
+sono serializzati e il repo resta consistente.
 `☐ OK ☐ KO`
 
 **M6 · Il codice generato gira solo in sandbox**
@@ -1365,8 +1369,8 @@ dall'ambiente. Ogni altro riscontro è un KO.
 **M8 ⭐ · Riavvio a freddo**
 Ferma tutto e riavvia (`docker compose down && docker compose up -d`, oppure Ctrl-C
 su `make dev` e ripartenza).
-**Atteso:** sessioni scadute (rilogin), ma **tutti** i dati, le viste consolidate, le
-patch approvate, il livello di log e le sincronizzazioni ERP sono dove li avevi
+**Atteso:** sessioni scadute (rilogin), ma **tutti** i dati, le conversazioni, le
+proposte approvate, il livello di log e le sincronizzazioni ERP sono dove li avevi
 lasciati.
 `☐ OK ☐ KO`
 
@@ -1413,13 +1417,12 @@ lasciati.
 | CRUD generico guidato dagli schemi | F1–F6, F8 |
 | Integrità referenziale (no cancellazioni orfane) | F7, F7b |
 | Registri automatici (pozzetti, cronoprogramma) | F9 |
-| Text-to-SQL con guardrail | G1–G7 |
+| Agente dati conversazionale, limiti e perimetro | G1–G8 |
 | Segnalazione → Improver → patch → replay | H1, H3, H4, H9 |
 | Pubblicazione v1.1 + rielaborazione | H4, H5 |
 | Regola dettata in italiano | H8 |
 | Rifiuto di una patch | H7 |
-| Consolidamento in vista `v_*` | I1–I3 |
-| Consolidamento in tool parametrico `t_*` | I4–I6 |
+| Proposta DSL → collaudo → replay → approvazione | I1–I6 |
 | Registry dei tool nativi con contatori | I7 |
 | Toolsmith Python (codice=dato, sandbox) | I8–I13, M6 |
 | Costi LLM ed export dataset | J1–J4 |

@@ -20,6 +20,10 @@ from fastapi.testclient import TestClient
 
 from app.core.dataset import statistiche
 
+import pytest
+
+pytestmark = pytest.mark.skip(reason="trace storico: l'agente dati è coperto da test_agente_dati")
+
 CANTIERI = "SELECT id, nome FROM v_cantieri ORDER BY id LIMIT 10"
 
 

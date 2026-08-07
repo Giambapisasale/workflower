@@ -13,12 +13,13 @@ from typing import Any
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.agente_dati import AgenteDati, EvolutoreAgente
 from app.core.auth import AuthError, Utente, decodifica_token
 from app.core.dal import DAL, DalError
 from app.core.diagnostico import Diagnostico
 from app.core.docling import DoclingClient
 from app.core.erp import ErpClient
-from app.core.eval_interroga import EvalInterroga
+from app.core.eval_agente import EvalAgente
 from app.core.eval_t3 import EvalT3
 from app.core.gateway import Gateway
 from app.core.improver import Improver
@@ -92,6 +93,19 @@ def get_interroga(
     return Interroga(dal, gateway)
 
 
+def get_agente_dati(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> AgenteDati:
+    """Agente conversazionale read-only, separato dal vecchio text-to-SQL."""
+    return AgenteDati(dal, gateway)
+
+
+def get_evolutore_agente(
+    dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
+) -> EvolutoreAgente:
+    return EvolutoreAgente(dal, gateway)
+
+
 def get_improver(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
 ) -> Improver:
@@ -112,8 +126,9 @@ def get_eval_t3(
 
 def get_eval_interroga(
     dal: DAL = Depends(get_dal), gateway: Gateway = Depends(get_gateway)
-) -> EvalInterroga:
-    return EvalInterroga(dal, gateway)
+) -> EvalAgente:
+    """Nome storico della dipendenza, ora collegato al valutatore tool-first."""
+    return EvalAgente(dal, gateway)
 
 
 def get_diagnostico(

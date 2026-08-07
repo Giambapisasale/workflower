@@ -12,7 +12,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel
 
 from app.api.deps import (
     get_dal,
@@ -23,16 +22,6 @@ from app.api.deps import (
     richiedi_admin,
 )
 from app.core.auth import Utente
-from app.core.consolida import (
-    ConsolidaError,
-    consolidati_per_fingerprint,
-    corpo_vista,
-    leggi_consolidamenti,
-    leggi_tool,
-    letterali,
-    prepara,
-    prepara_tool,
-)
 from app.core.dal import DAL, CatalogoNonValido
 from app.core.dataset import (
     conteggio_fingerprint,
@@ -42,27 +31,9 @@ from app.core.dataset import (
     statistiche,
 )
 from app.core.docling import DoclingClient
-from app.core.eval_interroga import EvalInterroga, unisci
+from app.core.eval_agente import EvalAgente
 from app.core.eval_t3 import EvalT3
-from app.core.golden import casi_domanda
 from app.core.tools import Toolset
-
-
-def _candidati(data_dir: Path) -> list[dict[str, Any]]:
-    """I gruppi per fingerprint, marcati con l'artefatto se già consolidato.
-
-    Ogni gruppo porta i ``letterali`` del suo esempio: sono i valori che
-    l'ufficio può rendere parametri quando promuove la query a tool.
-    """
-    consolidati = consolidati_per_fingerprint(data_dir)
-    return [
-        {
-            **gruppo,
-            "consolidato": consolidati.get(gruppo["fingerprint"]),
-            "letterali": letterali(corpo_vista(gruppo["esempio"])),
-        }
-        for gruppo in conteggio_fingerprint(data_dir)
-    ]
 
 router = APIRouter(tags=["dataset"])
 
@@ -84,149 +55,29 @@ def queries(
     _admin: Utente = Depends(richiedi_admin),
     data_dir: Path = Depends(get_data_dir),
 ) -> dict[str, Any]:
-    """Le query di ``/ask`` per fingerprint: i duplicati sono candidati a tool (§3.6)."""
-    return {"gruppi": _candidati(data_dir)}
-
-
-class Sorgente(BaseModel):
-    """Da dove viene la query da consolidare: una delle tre, non due.
-
-    ``fingerprint`` era l'unica via, e nasceva dall'idea che i candidati si
-    scoprano perché una query **si ripete**. Vale nell'uso quotidiano, non quando
-    si consolida partendo da un catalogo di domande: 120 domande diverse danno 119
-    fingerprint distinti, nessuno ricorrente (vedi ``docs/finetuning-runbook.md``).
-
-    Le altre due vie servono a questo. ``golden_id`` prende la query di un caso
-    golden, che è già passata da un'approvazione umana. ``sql`` la prende dal corpo
-    della richiesta, per il caso più importante: la vista giusta spesso **non è**
-    nessuna delle query prodotte dal modello, va disegnata — è il senso di
-    «l'umano conferma sempre» del §3.6. In tutti i casi valgono gli stessi
-    guardrail di ``/ask`` e la stessa compilazione reale su DuckDB.
-    """
-
-    fingerprint: str | None = None
-    golden_id: str | None = None
-    sql: str | None = None
-
-    def scelte(self) -> int:
-        return sum(1 for v in (self.fingerprint, self.golden_id, self.sql) if v)
-
-
-def _esempio(dal: DAL, sorgente: Sorgente) -> tuple[str, str]:
-    """La query da consolidare e il fingerprint con cui registrarla.
-
-    Il fingerprint finisce nel ledger anche quando la query arriva da ``sql`` o da
-    un caso golden: serve a ``consolidati_per_fingerprint`` per marcare il candidato
-    quando quella stessa query ricompare fra le domande.
-    """
-    if sorgente.scelte() != 1:
-        raise HTTPException(
-            status_code=400,
-            detail="indica una sola sorgente: fingerprint, golden_id oppure sql",
-        )
-    if sorgente.sql:
-        return sorgente.sql, fingerprint(sorgente.sql)
-    if sorgente.golden_id:
-        caso = next(
-            (c for c in casi_domanda(dal.data_dir) if c.id == sorgente.golden_id), None
-        )
-        if caso is None or not caso.sql_riferimento:
-            raise HTTPException(
-                status_code=404,
-                detail=f"nessun caso golden-domanda con id {sorgente.golden_id}",
-            )
-        return caso.sql_riferimento, fingerprint(caso.sql_riferimento)
-    gruppi = conteggio_fingerprint(dal.data_dir)
-    gruppo = next((g for g in gruppi if g["fingerprint"] == sorgente.fingerprint), None)
-    if gruppo is None:
-        raise HTTPException(
-            status_code=404, detail="nessuna query da consolidare per questo fingerprint"
-        )
-    return gruppo["esempio"], sorgente.fingerprint or ""
-
-
-class ConsolidaRichiesta(Sorgente):
-    nome: str
+    """Conteggi dell'archivio storico, senza testo o struttura delle query."""
+    return {
+        "gruppi": [
+            {"fingerprint": g["fingerprint"], "conteggio": g["conteggio"], "archivio": True}
+            for g in conteggio_fingerprint(data_dir)
+        ]
+    }
 
 
 @router.post("/dataset/consolida")
 def consolida(
-    body: ConsolidaRichiesta,
-    admin: Utente = Depends(richiedi_admin),
-    dal: DAL = Depends(get_dal),
+    _admin: Utente = Depends(richiedi_admin),
 ) -> dict[str, Any]:
-    """Promuove una query a vista ``v_<nome>`` (§3.6, branca "vista SQL").
-
-    Non genera codice: la vista vive in ``config/views.sql`` (dato). L'umano
-    sceglie il nome; i guardrail di ``/ask`` e una compilazione reale su DuckDB
-    garantiscono che la vista sia sicura ed eseguibile prima del commit.
-    """
-    esempio, impronta = _esempio(dal, body)
-    try:
-        preparata = prepara(dal.data_dir, body.nome, esempio)
-    except ConsolidaError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    voce = dal.consolida_vista(
-        nome=body.nome,
-        vista=preparata["vista"],
-        corpo=preparata["corpo"],
-        fingerprint=impronta,
-        esempio=esempio,
-        creato_da=admin.username,
-    )
-    return {
-        "vista": preparata["vista"],
-        "corpo": preparata["corpo"],
-        "righe": preparata["righe"],
-        "creato": voce["creato"],
-    }
-
-
-class Parametro(BaseModel):
-    valore: str  # il letterale dell'esempio (es. "'Le Palme'" o "100")
-    nome: str  # il nome del parametro nella macro (es. "cantiere")
-
-
-class ConsolidaToolRichiesta(Sorgente):
-    nome: str
-    parametri: list[Parametro]
+    """Compatibilità esplicita: la promozione dal catalogo storico è ritirata."""
+    raise HTTPException(status_code=410, detail="promozione storica ritirata: usa Evoluzione agente")
 
 
 @router.post("/dataset/consolida-tool")
 def consolida_tool(
-    body: ConsolidaToolRichiesta,
-    admin: Utente = Depends(richiedi_admin),
-    dal: DAL = Depends(get_dal),
+    _admin: Utente = Depends(richiedi_admin),
 ) -> dict[str, Any]:
-    """Promuove una query parametrica a tool ``t_<nome>`` (§3.6, branca "parametrica").
-
-    Non genera codice Python (Toolsmith automatico = non-goal §5): il tool è una
-    **macro tabellare** in ``config/macros.sql`` (dato). L'ufficio nomina i
-    parametri; i guardrail di ``/ask`` e una compilazione+chiamata reali su DuckDB
-    garantiscono che il tool sia sicuro ed eseguibile prima del commit.
-    """
-    esempio, impronta = _esempio(dal, body)
-    parametri = [p.model_dump() for p in body.parametri]
-    try:
-        preparata = prepara_tool(dal.data_dir, body.nome, esempio, parametri)
-    except ConsolidaError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    voce = dal.consolida_tool(
-        nome=body.nome,
-        macro=preparata["macro"],
-        corpo=preparata["corpo"],
-        parametri=preparata["parametri"],
-        fingerprint=impronta,
-        esempio=esempio,
-        creato_da=admin.username,
-    )
-    return {
-        "macro": preparata["macro"],
-        "corpo": preparata["corpo"],
-        "parametri": preparata["parametri"],
-        "righe": preparata["righe"],
-        "creato": voce["creato"],
-    }
+    """Compatibilità esplicita: la promozione dal catalogo storico è ritirata."""
+    raise HTTPException(status_code=410, detail="promozione storica ritirata: usa Evoluzione agente")
 
 
 @router.delete("/dataset/tool/{macro}")
@@ -312,7 +163,7 @@ def eval_t3(
     riferimento: str = "T1",
     _admin: Utente = Depends(richiedi_admin),
     valutatore: EvalT3 = Depends(get_eval_t3),
-    valutatore_domande: EvalInterroga = Depends(get_eval_interroga),
+    valutatore_domande: EvalAgente = Depends(get_eval_interroga),
 ) -> dict[str, Any]:
     """Valuta un modello candidato T3 sul set validato (M18): accuratezza vs T1.
 
@@ -327,10 +178,14 @@ def eval_t3(
     cosa instradare. Nessun training: solo misura (il candidato è
     ``LLM_<tier>_MODEL``).
     """
-    return unisci(
-        valutatore.valuta(candidato=candidato, riferimento=riferimento),
-        valutatore_domande.valuta(candidato=candidato, riferimento=riferimento),
-    )
+    documenti = valutatore.valuta(candidato=candidato, riferimento=riferimento)
+    agente = valutatore_domande.valuta(candidato=candidato, riferimento=riferimento)
+    unito = {**documenti, "agente_dati": agente}
+    if agente.get("pronto_per_t3"):
+        unito["pronti"] = [*documenti.get("pronti", []), "interroga"]
+    if agente.get("regressione"):
+        unito["regressioni"] = [*documenti.get("regressioni", []), "interroga"]
+    return unito
 
 
 @router.get("/tools")
@@ -353,7 +208,9 @@ def elenco_tool(
     tools.sort(key=lambda t: t["usi"], reverse=True)
     return {
         "tools": tools,
-        "candidati": _candidati(dal.data_dir),
-        "viste": leggi_consolidamenti(dal.data_dir),
-        "macro": leggi_tool(dal.data_dir),
+        # Le strutture SQL restano archivio interno e non fanno piu' parte del
+        # contratto amministrativo dell'agente.
+        "candidati": [],
+        "viste": [],
+        "macro": [],
     }

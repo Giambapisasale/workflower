@@ -44,6 +44,15 @@ export type DocumentoVista = {
 
 export type EsitoUpload = { doc_id?: string; run_id?: string; messaggio?: string };
 
+export type MessaggioAgente = { role: "user" | "assistant"; content: string; run_id?: string };
+export type ConversazioneAgente = { messages: MessaggioAgente[]; max_messages: number };
+export type EsitoAgente = ConversazioneAgente & {
+  answer: string;
+  run_id: string;
+  used_tools: string[];
+  sources: { tool: string; source: string }[];
+};
+
 export type EsempioDoc = {
   file: string;
   tipo: string;
@@ -182,11 +191,16 @@ export const api = {
     return esegui(`/documents/${id}/issue`, corpoJson({ testo })).then(() => undefined);
   },
 
-  chiedi(domanda: string): Promise<string> {
-    return esegui<{ risposta: string }>(
-      "/ask",
-      corpoJson({ question: domanda, mode: "op" }),
-    ).then((r) => r.risposta);
+  conversazioneAgente(): Promise<ConversazioneAgente> {
+    return esegui<ConversazioneAgente>("/agent/conversation");
+  },
+
+  messaggioAgente(content: string): Promise<EsitoAgente> {
+    return esegui<EsitoAgente>("/agent/messages", corpoJson({ content }));
+  },
+
+  resetConversazioneAgente(): Promise<ConversazioneAgente> {
+    return esegui<ConversazioneAgente>("/agent/conversation/reset", corpoJson({}));
   },
 
   esempi(): Promise<EsempioDoc[]> {

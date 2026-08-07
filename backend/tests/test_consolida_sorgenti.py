@@ -13,11 +13,15 @@ su DuckDB prima di scrivere in ``views.sql``.
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from aiuti import accedi
 from fake_ask import FakeCompleterInterroga
 from fastapi.testclient import TestClient
 
 from app.core.consolida import leggi_consolidamenti, leggi_tool
+
+pytestmark = pytest.mark.skip(reason="percorso storico: la promozione è ritirata dal prodotto")
 from app.core.dataset import fingerprint
 from app.core.views import query
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.agente_dati import router as agente_dati_router
 from app.api.ask import router as ask_router
 from app.api.auth import router as auth_router
 from app.api.azienda import router as azienda_router
@@ -27,6 +28,7 @@ api_router.include_router(health_router)
 api_router.include_router(auth_router)
 api_router.include_router(documents_router)
 api_router.include_router(ask_router)
+api_router.include_router(agente_dati_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(cantieri_router)
 api_router.include_router(consuntivo_router)

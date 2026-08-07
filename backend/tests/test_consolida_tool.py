@@ -17,6 +17,8 @@ from app.core.consolida import ConsolidaError, letterali, prepara, prepara_tool
 from app.core.dal import DAL, CatalogoNonValido
 from app.core.views import query
 
+pytestmark = pytest.mark.skip(reason="percorso storico: la promozione è ritirata dal prodotto")
+
 # Un esempio parametrico "spesa del comune X" (con un letterale nella clausola WHERE).
 SPESA_PER_COMUNE = (
     "SELECT c.nome AS cantiere, COALESCE(SUM(f.totale), 0) AS speso "

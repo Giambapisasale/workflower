@@ -469,7 +469,7 @@ export function EtichettaCampo({
   );
 }
 
-/** Un blocco di codice: SQL generato, JSON, messaggi di errore tecnici. */
+/** Un blocco di codice: JSON o messaggi di errore tecnici. */
 export function Codice({ children }: { children: ReactNode }) {
   return (
     <pre

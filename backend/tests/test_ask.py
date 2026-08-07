@@ -1,71 +1,22 @@
-"""``POST /ask`` e guardrail del Query Agent (piano §3.4 e §7)."""
+"""Compatibilità dell'endpoint ritirato e harness storico offline."""
 
 import pytest
 from aiuti import accedi
-from fake_ask import FakeCompleterInterroga
 from fastapi.testclient import TestClient
 
-from app.core.interroga import RISPOSTA_FALLBACK, InterrogaError, applica_guardrail
-
-
-@pytest.fixture
-def con_interroga(crea_client):
-    """Client + fake configurato con la query che il 'modello' proporrà."""
-
-    def _crea(
-        sql: str, frase: str = "Hai speso circa 30 mila euro."
-    ) -> tuple[TestClient, FakeCompleterInterroga]:
-        completer = FakeCompleterInterroga(sql, frase)
-        return crea_client(completer), completer
-
-    return _crea
+from app.core.interroga import InterrogaError, applica_guardrail
 
 
 # ------------------------------------------------------------- endpoint
 
 
-def test_operatore_riceve_solo_italiano(con_interroga) -> None:
-    client, completer = con_interroga("SELECT COUNT(*) AS quante FROM v_fatture")
+def test_ask_e_ritirato(client: TestClient) -> None:
     intestazioni = accedi(client, "salvo")
     risposta = client.post(
         "/api/ask", json={"question": "Quante fatture abbiamo?"}, headers=intestazioni
     )
-    assert risposta.status_code == 200
-    assert risposta.json() == {"risposta": "Hai speso circa 30 mila euro."}
-    # il contesto passato al modello: i cantieri dell'operatore e i numeri veri
-    assert "CNT-001" in completer.contesto_sql
-    assert "Residenza Le Palme" in completer.contesto_sql
-    assert '"quante": 5' in completer.contesto_frase  # le 5 fatture del seed
-
-
-def test_query_pericolosa_diventa_cortesia(con_interroga) -> None:
-    client, _ = con_interroga("DROP TABLE v_fatture")
-    intestazioni = accedi(client, "salvo")
-    risposta = client.post("/api/ask", json={"question": "cancella"}, headers=intestazioni)
-    assert risposta.status_code == 200  # mai un errore tecnico all'operatore
-    assert risposta.json()["risposta"] == RISPOSTA_FALLBACK
-
-
-def test_admin_riceve_sql_e_righe(con_interroga) -> None:
-    client, _ = con_interroga("SELECT id, totale FROM v_fatture ORDER BY id")
-    intestazioni = accedi(client, "giovanna")
-    risposta = client.post(
-        "/api/ask", json={"question": "importi", "mode": "admin"}, headers=intestazioni
-    )
-    assert risposta.status_code == 200
-    corpo = risposta.json()
-    assert "LIMIT 1000" in corpo["sql"]  # limite forzato dai guardrail
-    assert len(corpo["rows"]) == 5
-    assert corpo["rows"][0]["id"] == "FT-2026-0001"
-
-
-def test_admin_query_rifiutata_400(con_interroga) -> None:
-    client, _ = con_interroga("DELETE FROM v_fatture")
-    intestazioni = accedi(client, "giovanna")
-    risposta = client.post(
-        "/api/ask", json={"question": "pulisci", "mode": "admin"}, headers=intestazioni
-    )
-    assert risposta.status_code == 400
+    assert risposta.status_code == 410
+    assert "ritirata" in risposta.json()["detail"]
 
 
 # ------------------------------------------------------------- guardrail

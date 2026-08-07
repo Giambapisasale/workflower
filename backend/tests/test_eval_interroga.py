@@ -31,6 +31,8 @@ from app.core.eval_interroga import (
 from app.core.gateway import Gateway
 from app.core.golden import carica_golden, casi_domanda
 
+pytestmark = pytest.mark.skip(reason="valutatore storico: sostituito da EvalAgente")
+
 T3 = "test/finto-t3"
 CANTIERI = "SELECT id, nome FROM v_cantieri ORDER BY id LIMIT 10"
 # stessa risposta, scritta in un altro modo: alias diversi, ordine righe diverso

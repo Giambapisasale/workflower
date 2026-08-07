@@ -66,6 +66,9 @@ SKELETON = [
     "blobs/caricati",
     "schemas",
     "workflows",
+    "conversations",
+    "agent_proposals",
+    "agent_goldens",
     "traces/2026",
     "golden",
     "dataset",
@@ -102,12 +105,18 @@ def init_data_repo(data_dir: Path) -> None:
     for schema in sorted((ASSETS / "schemas").glob("*.schema.json")):
         shutil.copy(schema, data_dir / "schemas" / schema.name)
     shutil.copy(ASSETS / "config" / "views.sql", data_dir / "config" / "views.sql")
+    macros = ASSETS / "config" / "macros.sql"
+    if macros.is_file():
+        shutil.copy(macros, data_dir / "config" / "macros.sql")
     # Sentinella per le viste su insiemi vuoti (vedi core/views.py): con un
     # delete una cartella entità può restare senza file e ``read_json`` sul
     # glob vuoto fallirebbe; questo ``[]`` le dà zero righe tipizzate.
     (data_dir / "config" / "vuoto.json").write_text("[]", encoding="utf-8")
     (data_dir / "config" / "utenti.json").write_text(
         json.dumps(_utenti_config(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    (data_dir / "config" / "agente-dati.json").write_text(
+        json.dumps({"max_messages": 20}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     # L'azienda che usa il sistema, come la scrivono i documenti d'esempio. La
     # partita IVA resta vuota di proposito: è un identificativo fiscale vero, e

@@ -43,10 +43,12 @@ con la spesa reale: la pagina **Scostamenti** mostra il delta per voce e per
 cantiere. In revisione, *Collega al computo* abbina in modo deterministico le
 righe di una fattura alle voci, e la spesa risale nello scostamento.
 
-**Interrogazione in linguaggio naturale.** L'ufficio fa domande in italiano
-(«Quali fatture hanno una ritenuta d'acconto?»); il sistema genera **SQL** con
-guardrail severi (solo `SELECT` sulle viste, `LIMIT` forzato) e mostra la tabella.
-Le query ricorrenti diventano candidate al consolidamento in una vista o in un tool.
+**Agente dati conversazionale.** Operatore e ufficio fanno domande in italiano
+(«Quali fatture hanno una ritenuta d'acconto?»); l'agente sceglie solo fra tool
+di lettura con parametri validati, risponde in modo chiaro e conserva gli ultimi
+scambi della conversazione. L'operatore riceve esclusivamente dati dei propri
+cantieri, filtrati dal server; l'ufficio può vedere tool usati e trace. SQL,
+viste e macro restano dettagli interni e non vengono mai inviati al modello.
 
 **Ciclo di auto-miglioramento.** Quando qualcosa non torna, l'operatore segnala in
 un tocco. L'**Improver** analizza trace e feedback, propone una **patch** al
@@ -75,13 +77,12 @@ o un cantiere non ancora a sistema, l'estrazione lascia il riferimento vuoto e i
 coi dati letti dal documento (ragione sociale, partita IVA…) — oppure di collegarne
 una esistente. È generico: vale per ogni campo-riferimento e ogni tipo di documento.
 
-**Consolidamento in codice deterministico.** Le operazioni ripetute non restano a
-carico dell'LLM per sempre: possono diventare **viste SQL** (`v_*`), **tool
-parametrici** (`t_*`) o **funzioni Python** generate dal **Toolsmith** a partire
-dal delta fra bozza estratta e dato validato, con i **test generati dai trace
-storici**. Il codice generato è *dato versionato, approvato dall'umano, eseguito
-solo in sandbox isolata* e mai importato nel processo; il tool è un'ottimizzazione
-con **fallback all'LLM** se sbaglia.
+**Evoluzione controllata delle capacità.** Le operazioni ripetute non restano a
+carico dell'LLM per sempre: l'ufficio può proporre un nuovo strumento dati e/o una
+skill dichiarativa. Ogni proposta ha intenti, ruoli, perimetro, esempi, test mirato
+e replay sui golden agent-native; viene pubblicata solo dopo approvazione umana. Le
+implementazioni deterministiche storiche restano interne al servizio. Il Toolsmith
+continua a generare funzioni Python sandboxate per i workflow documentali.
 
 **Modelli intercambiabili e tier locale.** I workflow dichiarano un *tier*
 (T1 SOTA, T2 medio, T3 locale), **mai un modello**: la mappa tier→modello vive
@@ -127,7 +128,7 @@ Apri:
 - **Admin** (ufficio): <http://localhost:5173/admin>
 
 I modelli LLM **non sono mai hard-coded**: si scelgono in `.env` — `LLM_T1_MODEL`
-(SOTA, per estrazione e Improver), `LLM_T2_MODEL` (medio, per text-to-SQL e
+(SOTA, per estrazione e Improver), `LLM_T2_MODEL` (medio, per l'agente dati e
 giudizio) e l'opzionale `LLM_T3_MODEL` (locale fine-tuned). Qualunque modello
 supportato da litellm.
 
@@ -160,18 +161,19 @@ supportato da litellm.
   **crea l'anagrafica mancante dal documento**, il **trace** del run,
   **istruzioni per migliorare il workflow** e **scarta** (vedi sotto).
 - **Segnalazioni** — le note degli operatori; da qui parte l'Improver.
-- **Interroga** — domanda in italiano → SQL generato → tabella.
+- **Agente dati** — chat sui dati con memoria limitata, tool letti e trace.
+- **Evoluzione agente** — copertura del catalogo, lacune e proposte di nuovi
+  tool o skill, pubblicabili solo dopo replay golden e approvazione.
 - **Workflows** — versioni, manifest, statistiche dei run, patch dell'Improver
   con il replay sul golden set, *approva/rifiuta*, **migliora con un'istruzione**
   e i **casi golden** (la rete di regressione, ispezionabile e correggibile).
 - **Run** — tutte le esecuzioni con esito, costo e durata, filtrabili per
   workflow ed esito, e il **trace** completo di ognuna.
-- **Skills & Tools** — registry dei tool con contatori d'uso e le **tre forme** di
-  consolidamento: viste `v_*`, tool parametrici `t_*` e le funzioni Python del
-  **Toolsmith** (candidati → proposta con codice e test in sandbox →
-  approva/rifiuta).
-- **Dataset** — costo per documento, tool call, export `toolcalls.jsonl` e
-  `finetuning.jsonl`, query ricorrenti e **idoneità T3** del modello locale.
+- **Skills & Tools** — strumenti dei workflow documentali e accesso al percorso
+  governato per estendere l'agente dati; il **Toolsmith** mantiene i suoi candidati
+  Python sandboxati.
+- **Dataset** — costi, tool call e **idoneità T3** del modello locale, inclusa la
+  valutazione agent-native su strumenti, argomenti e risultati normalizzati.
 - **Contabilità** — le sincronizzazioni verso l'ERP: quanti documenti sono
   arrivati a valle, quelli rimasti indietro con *Riprova*, il registro dei
   tentativi con il motivo dei fallimenti (vedi `docs/erp-integrazione.md`).
@@ -205,10 +207,11 @@ compaiono i KPI di DDT, SAL, ore e manodopera; il nome di un cantiere apre il
 computo ↔ consuntivo; in revisione di una fattura, *Collega al computo* fa
 risalire la spesa sulle voci.
 
-**4 · Interrogazione.**
-In **Interroga**: «Quali fatture hanno una ritenuta d'acconto?» → SQL generato +
-tabella (guardrail: solo `SELECT` sulle viste, `LIMIT` forzato). Le query che si
-ripetono diventano candidate al consolidamento in **Skills & Tools**.
+**4 · Agente dati.**
+In **Agente dati**: «Quali fatture hanno una ritenuta d'acconto?» → risposta
+conversazionale fondata sui tool dati approvati. In **Evoluzione agente**, una
+lacuna può diventare una proposta di tool o skill: viene verificata sui golden
+storici e pubblicata solo con approvazione dell'ufficio.
 
 **5 · Consolidamento e costo marginale ~0.**
 In **Skills & Tools → Candidati Python**, il **Toolsmith** individua un calcolo
@@ -277,10 +280,9 @@ scala (`tests/simulazione.py` + `tests/test_simulazione_mese.py`).
   non approva mai una patch.
 
 **Estendere = aggiungere dati, non codice.** Una nuova entità è uno schema JSON +
-una riga nel registry dei tipi + una vista + un manifest con la sua skill:
-`runtime.py`, `gateway.py`, `dal.py` **non cambiano**. Un consolidamento è una
-vista `v_*`, un tool `t_*` o una funzione Python in `data/tools/` — sempre dato
-versionato e approvato. Un nuovo modello è una variabile d'ambiente.
+una riga nel registry dei tipi + una skill di workflow. Per l'agente dati una nuova
+capacità è una proposta DSL versionata e approvata; il compilatore server-side la
+lega a fonti interne affidabili. Un nuovo modello è una variabile d'ambiente.
 
 ## Log e diagnostica
 

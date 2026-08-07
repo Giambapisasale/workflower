@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from app.core.consolida import corpo_vista
 from app.core.views import query
 
+pytestmark = pytest.mark.skip(reason="percorso storico: la promozione è ritirata dal prodotto")
+
 SPESA_PER_CANTIERE = (
     "SELECT c.id AS cantiere_id, c.nome AS cantiere_nome, "
     "COALESCE(SUM(f.totale), 0) AS totale_speso "

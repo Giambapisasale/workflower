@@ -4,12 +4,11 @@
 `make reseed` azzera tutto, storia git inclusa. Va benissimo per ricominciare,
 ma porta con sé anche quello che costa di più rimettere insieme:
 
-- i **casi golden** approvati dall'ufficio (estrazioni e domande), che sono la
-  rete di regressione e la misura del gate T3;
+- i **casi golden** approvati dall'ufficio (estrazioni, archivio storico e
+  golden agent-native), che sono la rete di regressione e la misura del gate T3;
 - i **blob** che quei casi rigiocano: un golden senza il suo documento non è
   più rigiocabile, e la pagina Workflows lo mostra come «originale mancante»;
-- il **dataset** delle query e delle chiamate a tool, da cui nascono le viste e
-  i tool consolidati (il fingerprint che raggruppa le domande ricorrenti);
+- il **dataset** e le chiamate a tool, inclusi gli artefatti storici di confronto;
 - l'anagrafica dell'**azienda corrente**, che l'ufficio ha compilato a mano.
 
 Questo comando mette da parte quella roba, rifà il seed, la rimette e committa.
@@ -39,7 +38,7 @@ from app.core.dal import DAL  # noqa: E402
 from app.seed import run_seed  # noqa: E402
 
 # Cartelle che si conservano tali e quali.
-DA_CONSERVARE = ("golden", "dataset")
+DA_CONSERVARE = ("golden", "agent_goldens", "dataset")
 
 # File singoli che si conservano se ci sono.
 FILE_DA_CONSERVARE = ("config/azienda.json",)
@@ -61,6 +60,7 @@ def _blob_dei_golden(data_dir: Path) -> set[str]:
 def _conta(data_dir: Path) -> dict[str, int]:
     return {
         "golden": len(list((data_dir / "golden").glob("GOLD-*.json"))),
+        "golden agent-native": len(list((data_dir / "agent_goldens").glob("AGOLD-*.json"))),
         "blob dei golden": len(_blob_dei_golden(data_dir)),
         "righe di dataset": sum(
             sum(1 for _ in f.open(encoding="utf-8"))

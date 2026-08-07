@@ -31,7 +31,7 @@ def test_login_pin_sbagliato(client: TestClient) -> None:
 
 def test_endpoint_protetti_senza_token(client: TestClient) -> None:
     assert client.get("/api/documents").status_code == 401
-    assert client.post("/api/ask", json={"question": "quanto?"}).status_code == 401
+    assert client.post("/api/ask", json={"question": "quanto?"}).status_code == 410
 
 
 def test_token_manomesso(client: TestClient) -> None:
@@ -41,9 +41,9 @@ def test_token_manomesso(client: TestClient) -> None:
     assert risposta.status_code == 401
 
 
-def test_operatore_non_chiama_modalita_admin(client: TestClient) -> None:
+def test_endpoint_ritirato_non_accetta_modalita_admin(client: TestClient) -> None:
     intestazioni = accedi(client, "salvo")
     risposta = client.post(
         "/api/ask", json={"question": "totale?", "mode": "admin"}, headers=intestazioni
     )
-    assert risposta.status_code == 403
+    assert risposta.status_code == 410

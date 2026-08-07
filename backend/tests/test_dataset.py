@@ -3,7 +3,6 @@
 from pathlib import Path
 
 from aiuti import accedi
-from fake_ask import FakeCompleterInterroga
 from fastapi.testclient import TestClient
 
 from app.core.dataset import fingerprint
@@ -36,16 +35,11 @@ def test_stats_dopo_un_run(client: TestClient, fixtures_dir: Path) -> None:
     assert s["costo_per_documento_usd"] > 0
 
 
-def test_queries_raggruppate_per_fingerprint(crea_client) -> None:
-    client = crea_client(FakeCompleterInterroga("SELECT COUNT(*) AS n FROM v_fatture"))
+def test_archivio_query_espone_solo_metadati(client: TestClient) -> None:
     admin = accedi(client, "giovanna")
-    for domanda in ("quante fatture?", "numero totale di fatture"):
-        risposta = client.post(
-            "/api/ask", json={"question": domanda, "mode": "admin"}, headers=admin
-        )
-        assert risposta.status_code == 200
     gruppi = client.get("/api/dataset/queries", headers=admin).json()["gruppi"]
-    assert len(gruppi) == 1 and gruppi[0]["conteggio"] == 2
+    assert all(set(gruppo) == {"fingerprint", "conteggio", "archivio"} for gruppo in gruppi)
+    assert all(gruppo["archivio"] is True for gruppo in gruppi)
 
 
 def test_export_toolcalls(client: TestClient, fixtures_dir: Path) -> None:

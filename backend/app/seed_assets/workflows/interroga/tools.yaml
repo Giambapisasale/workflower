@@ -1,0 +1,103 @@
+# Catalogo dichiarativo dell'agente dati. Le fonti e la loro implementazione
+# sono compilate dal server: questo file non contiene dettagli tecnici.
+tools:
+  - name: cerca_cantieri
+    description: Cerca cantieri per nome, luogo o stato e mostra le informazioni principali.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Nome o luogo}}, additionalProperties: false}
+    implementation: {source: cantieri, filters: [cerca], aggregations: [], ordering: nome}
+  - name: scheda_cantiere
+    description: Mostra budget, costi documentati e situazione di un cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Nome del cantiere}}, additionalProperties: false}
+    implementation: {source: scheda_cantiere, filters: [cerca], aggregations: [costi, ore], ordering: nome}
+  - name: cerca_fornitori
+    description: Cerca fornitori e riepiloga categorie e anagrafiche.
+    roles: [admin]
+    scope: globale
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Nome, categoria o partita IVA}}, additionalProperties: false}
+    implementation: {source: fornitori, filters: [cerca], aggregations: [], ordering: ragione_sociale}
+  - name: analizza_fatture
+    description: Elenca fatture, importi, ritenute e scadenze per cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Numero o fornitore}}, additionalProperties: false}
+    implementation: {source: fatture, filters: [cerca], aggregations: [], ordering: data}
+  - name: analizza_righe_fattura
+    description: Cerca voci di spesa presenti nelle fatture e i relativi importi.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Voce o materiale}}, additionalProperties: false}
+    implementation: {source: righe_fattura, filters: [cerca], aggregations: [], ordering: data}
+  - name: riepilogo_costi
+    description: Riepiloga costi di materiali, mezzi e manodopera per cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Nome del cantiere}}, additionalProperties: false}
+    implementation: {source: costi_cantiere, filters: [cerca], aggregations: [costi], ordering: costo_totale}
+  - name: analizza_scostamenti
+    description: Mostra previsto, consuntivo e differenza delle lavorazioni di un cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Voce o categoria}}, additionalProperties: false}
+    implementation: {source: scostamenti, filters: [cerca], aggregations: [previsto, consuntivo], ordering: delta}
+  - name: riepilogo_ore_manodopera
+    description: Riepiloga ore, lavoratori e costo della manodopera per cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Lavoratore o mansione}}, additionalProperties: false}
+    implementation: {source: ore_manodopera, filters: [cerca], aggregations: [ore, costo], ordering: ore}
+  - name: dipendenti_allocazioni
+    description: Mostra dipendenti, tariffe e assegnazioni ai cantieri.
+    roles: [admin]
+    scope: globale
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Nome o cognome}}, additionalProperties: false}
+    implementation: {source: dipendenti_allocazioni, filters: [cerca], aggregations: [], ordering: cognome}
+  - name: analizza_ddt
+    description: Elenca documenti di trasporto e materiali consegnati a un cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Numero o causale}}, additionalProperties: false}
+    implementation: {source: ddt, filters: [cerca], aggregations: [], ordering: data}
+  - name: sal_e_avanzamento
+    description: Mostra stati di avanzamento e andamento programmato del cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    implementation: {source: sal_avanzamento, filters: [], aggregations: [avanzamento], ordering: data}
+  - name: mezzi_tco
+    description: Mostra costi, proprietà e costo complessivo dei mezzi aziendali.
+    roles: [admin]
+    scope: globale
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Descrizione mezzo}}, additionalProperties: false}
+    implementation: {source: mezzi_tco, filters: [cerca], aggregations: [costi], ordering: costo_documentale}
+  - name: pagamenti_e_scadenze
+    description: Mostra importi pagati, residui e scadenze delle fatture.
+    roles: [admin]
+    scope: globale
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    implementation: {source: pagamenti_scadenze, filters: [], aggregations: [pagamenti], ordering: scadenza}
+  - name: materiali_e_lavorazioni
+    description: Cerca materiali di listino e lavorazioni previste.
+    roles: [admin]
+    scope: globale
+    parameters: {type: object, properties: {cerca: {type: [string, 'null'], description: Codice, descrizione o categoria}}, additionalProperties: false}
+    implementation: {source: materiali_lavorazioni, filters: [cerca], aggregations: [], ordering: descrizione}
+  - name: pozzetti_e_scadenze
+    description: Mostra pozzetti e scadenze operative di un cantiere.
+    roles: [op, admin]
+    scope: cantiere
+    scope_column: cantiere_id
+    parameters: {type: object, properties: {}, additionalProperties: false}
+    implementation: {source: pozzetti_scadenze, filters: [], aggregations: [], ordering: data}

@@ -608,3 +608,22 @@ FROM read_json(
                       scadenza DATE, residuo DOUBLE, erp_id VARCHAR)'
     }
 );
+
+-- Base interna dell'agente dati: costi per cantiere, sempre in sola lettura.
+CREATE OR REPLACE VIEW v_cantiere_costi AS
+WITH fatture AS (
+    SELECT cantiere_id,
+           SUM(CASE WHEN mezzo_id IS NULL THEN importo ELSE 0 END) AS materiali_e_servizi,
+           SUM(CASE WHEN mezzo_id IS NOT NULL THEN importo ELSE 0 END) AS mezzi
+    FROM v_fatture_righe WHERE cantiere_id IS NOT NULL GROUP BY cantiere_id
+), manodopera AS (
+    SELECT cantiere_id, SUM(costo) AS manodopera
+    FROM v_rapportini_righe WHERE cantiere_id IS NOT NULL GROUP BY cantiere_id
+)
+SELECT c.id AS cantiere_id, c.nome AS cantiere,
+       COALESCE(f.materiali_e_servizi, 0) AS materiali_e_servizi,
+       COALESCE(f.mezzi, 0) AS mezzi, COALESCE(m.manodopera, 0) AS manodopera,
+       COALESCE(f.materiali_e_servizi, 0) + COALESCE(f.mezzi, 0) + COALESCE(m.manodopera, 0) AS costo_totale
+FROM v_cantieri c
+LEFT JOIN fatture f ON f.cantiere_id = c.id
+LEFT JOIN manodopera m ON m.cantiere_id = c.id;

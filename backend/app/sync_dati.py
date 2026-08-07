@@ -37,8 +37,15 @@ ASSETS = Path(__file__).parent / "seed_assets"
 
 # Cosa viaggia con l'applicazione e deve poter raggiungere un repo dati che
 # esiste già. `config/` no: views.sql a parte, lì dentro ci sono gli utenti e
-# l'azienda, che sono dell'installazione e non nostri.
+# l'azienda, che sono dell'installazione e non nostri. L'unica eccezione è la
+# macro interna di compatibilità del catalogo dati: è distribuita dall'app e
+# non è un artefatto esposto al prodotto.
 CARTELLE = ("workflows", "schemas")
+FILE_SINGOLI = ("config/macros.sql",)
+# Asset del vecchio percorso da eliminare al primo allineamento. Non è più una
+# skill attiva né un documento UI: resta la cronologia Git del repo dati come
+# archivio, mentre l'app non può ricaricarlo per errore.
+FILE_RITIRATI = ("workflows/interroga/skills/generazione-sql.md",)
 
 # I commit che questo comando e il seed producono: tutto il resto della storia
 # di un file è, per definizione, una modifica fatta a valle (Improver o umano).
@@ -90,6 +97,14 @@ def confronta(data_dir: Path, assets: Path = ASSETS) -> list[Confronto]:
                 continue
             rel = f"{cartella}/{sorgente.relative_to(assets / cartella).as_posix()}"
             esiti.append(_confronta_uno(repo, data_dir, sorgente, rel))
+    for rel in FILE_SINGOLI:
+        sorgente = assets / rel
+        if sorgente.is_file():
+            esiti.append(_confronta_uno(repo, data_dir, sorgente, rel))
+    for rel in FILE_RITIRATI:
+        if (data_dir / rel).is_file():
+            stato = DIVERGENTE if _modificato_a_valle(repo, rel) else AGGIORNA
+            esiti.append(Confronto(rel, stato, ["- skill ritirata dall'agente dati"]))
     return esiti
 
 
@@ -115,10 +130,18 @@ def applica(data_dir: Path, da_copiare: list[Confronto], assets: Path = ASSETS) 
         return
     for esito in da_copiare:
         destinazione = data_dir / esito.rel
+        if esito.rel in FILE_RITIRATI:
+            destinazione.unlink(missing_ok=True)
+            continue
         destinazione.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(assets / esito.rel, destinazione)
     repo = Repo(data_dir)
-    repo.index.add([esito.rel for esito in da_copiare])
+    presenti = [esito.rel for esito in da_copiare if esito.rel not in FILE_RITIRATI]
+    ritirati = [esito.rel for esito in da_copiare if esito.rel in FILE_RITIRATI]
+    if presenti:
+        repo.index.add(presenti)
+    if ritirati:
+        repo.index.remove(ritirati, working_tree=False)
     repo.index.commit(
         f"dati: allinea {len(da_copiare)} file all'applicazione [sync-dati]",
         author=GIT_AUTHOR,

@@ -1,42 +1,14 @@
-"""``POST /ask`` (piano §3.4): op → risposta in italiano; admin → {sql, rows}."""
+"""Contratto ritirato del precedente percorso di interrogazione."""
 
-from typing import Any, Literal
+from fastapi import APIRouter, HTTPException
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-
-from app.api.deps import get_dal, get_interroga, utente_corrente
-from app.api.documents import nome_cantiere
-from app.core.auth import Utente
-from app.core.dal import DAL
-from app.core.interroga import Interroga, InterrogaError
-
-router = APIRouter(tags=["ask"])
-
-
-class AskRichiesta(BaseModel):
-    question: str
-    mode: Literal["op", "admin"] = "op"
+router = APIRouter(tags=["legacy"])
 
 
 @router.post("/ask")
-def ask(
-    body: AskRichiesta,
-    utente: Utente = Depends(utente_corrente),
-    interroga: Interroga = Depends(get_interroga),
-    dal: DAL = Depends(get_dal),
-) -> dict[str, Any]:
-    if body.mode == "admin":
-        if not utente.is_admin:
-            raise HTTPException(status_code=403, detail="modalità riservata all'ufficio (admin)")
-        try:
-            # la query finisce in ``dataset/queries.jsonl`` (contatore fingerprint,
-            # §3.6) e su un trace: se ne occupa ``Interroga``, per entrambe le
-            # modalità — qui restava fuori tutto ciò che chiedono gli operatori.
-            return interroga.esegui(body.question)
-        except InterrogaError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-    cantieri = [
-        {"id": cid, "nome": nome_cantiere(dal, cid) or cid} for cid in utente.cantieri
-    ]
-    return {"risposta": interroga.rispondi_operatore(body.question, cantieri)}
+def ask_ritirato() -> None:
+    """Non riattivare: l'interrogazione passa esclusivamente da ``/agent``."""
+    raise HTTPException(
+        status_code=410,
+        detail="interrogazione storica ritirata: usa l'agente dati conversazionale",
+    )

@@ -37,6 +37,7 @@ import EntitaForm from "./EntitaForm";
 import EntitaLista from "./EntitaLista";
 import Erp from "./Erp";
 import Interroga from "./Interroga";
+import EvoluzioneAgente from "./EvoluzioneAgente";
 import Log from "./Log";
 import Revisione from "./Revisione";
 import RevisioneDettaglio from "./RevisioneDettaglio";
@@ -73,7 +74,7 @@ const SEZIONI: Sezione[] = [
       { chiave: "scostamenti", a: "/admin/scostamenti", etichetta: "Scostamenti", icona: ArrowUpIcon },
       { chiave: "revisione", a: "/admin/revisione", etichetta: "Revisione", icona: CheckCircledIcon },
       { chiave: "segnalazioni", a: "/admin/segnalazioni", etichetta: "Segnalazioni", icona: BellIcon },
-      { chiave: "interroga", a: "/admin/interroga", etichetta: "Interroga", icona: MagnifyingGlassIcon },
+      { chiave: "interroga", a: "/admin/interroga", etichetta: "Agente dati", icona: MagnifyingGlassIcon },
       { chiave: "erp", a: "/admin/erp", etichetta: "Contabilità", icona: Link2Icon },
     ],
   },
@@ -83,6 +84,7 @@ const SEZIONI: Sezione[] = [
       { chiave: "workflows", a: "/admin/workflows", etichetta: "Workflows", icona: GearIcon },
       { chiave: "run", a: "/admin/run", etichetta: "Run", icona: TriangleRightIcon },
       { chiave: "tools", a: "/admin/tools", etichetta: "Skills & Tools", icona: ClipboardCopyIcon },
+      { chiave: "evoluzione-agente", a: "/admin/agente/evoluzione", etichetta: "Evoluzione agente", icona: GearIcon },
       { chiave: "dataset", a: "/admin/dataset", etichetta: "Dataset", icona: DotsHorizontalIcon },
       { chiave: "log", a: "/admin/log", etichetta: "Log", icona: CalendarIcon },
       { chiave: "diagnosi", a: "/admin/diagnosi", etichetta: "Diagnosi", icona: InfoCircledIcon },
@@ -226,6 +228,7 @@ export default function AdminApp() {
           <Route path="revisione/:id" element={<RevisioneDettaglio />} />
           <Route path="segnalazioni" element={<Segnalazioni />} />
           <Route path="interroga" element={<Interroga />} />
+          <Route path="agente/evoluzione" element={<EvoluzioneAgente />} />
           <Route path="workflows" element={<Workflows />} />
           <Route path="run" element={<Run />} />
           <Route path="tools" element={<SkillsTools />} />

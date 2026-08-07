@@ -299,34 +299,10 @@ class Interroga:
         tier: str | None = None,
         tracer: Tracer | None = None,
     ) -> str:
-        """Il SQL per la domanda, già passato dai guardrail. Non esegue, non registra.
-
-        È la sola parte che dipende dal modello, isolata di proposito: serve anche
-        a **misurare** un tier candidato sulla stessa domanda senza aprire un run
-        e senza scrivere niente nel repo dati (:mod:`app.core.eval_interroga`).
-
-        ``tier`` sovrascrive quello del manifest: è il solo modo di far girare la
-        stessa domanda su due tier e confrontarli.
-        """
-        manifest = self._manifest()
-        skill = (self.wf_dir / manifest["skills"]["sql"]).read_text(encoding="utf-8")
-        skill = skill.replace("{schema_viste}", self._schema_viste())
-        skill = skill.replace("{vocabolari}", self._vocabolari())
-        skill = skill.replace("{schema_tool}", self._schema_tool())
-        contesto = f"Domanda: {domanda}"
-        if cantieri:
-            elenco = ", ".join(f"{c['id']} ({c['nome']})" for c in cantieri)
-            contesto += f"\nCantieri di chi chiede (filtra su questi se pertinente): {elenco}"
-        risposta = self.gateway.complete(
-            tier=tier or manifest.get("tier", "T2"),
-            messages=[
-                {"role": "system", "content": skill},
-                {"role": "user", "content": contesto},
-            ],
-            tracer=tracer,
-            step="genera_sql",
+        """Compatibilità dell'harness ritirato: il prodotto non genera più SQL."""
+        raise InterrogaError(
+            "interrogazione storica ritirata: usare il replay tool-first dell'agente dati"
         )
-        return applica_guardrail(estrai_sql(risposta.text or ""))
 
     def _interroga(
         self,

@@ -1,7 +1,7 @@
 /**
  * Client API della modalità Admin. Costruito sopra `richiesta` (autenticazione
  * + sessione condivise con l'operatore). Qui la meccanica è visibile: workflow,
- * confidence, SQL, trace — l'admin governa il sistema (§3.9).
+ * confidence, trace e strumenti — l'admin governa il sistema (§3.9).
  */
 
 import { richiesta, richiestaBlob, scaricaFile } from "../shared/api";
@@ -166,12 +166,12 @@ export type RigaRun = {
 };
 
 /** Un caso golden ha **due forme** e l'elenco le mescola (backend: core/golden.py):
- *  un caso-`documento` ha `doc` (il blob da rieseguire), un caso-`domanda` ha
- *  `domanda` (il testo posto a /ask) e lascia vuoti `doc`/`entity_tipo`/`entity_id`.
+ *  un caso-`documento` ha `doc` (il blob da rieseguire), un caso storico ha
+ *  solo `domanda` e lascia vuoti `doc`/`entity_tipo`/`entity_id`.
  *  I nullable qui non sono prudenza: nei dati reali sono la maggior parte. */
 export type CasoGolden = {
   id: string;
-  tipo: "documento" | "domanda";
+  tipo: "documento" | "legacy_sql";
   workflow: string;
   version: string;
   doc: string | null;
@@ -272,9 +272,42 @@ export type EvalT3 = {
   >;
   pronti: string[];
   regressioni: string[];
+  agente_dati?: {
+    casi: number;
+    candidato: QuotaT3 & { result?: number };
+    riferimento: QuotaT3 & { result?: number };
+    regressione: boolean;
+    pronto_per_t3: boolean;
+  };
 };
 
-export type EsitoAsk = { sql: string; rows: Record<string, unknown>[] };
+export type MessaggioAgente = { role: "user" | "assistant"; content: string; run_id?: string };
+export type ConversazioneAgente = { messages: MessaggioAgente[]; max_messages: number };
+export type EsitoAgente = ConversazioneAgente & {
+  answer: string;
+  run_id: string;
+  used_tools: string[];
+  sources: { tool: string; source: string }[];
+};
+export type PropostaAgente = {
+  id: string;
+  stato: "proposta" | "approvata" | "rifiutata";
+  feedback: string;
+  analisi: string;
+  motivazione: string;
+  intenti?: string[];
+  parametri?: unknown[];
+  esempi?: string[];
+  risultato_atteso?: string;
+  tool?: Record<string, unknown> | null;
+  skill?: { name: string; content?: string } | null;
+  compilazione?: { ok: boolean; righe?: number; minimo?: number; errore?: string };
+  replay: { totale: number; ok: number; falliti: number };
+};
+export type EvoluzioneAgente = {
+  tools: { name: string; description: string; roles?: string[]; scope?: string }[];
+  proposals: PropostaAgente[];
+};
 
 export type RigaReplay = {
   golden_id: string;
@@ -428,12 +461,7 @@ export type ToolParametrico = {
   creato_da: string;
 };
 
-export type SkillsTools = {
-  tools: ToolRegistry[];
-  candidati: GruppoQuery[];
-  viste: VistaConsolidata[];
-  macro: ToolParametrico[];
-};
+export type SkillsTools = { tools: ToolRegistry[] };
 
 export type ScostamentoCantiere = {
   cantiere_id: string;
@@ -664,8 +692,29 @@ export const admin = {
   // Idoneità T3: misura sul set validato. Costa token — solo su richiesta esplicita.
   evalT3: () => richiesta<EvalT3>("/dataset/eval-t3"),
 
-  chiediSql: (question: string) =>
-    richiesta<EsitoAsk>("/ask", corpo({ question, mode: "admin" })),
+  conversazioneAgente: () => richiesta<ConversazioneAgente>("/agent/conversation"),
+
+  messaggioAgente: (content: string) =>
+    richiesta<EsitoAgente>("/agent/messages", corpo({ content })),
+
+  resetConversazioneAgente: () =>
+    richiesta<ConversazioneAgente>("/agent/conversation/reset", corpo({})),
+
+  configurazioneAgente: () => richiesta<{ max_messages: number }>("/agent/config"),
+
+  salvaConfigurazioneAgente: (max_messages: number) =>
+    richiesta<{ max_messages: number }>("/agent/config", metodoJson("PUT", { max_messages })),
+
+  evoluzioneAgente: () => richiesta<EvoluzioneAgente>("/agent/evolution"),
+
+  proponiEvoluzioneAgente: (feedback: string) =>
+    richiesta<PropostaAgente>("/agent/evolution/proposals", corpo({ feedback })),
+
+  approvaEvoluzioneAgente: (id: string) =>
+    richiesta<PropostaAgente>(`/agent/evolution/proposals/${id}/approve`, corpo({})),
+
+  rifiutaEvoluzioneAgente: (id: string) =>
+    richiesta<PropostaAgente>(`/agent/evolution/proposals/${id}/reject`, corpo({})),
 
   patches: (stato?: string) =>
     richiesta<{ patches: Patch[] }>(`/patches${stato ? `?stato=${stato}` : ""}`).then(
@@ -699,40 +748,7 @@ export const admin = {
 
   datasetStats: () => richiesta<DatasetStats>("/dataset/stats"),
 
-  datasetQueries: () =>
-    richiesta<{ gruppi: GruppoQuery[] }>("/dataset/queries").then((r) => r.gruppi),
-
-  scaricaToolcalls: () => richiestaBlob("/dataset/export"),
-
   skillsTools: () => richiesta<SkillsTools>("/tools"),
-
-  consolida: (fingerprint: string, nome: string) =>
-    richiesta<{ vista: string; corpo: string; righe: number; creato: string }>(
-      "/dataset/consolida",
-      corpo({ fingerprint, nome }),
-    ),
-
-  consolidaTool: (
-    fingerprint: string,
-    nome: string,
-    parametri: { valore: string; nome: string }[],
-  ) =>
-    richiesta<{ macro: string; corpo: string; parametri: string[]; righe: number; creato: string }>(
-      "/dataset/consolida-tool",
-      corpo({ fingerprint, nome, parametri }),
-    ),
-
-  eliminaTool: (macro: string) =>
-    richiesta<{ rimosso: string }>(`/dataset/tool/${encodeURIComponent(macro)}`, {
-      method: "DELETE",
-    }),
-
-  eliminaVista: (vista: string) =>
-    richiesta<{ rimosso: string }>(`/dataset/vista/${encodeURIComponent(vista)}`, {
-      method: "DELETE",
-    }),
-
-  scaricaFinetuning: () => scaricaFile("/dataset/finetuning.jsonl", "finetuning.jsonl"),
 
   // Diagnostica (logbook): elenco filtrabile, statistiche, livello a runtime.
   logs: (filtro: FiltroLog = {}) => {

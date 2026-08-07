@@ -29,7 +29,7 @@ export function etichettaPercorso(percorso: string): string {
   if (p.startsWith("/admin/scostamenti")) return "Scostamenti";
   if (p.startsWith("/admin/revisione")) return "Revisione";
   if (p.startsWith("/admin/segnalazioni")) return "Segnalazioni";
-  if (p.startsWith("/admin/interroga")) return "Interroga";
+  if (p.startsWith("/admin/interroga")) return "Agente dati";
   if (p.startsWith("/admin/workflows")) return "Workflows";
   if (p.startsWith("/admin/run")) return "Run";
   if (p.startsWith("/admin/tools")) return "Skills & Tools";

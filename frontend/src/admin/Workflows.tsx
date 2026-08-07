@@ -81,10 +81,9 @@ function CasiGolden() {
                   <span className="ml-2 text-xs text-slate-400">v{c.version}</span>
                 </td>
                 {/* Le due forme del caso: un documento si giudica guardando il PDF,
-                    una domanda rileggendo il testo posto. Mostrare "—" su una
-                    domanda perderebbe l'unica cosa che la identifica. */}
+                    un caso storico conserva soltanto la domanda. */}
                 <td className="py-2 pr-3 text-slate-600">
-                  {c.tipo === "domanda" ? (
+                  {c.tipo === "legacy_sql" ? (
                     <span className="italic">{c.domanda || "—"}</span>
                   ) : (
                     <>
